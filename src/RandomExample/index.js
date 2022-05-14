@@ -12,29 +12,6 @@ try {
             this.name = 'RandomExample';
         }
 
-        subscribes() {
-            const { subscribes } = this.cb;
-
-            const timer = time => new Promise(resolve => setTimeout(resolve, time));
-
-            if (subscribes.lastPrice) {
-                setImmediate(async () => {
-                    const lp = subscribes.lastPrice[0]((async function* () {
-                        while (this.inProgress) {
-                            await timer(this.timer);
-                            yield subscribes.lastPrice[1]();
-                        }
-                    }).call(this));
-
-                    for await (const price of lp) {
-                        if (price.lastPrice) {
-                            this.lastPrice = price.lastPrice.price;
-                        }
-                    }
-                });
-            }
-        }
-
         decisionBuy() {
             return Math.floor(Math.random() * 100) > 50;
         }
@@ -150,7 +127,12 @@ try {
                 this.buyT = 1;
                 const orderId = this.genOrderId();
 
-                // console.log(orderId);
+                // console.log(1);
+                // console.log(JSON.stringify(await this.cb.getOperations(this.accountId, this.figi)));
+
+                // console.log(1);
+                // let a = await this.openOrdersExist();
+                // console.log(a);
 
                 // const q = await this.cb.postOrder(
                 //     this.accountId,
@@ -162,8 +144,37 @@ try {
                 //     },
                 //     1, // OrderDirection.ORDER_DIRECTION_BUY,
                 //     1, // OrderType.ORDER_TYPE_LIMIT,
-                //     orderId, //: 'abc-fsdfdsfsdf-2',
+                //     this.genOrderId(), //: 'abc-fsdfdsfsdf-2',
                 // );
+                // console.log(2);
+
+                // a = await this.openOrdersExist();
+                // console.log(a);
+
+                // console.log(3);
+
+                // await this.cb.postOrder(
+                //     this.accountId,
+                //     this.figi,
+                //     1,
+                //     {
+                //         ...this.lastPrice,
+                //         units: this.lastPrice.units - 15,
+                //     },
+                //     1, // OrderDirection.ORDER_DIRECTION_BUY,
+                //     1, // OrderType.ORDER_TYPE_LIMIT,
+                //     this.genOrderId(), //: 'abc-fsdfdsfsdf-2',
+                // );
+
+                // a = this.openOrdersExist();
+                // console.log(a);
+                // console.log(4);
+
+                // await this.cancelUnfulfilledOrders();
+                // console.log(5);
+
+                // a = await this.openOrdersExist();
+                // console.log(a);
 
                 // console.log(q);
                 // console.log(JSON.stringify(await this.cb.getOrders(this.accountId)));
@@ -172,10 +183,11 @@ try {
 
         stop() {
             super.stop();
-
-            // console.log('stopt');
+            console.log('stopt'); // eslint-disable-line no-console
         }
     }
 
     module.exports.RandomExample = RandomExample;
-} catch (e) {}
+} catch (e) {
+    console.log(e); // eslint-disable-line no-console
+}

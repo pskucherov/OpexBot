@@ -2,7 +2,10 @@ try {
     class Common {
         constructor(accountId, adviser, backtest, callbacks = {
             subscribes: {},
-            setOrder: () => {},
+
+            // TODO: порефакторить количество параметров
+            postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => {}, // eslint-disable-line max-params
+            cacheState: (figi, time, lastPrice, orderBook) => {},
         }, options = {
             takeProfit: 3,
             stopLoss: 1,
@@ -33,12 +36,37 @@ try {
         }
 
         subscribes() {
+            const { subscribes } = this.cb;
+
+            this.subscribeDataUpdated = {};
+
+            const timer = time => new Promise(resolve => setTimeout(resolve, time));
+
+            ['lastPrice', 'orderbook'].forEach(name => {
+                if (subscribes[name]) {
+                    setImmediate(async () => {
+                        const gen = subscribes[name][0]((async function* () {
+                            while (this.inProgress) {
+                                await timer(this.timer);
+                                yield subscribes[name][1]();
+                            }
+                        }).call(this));
+
+                        for await (const data of gen) {
+                            if (data[name]) {
+                                this.subscribeDataUpdated[name] = true;
+                                this[name] = name === 'lastPrice' ? data[name].price : data[name];
+                            }
+                        }
+                    });
+                }
+            });
         }
 
         /**
-     * Модуль обработки данных.
-     * По сути бесконечный цикл, который обрабатывает входящие данные.
-     */
+         * Модуль обработки данных.
+         * По сути бесконечный цикл, который обрабатывает входящие данные.
+         */
         processing() {
             if (!this.inProgress) {
                 setImmediate(() => this.processing());
@@ -50,6 +78,13 @@ try {
                 this.buy();
             } else if (this.decisionSell()) {
                 this.sell();
+            }
+
+            // Записываем новое состояние, только если оно изминилось.
+            if (this.cb.cacheState && (this.subscribeDataUpdated.orderBook || this.subscribeDataUpdated.lastPrice)) {
+                this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
+                this.subscribeDataUpdated.lastPrice = false;
+                this.subscribeDataUpdated.orderbook = false;
             }
 
             setImmediate(() => this.processing());
@@ -93,10 +128,11 @@ try {
             tickerInfo && (this.tickerInfo = tickerInfo);
         }
 
-        setBacktestState(step, interval, figi) {
+        setBacktestState(step, interval, figi, date) {
             step && (this.step = step);
             interval && (this.interval = interval);
             figi && (this.figi = figi);
+            date && (this.date = date);
         }
 
         getBacktestState() {
@@ -105,6 +141,7 @@ try {
                 step: this.step,
                 interval: this.interval,
                 figi: this.figi,
+                date: this.date,
             };
         }
 
@@ -149,15 +186,33 @@ try {
 
         }
 
-        clearUnfulfilledOrders() {
-        // Удалить неисполненные заявки
+        async openOrdersExist() {
+            // EXECUTION_REPORT_STATUS_NEW (4)
+            // EXECUTION_REPORT_STATUS_PARTIALLYFILL (5)
+            const { orders } = await this.cb.getOrders(this.accountId);
+
+            for (const o of orders) {
+                if ([4, 5].includes(o.executionReportStatus)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        async cancelUnfulfilledOrders() {
+            const { orders } = await this.cb.getOrders(this.accountId);
+
+            for (const o of orders) {
+                await this.cb.cancelOrder(this.accountId, o.orderId);
+            }
         }
 
         /**
-     * @copypaste https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
-     * @param {Number} length
-     * @returns
-     */
+         * @copypaste https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
+         * @param {Number} length
+         * @returns
+         */
         genOrderId(length = 15) {
             const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
             const charactersLength = characters.length;
@@ -172,7 +227,8 @@ try {
                 this.orderIds = {};
             }
 
-            // Сохраняем сгенереный ключ, чтобы точно был уникальным + ведём статистику насколько генератор ок.
+            // Сохраняем сгенереный ключ, чтобы точно был уникальным
+            // + ведём статистику насколько генератор ок.
             if (this.orderIds[result]) {
                 ++this.orderIds[result];
                 result = this.genOrderId(length);
@@ -185,4 +241,9 @@ try {
     }
 
     module.exports.Common = Common;
-} catch (e) {}
+} catch (e) {
+    // Здесь будут только ошибки в коде робота,
+    // Которые должны быть отловлены во время разработки.
+    // Поэтому нет сохранения в файл. Только вывод в консоль.
+    console.log(e); // eslint-disable-line no-console
+}
