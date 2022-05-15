@@ -7,9 +7,11 @@ try {
             postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => {}, // eslint-disable-line max-params
             cacheState: (figi, time, lastPrice, orderBook) => {},
         }, options = {
-            takeProfit: 3,
-            stopLoss: 1,
-            useTrailingStop: true,
+            enums: {},
+
+            // takeProfit: 3,
+            // stopLoss: 1,
+            // useTrailingStop: true,
         }) {
             this.accountId = accountId;
 
@@ -18,17 +20,19 @@ try {
             this.adviser = Boolean(adviser);
             this.backtest = Boolean(backtest);
 
+            this.enums = options.enums;
+
             // Методы, с помощью которых робот может общаться с внешним миром.
             this.cb = callbacks;
 
             // На сколько процентов от текущей цены выставлять takeProfit.
-            this.takeProfit = options.takeProfit;
+            // this.takeProfit = options.takeProfit;
 
             // На сколько процентов от текущей цены выставлять stopLoss.
-            this.stopLoss = options.stopLoss;
+            // this.stopLoss = options.stopLoss;
 
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
-            this.useTrailingStop = options.useTrailingStop;
+            // this.useTrailingStop = options.useTrailingStop;
 
             this.init();
 
@@ -36,8 +40,27 @@ try {
         }
 
         init() {
+            // Количество лотов, которым оперирует робот.
+            this.lotsSize = 1;
+
+            // Таймер подписки на события.
             this.timer = 250;
             this.subscribeDataUpdated = {};
+        }
+
+        /**
+         *
+         * @param {?String} param
+         * @returns
+         */
+        getParams(param) {
+            if (param) {
+                return this[param];
+            }
+
+            return {
+                timer: this.timer,
+            };
         }
 
         subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
@@ -75,14 +98,16 @@ try {
          * По сути бесконечный цикл, который обрабатывает входящие данные.
          */
         processing() {
-            if (!this.inProgress) {
+            if (!this.inProgress && !this.backtest) {
                 setImmediate(() => this.processing());
 
                 return;
             }
 
-            if (this.decisionBuy()) {
-                this.buy();
+            if (this.decisionClosePosition()) {
+                this.closePosition(this.lastPrice);
+            } else if (this.decisionBuy()) {
+                this.buy(this.lastPrice);
             } else if (this.decisionSell()) {
                 this.sell();
             }
@@ -95,62 +120,57 @@ try {
                 this.subscribeDataUpdated.orderbook = false;
             }
 
-            setImmediate(() => this.processing());
+            // Для бектестирования производится пошаговая обработка сделок,
+            // а не рекурсивная.
+            if (!this.backtest) {
+                setImmediate(() => this.processing());
+            }
         }
 
         /**
-     * Модуль принятия решений о покупке.
-     * @returns {Boolean}
-     */
+         * Модуль принятия решений о покупке.
+         * @returns {Boolean}
+         */
         decisionBuy() {
             return false;
         }
 
         /**
-     * Модуль принятия решений о продаже.
-     * @returns {Boolean}
-     */
+         * Модуль принятия решений о продаже.
+         * @returns {Boolean}
+         */
         decisionSell() {
             return false;
         }
 
+        /**
+         * Модуль принятия решений о закрытии существующей позиции.
+         * @returns {Boolean}
+         */
+        decisionClosePosition() {
+            return false;
+        }
+
         setControlsCallbacks() {
-        // Метод покупки
-        // Продажи
-        // Выставления заявки
+            // Метод покупки
+            // Продажи
+            // Выставления заявки
         }
 
         setCurrentState(lastPrice, candles, balance, tickerInfo, orderbook) {
-        // Текущая цена
-        // История свечей
-        // История стакана
-        // Существующие позиции
-        // Существующие заявки
-        // Баланс
-        // Информация об инструменте
+            // Текущая цена
+            // История свечей
+            // История стакана
+            // Существующие позиции
+            // Существующие заявки
+            // Баланс
+            // Информация об инструменте
 
             candles && (this.candles = candles);
             orderbook && (this.orderbook = orderbook);
             lastPrice && (this.lastPrice = lastPrice);
             balance && (this.balance = balance);
             tickerInfo && (this.tickerInfo = tickerInfo);
-        }
-
-        setBacktestState(step, interval, figi, date) {
-            step && (this.step = step);
-            interval && (this.interval = interval);
-            figi && (this.figi = figi);
-            date && (this.date = date);
-        }
-
-        getBacktestState() {
-            return {
-                name: this.name,
-                step: this.step,
-                interval: this.interval,
-                figi: this.figi,
-                date: this.date,
-            };
         }
 
         getCurrentState() {
@@ -174,8 +194,42 @@ try {
             this.inProgress = false;
         }
 
-        buy() {
+        async buy(price) {
+            if (this.backtest) {
+                return this.backtestBuy(price, this.lotsSize);
+            }
 
+            return await this.cb.postOrder(
+                this.accountId,
+                this.figi,
+                this.lotsSize,
+                price, // структура из units и nano
+                this.enums.OrderDirection.ORDER_DIRECTION_BUY,
+                this.enums.OrderType.ORDER_TYPE_LIMIT,
+                this.genOrderId(),
+            );
+        }
+
+        async closePosition(price) {
+            if (this.backtest) {
+                return this.backtestClosePosition(price);
+            }
+        }
+
+        getPositions() {
+            if (this.backtest) {
+                return this.getBacktestPositions();
+            }
+
+            // TODO: торговые позиции
+        }
+
+        hasOpenPositions() {
+            if (this.backtest) {
+                return this.hasBacktestOpenPositions();
+            }
+
+            return this.getPositions(); // TODO возвращать boolean;
         }
 
         sell() {
@@ -195,6 +249,7 @@ try {
         }
 
         async openOrdersExist() {
+            // TODO: брать из OrderExecutionReportStatus
             // EXECUTION_REPORT_STATUS_NEW (4)
             // EXECUTION_REPORT_STATUS_PARTIALLYFILL (5)
             const { orders } = await this.cb.getOrders(this.accountId);
