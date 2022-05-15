@@ -30,15 +30,22 @@ try {
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
             this.useTrailingStop = options.useTrailingStop;
 
-            this.timer = 250;
+            this.init();
 
             this.processing();
         }
 
-        subscribes() {
-            const { subscribes } = this.cb;
-
+        init() {
+            this.timer = 250;
             this.subscribeDataUpdated = {};
+        }
+
+        subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
+            if (this.backtest) {
+                return;
+            }
+
+            const { subscribes } = this.cb;
 
             const timer = time => new Promise(resolve => setTimeout(resolve, time));
 
@@ -81,7 +88,8 @@ try {
             }
 
             // Записываем новое состояние, только если оно изминилось.
-            if (this.cb.cacheState && (this.subscribeDataUpdated.orderBook || this.subscribeDataUpdated.lastPrice)) {
+            if (!this.backtest && this.cb.cacheState &&
+                (this.subscribeDataUpdated.orderBook || this.subscribeDataUpdated.lastPrice)) {
                 this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
                 this.subscribeDataUpdated.lastPrice = false;
                 this.subscribeDataUpdated.orderbook = false;
