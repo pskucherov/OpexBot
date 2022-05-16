@@ -26,7 +26,8 @@ try {
             this.cb = callbacks;
 
             // На сколько процентов от текущей цены выставлять takeProfit.
-            // this.takeProfit = options.takeProfit;
+            // Цена будет умножена на это значение.
+            this.takeProfit = 0.03; // options.takeProfit;
 
             // На сколько процентов от текущей цены выставлять stopLoss.
             // this.stopLoss = options.stopLoss;
@@ -37,6 +38,8 @@ try {
             this.init();
 
             this.processing();
+
+            this.initAsync();
         }
 
         init() {
@@ -46,6 +49,11 @@ try {
             // Таймер подписки на события.
             this.timer = 250;
             this.subscribeDataUpdated = {};
+        }
+
+        async initAsync() {
+            this.currentOrders = await this.getOpenOrders();
+            console.log(this.currentOrders);
         }
 
         /**
@@ -64,33 +72,37 @@ try {
         }
 
         subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
-            if (this.backtest) {
-                return;
-            }
-
-            const { subscribes } = this.cb;
-
-            const timer = time => new Promise(resolve => setTimeout(resolve, time));
-
-            ['lastPrice', 'orderbook'].forEach(name => {
-                if (subscribes[name]) {
-                    setImmediate(async () => {
-                        const gen = subscribes[name][0]((async function* () {
-                            while (this.inProgress) {
-                                await timer(this.timer);
-                                yield subscribes[name][1]();
-                            }
-                        }).call(this));
-
-                        for await (const data of gen) {
-                            if (data[name]) {
-                                this.subscribeDataUpdated[name] = true;
-                                this[name] = name === 'lastPrice' ? data[name].price : data[name];
-                            }
-                        }
-                    });
+            try {
+                if (this.backtest) {
+                    return;
                 }
-            });
+
+                const { subscribes } = this.cb;
+
+                const timer = time => new Promise(resolve => setTimeout(resolve, time));
+
+                ['orders'].forEach(name => {
+                    if (subscribes[name]) {
+                        setImmediate(async () => {
+                            const gen = subscribes[name][0]((async function* () {
+                                while (this.inProgress) {
+                                    await timer(this.timer);
+                                    yield subscribes[name][1]();
+                                }
+                            }).call(this));
+
+                            for await (const data of gen) {
+                                console.log(data);
+                                if (data[name]) {
+                                    this.subscribeDataUpdated[name] = true;
+
+                                    //this[name] = name === 'lastPrice' ? data[name].price : data[name];
+                                }
+                            }
+                        });
+                    }
+                });
+            } catch (e) { console.log(e) }
         }
 
         /**
@@ -113,7 +125,7 @@ try {
             }
 
             // Записываем новое состояние, только если оно изминилось.
-            if (!this.backtest && this.cb.cacheState &&
+            if (!this.backtest && this.figi && this.cb.cacheState &&
                 (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
                 this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
                 this.subscribeDataUpdated.lastPrice = false;
@@ -157,7 +169,7 @@ try {
             // Выставления заявки
         }
 
-        setCurrentState(lastPrice, candles, balance, tickerInfo, orderbook) {
+        setCurrentState(lastPrice, candles, balance, orderbook, options) {
             // Текущая цена
             // История свечей
             // История стакана
@@ -170,7 +182,13 @@ try {
             orderbook && (this.orderbook = orderbook);
             lastPrice && (this.lastPrice = lastPrice);
             balance && (this.balance = balance);
-            tickerInfo && (this.tickerInfo = tickerInfo);
+
+            if (options) {
+                if (options.tickerInfo) {
+                    this.tickerInfo = options.tickerInfo;
+                    this.tickerInfo.figi && (this.figi = options.figi);
+                }
+            }
         }
 
         getCurrentState() {
@@ -240,27 +258,56 @@ try {
 
         }
 
-        setTakeProfit() {
+        getMinPriceIncrement(sum, minInc) {
+            return Math.floor(sum / minInc) * minInc;
+        }
 
+        getTakeProfitPrice(buy) {
+            if (typeof buy === 'undefined') {
+                return;
+            }
+
+            // console.log(this.lastPrice);
+            if (!this.lastPrice || !this.tickerInfo) {
+                return;
+            }
+            const profit = buy ? (this.takeProfit + 1) : (1 - this.takeProfit);
+
+            const p = this.getPrice(this.lastPrice) * profit;
+            let units = Math.floor(p);
+            let nano = p * 1e9 - Math.floor(p) * 1e9;
+
+            if (this.tickerInfo.minPriceIncrement.units) {
+                units = this.getMinPriceIncrement(units, this.tickerInfo.minPriceIncrement.units);
+            }
+
+            if (this.tickerInfo.minPriceIncrement.nano) {
+                nano = this.getMinPriceIncrement(nano, this.tickerInfo.minPriceIncrement.nano);
+            }
+
+            return {
+                units,
+                nano,
+            };
         }
 
         setStopLoss() {
 
         }
 
-        async openOrdersExist() {
+        async getOpenOrders() {
             // TODO: брать из OrderExecutionReportStatus
             // EXECUTION_REPORT_STATUS_NEW (4)
             // EXECUTION_REPORT_STATUS_PARTIALLYFILL (5)
             const { orders } = await this.cb.getOrders(this.accountId);
 
-            for (const o of orders) {
-                if ([4, 5].includes(o.executionReportStatus)) {
-                    return true;
-                }
-            }
+            return orders.filter(o => [4, 5].includes(o.executionReportStatus));
+        }
 
-            return false;
+        async openOrdersExist() {
+            const orders = this.getOpenOrders();
+
+            return Boolean(orders && orders.length);
         }
 
         async cancelUnfulfilledOrders() {
