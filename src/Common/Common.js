@@ -81,7 +81,7 @@ try {
 
                 const timer = time => new Promise(resolve => setTimeout(resolve, time));
 
-                ['orders'].forEach(name => {
+                ['lastPrice', 'orderbook'].forEach(name => {
                     if (subscribes[name]) {
                         setImmediate(async () => {
                             const gen = subscribes[name][0]((async function* () {
@@ -92,16 +92,30 @@ try {
                             }).call(this));
 
                             for await (const data of gen) {
-                                console.log(data);
                                 if (data[name]) {
                                     this.subscribeDataUpdated[name] = true;
-
-                                    //this[name] = name === 'lastPrice' ? data[name].price : data[name];
+                                    this[name] = name === 'lastPrice' ? data[name].price : data[name];
                                 }
                             }
                         });
                     }
                 });
+
+                if (subscribes.orders) {
+                    setImmediate(async () => {
+                        const gen = subscribes.orders(this.accountId);
+
+                        for await (const data of gen) {
+                            console.log(1, data.orderTrades);
+                            if (data.orderTrades) {
+                                this.subscribeDataUpdated.orderTrades = true;
+                                this.orderTrades = data.orderTrades;
+                                console.log(2, data);
+                            }
+                            console.log(3, data);
+                        }
+                    }).call(this);
+                }
             } catch (e) { console.log(e) }
         }
 
@@ -186,7 +200,7 @@ try {
             if (options) {
                 if (options.tickerInfo) {
                     this.tickerInfo = options.tickerInfo;
-                    this.tickerInfo.figi && (this.figi = options.figi);
+                    this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
                 }
             }
         }
@@ -213,6 +227,10 @@ try {
         }
 
         async buy(price) {
+            if (!this.figi) {
+                return;
+            }
+
             if (this.backtest) {
                 return this.backtestBuy(price, this.lotsSize);
             }
@@ -267,7 +285,6 @@ try {
                 return;
             }
 
-            // console.log(this.lastPrice);
             if (!this.lastPrice || !this.tickerInfo) {
                 return;
             }
@@ -277,12 +294,14 @@ try {
             let units = Math.floor(p);
             let nano = p * 1e9 - Math.floor(p) * 1e9;
 
-            if (this.tickerInfo.minPriceIncrement.units) {
-                units = this.getMinPriceIncrement(units, this.tickerInfo.minPriceIncrement.units);
-            }
+            if (this.tickerInfo.minPriceIncrement) {
+                if (this.tickerInfo.minPriceIncrement.units) {
+                    units = this.getMinPriceIncrement(units, this.tickerInfo.minPriceIncrement.units);
+                }
 
-            if (this.tickerInfo.minPriceIncrement.nano) {
-                nano = this.getMinPriceIncrement(nano, this.tickerInfo.minPriceIncrement.nano);
+                if (this.tickerInfo.minPriceIncrement.nano) {
+                    nano = this.getMinPriceIncrement(nano, this.tickerInfo.minPriceIncrement.nano);
+                }
             }
 
             return {

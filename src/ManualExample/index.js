@@ -12,21 +12,27 @@ try {
             this.name = 'ManualExample';
         }
 
-        async decisionBuy() {
-            if (this.lastPrice) {
-                if (this.tickerInfo && !this.a) {
-                    this.a = true;
+        decisionBuy() {
+            // console.log(this.tickerInfo, this.lastPrice, this.a);
 
-                    console.log(await this.buy({
-                        units: 115,
-                        nano: 0,
-                    }));
+            // if (!this.lastPrice) {
+            //     this.lastPrice = { units: 115, nano: 0 };
+            // }
+            // if (this.lastPrice && this.figi) {
+            //     if (this.tickerInfo && !this.a) {
+            //         this.a = true;
 
-                    console.log(this.lastPrice);
-                    console.log(this.getTakeProfitPrice(1));
-                    console.log(this.getTakeProfitPrice(0));
-                }
-            }
+            //         console.log('buy');
+            //         console.log(this.buy({
+            //             units: 115,
+            //             nano: 0,
+            //         }));
+
+            //         console.log(this.lastPrice);
+            //         console.log(this.getTakeProfitPrice(1));
+            //         console.log(this.getTakeProfitPrice(0));
+            //     }
+            // }
 
             return false;
         }
