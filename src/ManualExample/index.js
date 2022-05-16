@@ -18,9 +18,13 @@ try {
             // if (!this.lastPrice) {
             //     this.lastPrice = { units: 115, nano: 0 };
             // }
-            // if (this.lastPrice && this.figi) {
-            //     if (this.tickerInfo && !this.a) {
-            //         this.a = true;
+            
+            if (this.lastPrice && this.figi) {
+                if (this.tickerInfo && !this.a) {
+                    this.a = true;
+                    return true;
+                }
+            }
 
             //         console.log('buy');
             //         console.log(this.buy({

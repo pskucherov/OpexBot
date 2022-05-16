@@ -53,7 +53,6 @@ try {
 
         async initAsync() {
             this.currentOrders = await this.getOpenOrders();
-            console.log(this.currentOrders);
         }
 
         /**
@@ -102,9 +101,12 @@ try {
                 });
 
                 if (subscribes.orders) {
+                    console.log(1);
                     setImmediate(async () => {
-                        const gen = subscribes.orders(this.accountId);
-
+                        const gen = subscribes.orders({
+                            accounts: [this.accountId],
+                        });
+                        console.log(2);
                         for await (const data of gen) {
                             console.log(1, data.orderTrades);
                             if (data.orderTrades) {
@@ -114,7 +116,7 @@ try {
                             }
                             console.log(3, data);
                         }
-                    }).call(this);
+                    });
                 }
             } catch (e) { console.log(e) }
         }
@@ -133,7 +135,10 @@ try {
             if (this.decisionClosePosition()) {
                 this.closePosition(this.lastPrice);
             } else if (this.decisionBuy()) {
-                this.buy(this.lastPrice);
+                this.buy({
+                    ...this.lastPrice,
+                    units: this.lastPrice.units - 10,
+                });
             } else if (this.decisionSell()) {
                 this.sell();
             }
