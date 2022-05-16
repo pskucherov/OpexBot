@@ -12,7 +12,7 @@
     "run": "lint-fix"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=17.0.0"
   },
   "dependencies": {
   },

@@ -114,7 +114,7 @@ try {
 
             // Записываем новое состояние, только если оно изминилось.
             if (!this.backtest && this.cb.cacheState &&
-                (this.subscribeDataUpdated.orderBook || this.subscribeDataUpdated.lastPrice)) {
+                (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
                 this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
                 this.subscribeDataUpdated.lastPrice = false;
                 this.subscribeDataUpdated.orderbook = false;
