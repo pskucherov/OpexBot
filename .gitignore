@@ -106,3 +106,5 @@ dist
 data/cachedcandles/*
 
 data/cachedorderbooks/*
+
+orders/*

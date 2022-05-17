@@ -18,12 +18,11 @@ try {
             // if (!this.lastPrice) {
             //     this.lastPrice = { units: 115, nano: 0 };
             // }
-            
-            if (this.lastPrice && this.figi) {
-                if (this.tickerInfo && !this.a) {
-                    this.a = true;
-                    return true;
-                }
+
+            if (this.lastPrice && this.figi && this.tickerInfo && !this.a) {
+                this.a = true;
+
+                return true;
             }
 
             //         console.log('buy');
@@ -46,12 +45,10 @@ try {
         }
 
         decisionClosePosition() {
-            return false;
-            
             // TODO: слишком много запросов.
-            if (this.hasOpenPositions()) {
-                return Math.floor(Math.random() * 100) < 30;
-            }
+            // if (this.hasOpenPositions()) {
+            //     return Math.floor(Math.random() * 100) < 30;
+            // }
 
             return false;
         }

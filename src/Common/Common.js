@@ -1,3 +1,7 @@
+const { mkDirByPathSync, todayDate } = require('tradingbot/src/utils');
+const path = require('path');
+const fs = require('fs');
+
 try {
     class Common {
         constructor(accountId, adviser, backtest, callbacks = {
@@ -14,6 +18,8 @@ try {
             // useTrailingStop: true,
         }) {
             this.accountId = accountId;
+
+            // console.log(this.accountId);
 
             // Если робот работает в режиме советника,
             // то он только обозначает предположения, но не делает сделки.
@@ -34,7 +40,7 @@ try {
 
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
             // this.useTrailingStop = options.useTrailingStop;
-
+            this.isSandbox = Boolean(options.isSandbox);
 
             (async () => {
                 this.init();
@@ -50,6 +56,8 @@ try {
             // Таймер подписки на события.
             this.timer = 250;
             this.subscribeDataUpdated = {};
+
+            this.orders = {};
         }
 
         async initAsync() {
@@ -57,10 +65,19 @@ try {
         }
 
         async updateOrders() {
+            await this.cancelUnfulfilledOrders();
+
+            const b = await this.buy({
+                ...this.lastPrice,
+                units: this.lastPrice.units + 3,
+            });
+
+            // console.log(b);
 
             this.currentOrders = await this.getOpenOrders();
             this.currentPositions = await this.getPositions();
             this.currentPortfolio = await this.getPortfolio();
+            this.currentOperations = await this.getOperations();
 
             // console.log('orders');
             // console.log(this.currentOrders);
@@ -70,25 +87,41 @@ try {
 
             // console.log('portfolio');
             // console.log(this.currentPortfolio);
+            // console.log('operations');
+            // console.log(this.currentOperations);
+
             // console.log(JSON.stringify(this.currentPortfolio));
+
+            // {
+            //     [1]       id: '31318535371',
+            //     [1]       parentOperationId: '',
+            //     [1]       currency: 'rub',
+            //     [1]       payment: [Object],
+            //     [1]       price: [Object],
+            //     [1]       state: 1,
+            //     [1]       quantity: 20,
+            //     [1]       quantityRest: 0,
+            //     [1]       figi: 'BBG004730N88',
+            //     [1]       instrumentType: 'share',
+            //     [1]       date: 2022-05-17T10:11:40.047Z,
+            //     [1]       type: 'Продажа ЦБ',
+            //     [1]       operationType: 22,
+            //     [1]       trades: [Array]
+            //     [1]     },
+
+            // console.log(this.currentOperations &&
+            //     this.currentOperations.operations.forEach(c => console.log(c.trades)));
 
             if (this.currentPortfolio) {
                 this.currentPortfolio.positions.forEach(async p => {
                     const currentYield = this.getPrice(p.expectedYield);
                     const averagePrice = this.getPrice(p.averagePositionPrice);
-                    // quantityLots":{"units":2,"nano":0}
+
                     if (averagePrice * (this.takeProfit + 1) > currentYield) {
-                        
-                        console.log(averagePrice, currentYield, averagePrice * (this.takeProfit + 1));
-                        const q = await this.sell(p.currentPrice, p.figi, p.quantityLots.units);
-                        console.log(
-                            q
-                        );
-
+                        await this.sell(p.currentPrice, p.figi, p.quantityLots.units);
                     }
-                })
+                });
             }
-
         }
 
         /**
@@ -111,7 +144,6 @@ try {
                 if (this.backtest) {
                     return;
                 }
-
                 const { subscribes } = this.cb;
 
                 const timer = time => new Promise(resolve => setTimeout(resolve, time));
@@ -131,12 +163,15 @@ try {
                                     this.subscribeDataUpdated[name] = true;
                                     this[name] = name === 'lastPrice' ? data[name].price : data[name];
                                 }
+                                if (!this.inProgress) {
+                                    break;
+                                }
                             }
                         });
                     }
                 });
 
-                if (subscribes.orders) {
+                if (subscribes.orders && !this.isSandbox) {
                     setImmediate(async () => {
                         const gen = subscribes.orders({
                             accounts: [this.accountId],
@@ -144,20 +179,29 @@ try {
 
                         for await (const data of gen) {
                             if (data.orderTrades) {
-                                this.orderTrades = data.orderTrades;
+                                if (!this.orderTrades) {
+                                    this.orderTrades = [];
+                                }
+
+                                this.orderTrades.push(data.orderTrades);
+                                this.logOrders(data.orderTrades);
                                 this.updateOrders();
+                            }
+
+                            if (!this.inProgress) {
+                                break;
                             }
                         }
                     });
                 }
-            } catch (e) { console.log(e) }
+            } catch (e) { console.log(e) } // eslint-disable-line no-console
         }
 
         /**
          * Модуль обработки данных.
          * По сути бесконечный цикл, который обрабатывает входящие данные.
          */
-        processing() {
+        async processing() {
             if (!this.inProgress && !this.backtest) {
                 setImmediate(() => this.processing());
 
@@ -167,12 +211,15 @@ try {
             if (this.decisionClosePosition()) {
                 this.closePosition(this.lastPrice);
             } else if (this.decisionBuy()) {
-                this.buy({
+                await this.buy({
                     ...this.lastPrice,
-                    units: this.lastPrice.units - 10,
+                    units: this.lastPrice.units + 3,
                 });
             } else if (this.decisionSell()) {
-                this.sell();
+                await this.sell({
+                    ...this.lastPrice,
+                    units: this.lastPrice.units + 3,
+                });
             }
 
             // Записываем новое состояние, только если оно изминилось.
@@ -234,11 +281,16 @@ try {
             lastPrice && (this.lastPrice = lastPrice);
             balance && (this.balance = balance);
 
-            if (options) {
-                if (options.tickerInfo) {
-                    this.tickerInfo = options.tickerInfo;
-                    this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
-                }
+            if (options && options.tickerInfo) {
+                this.tickerInfo = options.tickerInfo;
+                this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
+            }
+
+            if (!this.logOrdersFile && this.accountId && this.figi) {
+                const dir = path.resolve(__dirname, '../../orders', this.name, this.accountId, this.figi);
+
+                mkDirByPathSync(dir);
+                this.logOrdersFile = path.join(dir, todayDate + '.json');
             }
         }
 
@@ -247,6 +299,10 @@ try {
         }
 
         getPrice(quotation) {
+            if (!quotation || typeof quotation !== 'object') {
+                return quotation;
+            }
+
             if (quotation.nano) {
                 return quotation.units + quotation.nano / 1e9;
             }
@@ -272,15 +328,39 @@ try {
                 return this.backtestBuy(price, this.lotsSize);
             }
 
-            // return await this.cb.postOrder(
-            //     this.accountId,
-            //     this.figi,
-            //     this.lotsSize,
-            //     price, // структура из units и nano
-            //     this.enums.OrderDirection.ORDER_DIRECTION_BUY,
-            //     this.enums.OrderType.ORDER_TYPE_LIMIT,
-            //     this.genOrderId(),
-            // );
+            return this.logOrders(await this.cb.postOrder(
+                this.accountId,
+                this.figi,
+                this.lotsSize,
+                price, // структура из units и nano
+                this.enums.OrderDirection.ORDER_DIRECTION_BUY,
+                this.enums.OrderType.ORDER_TYPE_LIMIT,
+                this.genOrderId(),
+            ));
+        }
+
+        async logOrders(order) {
+            let orders;
+
+            if (fs.existsSync(this.logOrdersFile)) {
+                orders = fs.readFileSync(this.logOrdersFile).toString();
+            }
+
+            if (orders) {
+                orders = JSON.parse(orders);
+            } else {
+                orders = [];
+            }
+
+            if (order.orderId) {
+                this.orders[order.orderId] = order;
+            }
+
+            // Тут могут быть ещё и positions.
+            // TODO: переименовать.
+            orders.push(order);
+
+            fs.writeFileSync(this.logOrdersFile, JSON.stringify(orders), { flag: 'a' });
         }
 
         async closePosition(price) {
@@ -289,8 +369,12 @@ try {
             }
         }
 
+        async getOperations() {
+            return this.accountId && this.figi && await this.cb.getOperations(this.accountId, this.figi);
+        }
+
         async getPortfolio() {
-            return await this.cb.getPortfolio(this.accountId);
+            return this.accountId && await this.cb.getPortfolio(this.accountId);
         }
 
         async getPositions() {
@@ -298,7 +382,7 @@ try {
                 return this.getBacktestPositions();
             }
 
-            return await this.cb.getPositions(this.accountId);
+            return this.accountId && await this.cb.getPositions(this.accountId);
         }
 
         async hasOpenPositions() {
@@ -318,7 +402,7 @@ try {
                 return this.backtestSell(price, this.lotsSize);
             }
 
-            return await this.cb.postOrder(
+            return this.logOrders(await this.cb.postOrder(
                 this.accountId,
                 figi || this.figi,
                 lotsSize || this.lotsSize,
@@ -326,7 +410,7 @@ try {
                 this.enums.OrderDirection.ORDER_DIRECTION_SELL,
                 this.enums.OrderType.ORDER_TYPE_LIMIT,
                 this.genOrderId(),
-            );
+            ));
         }
 
         setActiveOrder() {
