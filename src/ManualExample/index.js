@@ -46,6 +46,9 @@ try {
         }
 
         decisionClosePosition() {
+            return false;
+            
+            // TODO: слишком много запросов.
             if (this.hasOpenPositions()) {
                 return Math.floor(Math.random() * 100) < 30;
             }

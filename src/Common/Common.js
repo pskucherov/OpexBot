@@ -35,11 +35,12 @@ try {
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
             // this.useTrailingStop = options.useTrailingStop;
 
-            this.init();
 
-            this.processing();
-
-            this.initAsync();
+            (async () => {
+                this.init();
+                this.processing();
+                this.initAsync();
+            })();
         }
 
         init() {
@@ -52,7 +53,42 @@ try {
         }
 
         async initAsync() {
+            this.updateOrders();
+        }
+
+        async updateOrders() {
+
             this.currentOrders = await this.getOpenOrders();
+            this.currentPositions = await this.getPositions();
+            this.currentPortfolio = await this.getPortfolio();
+
+            // console.log('orders');
+            // console.log(this.currentOrders);
+
+            // console.log('positions');
+            // console.log(this.currentPositions);
+
+            // console.log('portfolio');
+            // console.log(this.currentPortfolio);
+            // console.log(JSON.stringify(this.currentPortfolio));
+
+            if (this.currentPortfolio) {
+                this.currentPortfolio.positions.forEach(async p => {
+                    const currentYield = this.getPrice(p.expectedYield);
+                    const averagePrice = this.getPrice(p.averagePositionPrice);
+                    // quantityLots":{"units":2,"nano":0}
+                    if (averagePrice * (this.takeProfit + 1) > currentYield) {
+                        
+                        console.log(averagePrice, currentYield, averagePrice * (this.takeProfit + 1));
+                        const q = await this.sell(p.currentPrice, p.figi, p.quantityLots.units);
+                        console.log(
+                            q
+                        );
+
+                    }
+                })
+            }
+
         }
 
         /**
@@ -101,20 +137,16 @@ try {
                 });
 
                 if (subscribes.orders) {
-                    console.log(1);
                     setImmediate(async () => {
                         const gen = subscribes.orders({
                             accounts: [this.accountId],
                         });
-                        console.log(2);
+
                         for await (const data of gen) {
-                            console.log(1, data.orderTrades);
                             if (data.orderTrades) {
-                                this.subscribeDataUpdated.orderTrades = true;
                                 this.orderTrades = data.orderTrades;
-                                console.log(2, data);
+                                this.updateOrders();
                             }
-                            console.log(3, data);
                         }
                     });
                 }
@@ -240,15 +272,15 @@ try {
                 return this.backtestBuy(price, this.lotsSize);
             }
 
-            return await this.cb.postOrder(
-                this.accountId,
-                this.figi,
-                this.lotsSize,
-                price, // структура из units и nano
-                this.enums.OrderDirection.ORDER_DIRECTION_BUY,
-                this.enums.OrderType.ORDER_TYPE_LIMIT,
-                this.genOrderId(),
-            );
+            // return await this.cb.postOrder(
+            //     this.accountId,
+            //     this.figi,
+            //     this.lotsSize,
+            //     price, // структура из units и nano
+            //     this.enums.OrderDirection.ORDER_DIRECTION_BUY,
+            //     this.enums.OrderType.ORDER_TYPE_LIMIT,
+            //     this.genOrderId(),
+            // );
         }
 
         async closePosition(price) {
@@ -257,24 +289,44 @@ try {
             }
         }
 
-        getPositions() {
+        async getPortfolio() {
+            return await this.cb.getPortfolio(this.accountId);
+        }
+
+        async getPositions() {
             if (this.backtest) {
                 return this.getBacktestPositions();
             }
 
-            // TODO: торговые позиции
+            return await this.cb.getPositions(this.accountId);
         }
 
-        hasOpenPositions() {
+        async hasOpenPositions() {
             if (this.backtest) {
                 return this.hasBacktestOpenPositions();
             }
 
-            return this.getPositions(); // TODO возвращать boolean;
+            // return this.getPositions(); // TODO возвращать boolean;
         }
 
-        sell() {
+        async sell(price, figi, lotsSize) {
+            if (!this.figi && !figi) {
+                return;
+            }
 
+            if (this.backtest) {
+                return this.backtestSell(price, this.lotsSize);
+            }
+
+            return await this.cb.postOrder(
+                this.accountId,
+                figi || this.figi,
+                lotsSize || this.lotsSize,
+                price, // структура из units и nano
+                this.enums.OrderDirection.ORDER_DIRECTION_SELL,
+                this.enums.OrderType.ORDER_TYPE_LIMIT,
+                this.genOrderId(),
+            );
         }
 
         setActiveOrder() {
