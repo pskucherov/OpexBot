@@ -34,12 +34,19 @@ try {
         async takeProfitPosition() {
             if (this.currentPortfolio && this.takeProfit) {
                 this.currentPortfolio.positions.forEach(async p => {
-                    const currentYield = this.getPrice(p.expectedYield);
-                    const averagePrice = this.getPrice(p.averagePositionPrice);
+                    await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, p.quantityLots.units, 'TP');
 
-                    if (averagePrice * (this.takeProfit + 1) > currentYield) {
-                        await this.sell(p.currentPrice, p.figi, p.quantityLots.units, 'TP');
-                    }
+                    // const currentYield = this.getPrice(p.expectedYield);
+                    // const averagePrice = this.getPrice(p.averagePositionPrice);
+                    // if ((averagePrice * this.takeProfit) > currentYield) {
+                    //     console.log(p);
+                    //     console.log('currentYield', currentYield);
+                    //     console.log('averagePositionPrice', averagePrice);
+                    //     console.log('currentPrice', p.currentPrice);
+                    //     console.log('if', (averagePrice * this.takeProfit));
+
+                    //     await this.sell(p.currentPrice, p.figi, p.quantityLots.units, 'TP');
+                    // }
                 });
             }
         }
@@ -68,7 +75,7 @@ try {
 
         stop() {
             super.stop();
-            console.log('stopt'); // eslint-disable-line no-console
+            console.log('stop'); // eslint-disable-line no-console
         }
     }
 

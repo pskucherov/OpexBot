@@ -259,7 +259,7 @@ try {
             // Выставления заявки
         }
 
-        setCurrentState(lastPrice, candles, balance, orderbook, options) {
+        async setCurrentState(lastPrice, candles, balance, orderbook, options) {
             // Текущая цена
             // История свечей
             // История стакана
@@ -276,6 +276,11 @@ try {
             if (options && options.tickerInfo) {
                 this.tickerInfo = options.tickerInfo;
                 this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
+
+                const q = await this.cb.getTradingSchedules(options.tickerInfo.exchange,
+                    new Date().getTime(), new Date().getTime());
+
+                // {"exchanges":[{"exchange":"MOEX_MORNING","days":[{"date":"2022-05-18T00:00:00.000Z","isTradingDay":true,"startTime":"2022-05-18T07:00:00.000Z","endTime":"2022-05-18T15:40:00.000Z","openingAuctionStartTime":"2022-05-18T06:50:00.000Z","closingAuctionEndTime":"2022-05-18T15:50:00.000Z","eveningOpeningAuctionStartTime":"2022-05-18T15:50:00.000Z","eveningStartTime":"2022-05-18T15:50:00.000Z","eveningEndTime":"2022-05-18T20:50:00.000Z","premarketStartTime":"2022-05-18T06:50:00.000Z","premarketEndTime":"2022-05-18T07:00:00.000Z"}]}]}
             }
 
             if (!this.logOrdersFile && this.accountId && this.figi) {
@@ -311,6 +316,8 @@ try {
         start() {
             this.inProgress = true;
             this.subscribes();
+
+            console.log('start'); // eslint-disable-line no-console
         }
 
         stop() {
@@ -450,17 +457,17 @@ try {
             return Math.floor(sum / minInc) * minInc;
         }
 
-        getTakeProfitPrice(buy) {
+        getTakeProfitPrice(buy, price) {
             if (typeof buy === 'undefined') {
                 return;
             }
 
-            if (!this.lastPrice || !this.tickerInfo) {
+            if (!price || !this.tickerInfo) {
                 return;
             }
             const profit = buy ? (this.takeProfit + 1) : (1 - this.takeProfit);
 
-            const p = this.getPrice(this.lastPrice) * profit;
+            const p = this.getPrice(price) * profit;
             let units = Math.floor(p);
             let nano = p * 1e9 - Math.floor(p) * 1e9;
 
