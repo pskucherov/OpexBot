@@ -2,18 +2,24 @@ try {
     const { Backtest } = require('../Common/Backtest');
 
     /**
- * Торговый робот без логики со случайным срабатыванием.
- * Работает только на покупку, дальше ждёт исполнения заявки.
- * После исполнения заявки ждёт выхода по TP или SP.
- */
+     * Торговый робот без логики со случайным срабатыванием.
+     * Работает только на покупку, дальше ждёт исполнения заявки.
+     * После исполнения заявки ждёт выхода по TP или SP.
+     */
     class RandomExample extends Backtest {
         constructor(...args) {
             super(...args);
             this.name = 'RandomExample';
         }
 
-        decisionBuy() {
-            if (this.lastPrice && this.step > 10 && !this.hasOpenPositions()) {
+        // Покупаем, если известна последняя цена,
+        // нет открытых позиций и заявок.
+        async decisionBuy() {
+            if (this.lastPrice &&
+                (!this.backtest || this.step > 10) &&
+                !(await this.hasOpenPositions()) &&
+                !this.hasOpenOrders()
+            ) {
                 return Math.floor(Math.random() * 100) > 80;
             }
 
@@ -21,181 +27,44 @@ try {
         }
 
         decisionSell() {
+            // Робот работает только на покупку.
             return false;
         }
 
-        decisionClosePosition() {
-            if (this.hasOpenPositions()) {
-                return Math.floor(Math.random() * 100) < 30;
+        async takeProfitPosition() {
+            if (this.currentPortfolio && this.takeProfit) {
+                this.currentPortfolio.positions.forEach(async p => {
+                    const currentYield = this.getPrice(p.expectedYield);
+                    const averagePrice = this.getPrice(p.averagePositionPrice);
+
+                    if (averagePrice * (this.takeProfit + 1) > currentYield) {
+                        await this.sell(p.currentPrice, p.figi, p.quantityLots.units, 'TP');
+                    }
+                });
             }
-
-            return false;
         }
 
-        // {
-        //     orderId: '31271158513',
-        //     executionReportStatus: 1,
-        //     lotsRequested: 1,
-        //     lotsExecuted: 1,
-        //     initialOrderPrice: { currency: 'rub', units: 1234, nano: 900000000 },
-        //     executedOrderPrice: { currency: 'rub', units: 123, nano: 120000000 },
-        //     totalOrderAmount: { currency: 'rub', units: 1231, nano: 200000000 },
-        //     initialCommission: { currency: 'rub', units: 0, nano: 310000000 },
-        //     executedCommission: { currency: 'rub', units: 0, nano: 0 },
-        //     aciValue: { currency: 'rub', units: 0, nano: 0 },
-        //     figi: 'BBG004730N88',
-        //     direction: 1,
-        //     initialSecurityPrice: { currency: 'rub', units: 123, nano: 490000000 },
-        //     orderType: 2,
-        //     message: '',
-        //     initialOrderPricePt: undefined
-        //   }
+        async stopLossPosition() {
+            if (this.currentPortfolio && this.stopLoss) {
+                this.currentPortfolio.positions.forEach(async p => {
+                    const currentYield = this.getPrice(p.expectedYield);
+                    const averagePrice = this.getPrice(p.averagePositionPrice);
 
-        // {
-        //     orderId: '31271365988',
-        //     executionReportStatus: 4,
-        //     lotsRequested: 1,
-        //     lotsExecuted: 0,
-        //     initialOrderPrice: { currency: 'rub', units: 1083, nano: 400000000 },
-        //     executedOrderPrice: { currency: 'rub', units: 0, nano: 0 },
-        //     totalOrderAmount: { currency: 'rub', units: 0, nano: 0 },
-        //     initialCommission: { currency: 'rub', units: 0, nano: 280000000 },
-        //     executedCommission: { currency: 'rub', units: 0, nano: 0 },
-        //     aciValue: { currency: 'rub', units: 0, nano: 0 },
-        //     figi: 'BBG004730N88',
-        //     direction: 1,
-        //     initialSecurityPrice: { currency: 'rub', units: 108, nano: 340000000 },
-        //     orderType: 1,
-        //     message: '',
-        //     initialOrderPricePt: undefined
-        //   }
+                    if (averagePrice * (1 - this.stopLoss) > currentYield) {
+                        await this.sell(p.currentPrice, p.figi, p.quantityLots.units, 'SL');
+                    }
+                });
+            }
+        }
 
-        // {
-        //     orders: [
-        //       {
-        //         orderId: '31271197970',
-        //         executionReportStatus: 4,
-        //         lotsRequested: 1,
-        //         lotsExecuted: 0,
-        //         initialOrderPrice: [Object],
-        //         executedOrderPrice: [Object],
-        //         totalOrderAmount: [Object],
-        //         averagePositionPrice: [Object],
-        //         initialCommission: [Object],
-        //         executedCommission: [Object],
-        //         figi: 'BBG004730N88',
-        //         direction: 2,
-        //         initialSecurityPrice: [Object],
-        //         stages: [],
-        //         serviceCommission: [Object],
-        //         currency: 'RUB',
-        //         orderType: 1,
-        //         orderDate: 2022-05-11T17:44:19.359Z
-        //       },
-        //       {
-        //         orderId: '31271326321',
-        //         executionReportStatus: 4,
-        //         lotsRequested: 1,
-        //         lotsExecuted: 0,
-        //         initialOrderPrice: [Object],
-        //         executedOrderPrice: [Object],
-        //         totalOrderAmount: [Object],
-        //         averagePositionPrice: [Object],
-        //         initialCommission: [Object],
-        //         executedCommission: [Object],
-        //         figi: 'BBG004730N88',
-        //         direction: 2,
-        //         initialSecurityPrice: [Object],
-        //         stages: [],
-        //         serviceCommission: [Object],
-        //         currency: 'RUB',
-        //         orderType: 1,
-        //         orderDate: 2022-05-11T17:51:01.327Z
-        //       },
-        //       {
-        //         orderId: '31271365988',
-        //         executionReportStatus: 4,
-        //         lotsRequested: 1,
-        //         lotsExecuted: 0,
-        //         initialOrderPrice: [Object],
-        //         executedOrderPrice: [Object],
-        //         totalOrderAmount: [Object],
-        //         averagePositionPrice: [Object],
-        //         initialCommission: [Object],
-        //         executedCommission: [Object],
-        //         figi: 'BBG004730N88',
-        //         direction: 1,
-        //         initialSecurityPrice: [Object],
-        //         stages: [],
-        //         serviceCommission: [Object],
-        //         currency: 'RUB',
-        //         orderType: 1,
-        //         orderDate: 2022-05-11T17:53:06.925Z
-        //       }
-        //     ]
-        //   }
+        async decisionClosePosition() {
+            // Если есть позиции и нет открытых заявок, то пробуем закрыт сделку по профиту или SL.
+            return (await this.hasOpenPositions()) && !this.hasOpenOrders();
+        }
 
-        /*
-    {"orders":[{"orderId":"31271197970","executionReportStatus":4,"lotsRequested":1,"lotsExecuted":0,"initialOrderPrice":{"currency":"rub","units":1250,"nano":0},"executedOrderPrice":{"currency":"rub","units":0,"nano":0},"totalOrderAmount":{"currency":"rub","units":1250,"nano":0},"averagePositionPrice":{"currency":"rub","units":0,"nano":0},"initialCommission":{"currency":"rub","units":0,"nano":320000000},"executedCommission":{"currency":"rub","units":0,"nano":0},"figi":"BBG004730N88","direction":2,"initialSecurityPrice":{"currency":"rub","units":125,"nano":0},"stages":[],"serviceCommission":{"currency":"rub","units":0,"nano":0},"currency":"RUB","orderType":1,"orderDate":"2022-05-11T17:44:19.359Z"},{"orderId":"31271326321","executionReportStatus":4,"lotsRequested":1,"lotsExecuted":0,"initialOrderPrice":{"currency":"rub","units":1240,"nano":0},"executedOrderPrice":{"currency":"rub","units":0,"nano":0},"totalOrderAmount":{"currency":"rub","units":1240,"nano":0},"averagePositionPrice":{"currency":"rub","units":0,"nano":0},"initialCommission":{"currency":"rub","units":0,"nano":310000000},"executedCommission":{"currency":"rub","units":0,"nano":0},"figi":"BBG004730N88","direction":2,"initialSecurityPrice":{"currency":"rub","units":124,"nano":0},"stages":[],"serviceCommission":{"currency":"rub","units":0,"nano":0},"currency":"RUB","orderType":1,"orderDate":"2022-05-11T17:51:01.327Z"},{"orderId":"31271365988","executionReportStatus":4,"lotsRequested":1,"lotsExecuted":0,"initialOrderPrice":{"currency":"rub","units":1083,"nano":400000000},"executedOrderPrice":{"currency":"rub","units":0,"nano":0},"totalOrderAmount":{"currency":"rub","units":1083,"nano":400000000},"averagePositionPrice":{"currency":"rub","units":0,"nano":0},"initialCommission":{"currency":"rub","units":0,"nano":280000000},"executedCommission":{"currency":"rub","units":0,"nano":0},"figi":"BBG004730N88","direction":1,"initialSecurityPrice":{"currency":"rub","units":108,"nano":340000000},"stages":[],"serviceCommission":{"currency":"rub","units":0,"nano":0},"currency":"RUB","orderType":1,"orderDate":"2022-05-11T17:53:06.925Z"}]}
-    */
-        // async buy() {
-        //     if (!this.buyT && this.lastPrice) {
-        //         this.buyT = 1;
-        //         const orderId = this.genOrderId();
-
-        // console.log(1);
-        // console.log(JSON.stringify(await this.cb.getOperations(this.accountId, this.figi)));
-
-        // console.log(1);
-        // let a = await this.openOrdersExist();
-        // console.log(a);
-
-        // const q = await this.cb.postOrder(
-        //     this.accountId,
-        //     this.figi,
-        //     1,
-        //     {
-        //         ...this.lastPrice,
-        //         units: this.lastPrice.units - 15,
-        //     },
-        //     1, // OrderDirection.ORDER_DIRECTION_BUY,
-        //     1, // OrderType.ORDER_TYPE_LIMIT,
-        //     this.genOrderId(), //: 'abc-fsdfdsfsdf-2',
-        // );
-        // console.log(2);
-
-        // a = await this.openOrdersExist();
-        // console.log(a);
-
-        // console.log(3);
-
-        // await this.cb.postOrder(
-        //     this.accountId,
-        //     this.figi,
-        //     1,
-        //     {
-        //         ...this.lastPrice,
-        //         units: this.lastPrice.units - 15,
-        //     },
-        //     1, // OrderDirection.ORDER_DIRECTION_BUY,
-        //     1, // OrderType.ORDER_TYPE_LIMIT,
-        //     this.genOrderId(), //: 'abc-fsdfdsfsdf-2',
-        // );
-
-        // a = this.openOrdersExist();
-        // console.log(a);
-        // console.log(4);
-
-        // await this.cancelUnfulfilledOrders();
-        // console.log(5);
-
-        // a = await this.openOrdersExist();
-        // console.log(a);
-
-        // console.log(q);
-        // console.log(JSON.stringify(await this.cb.getOrders(this.accountId)));
-        //     }
-        // }
+        async closePosition() {
+            await this.takeProfitPosition();
+        }
 
         stop() {
             super.stop();

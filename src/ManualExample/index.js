@@ -12,6 +12,19 @@ try {
             this.name = 'ManualExample';
         }
 
+        // takeProfit() {
+        //     if (this.currentPortfolio) {
+        //         this.currentPortfolio.positions.forEach(async p => {
+        //             const currentYield = this.getPrice(p.expectedYield);
+        //             const averagePrice = this.getPrice(p.averagePositionPrice);
+
+        //             if (averagePrice * (this.takeProfit + 1) > currentYield) {
+        //                 await this.sell(p.currentPrice, p.figi, p.quantityLots.units);
+        //             }
+        //         });
+        //     }
+        // }
+
         decisionBuy() {
             // console.log(this.tickerInfo, this.lastPrice, this.a);
 
@@ -51,10 +64,6 @@ try {
             // }
 
             return false;
-        }
-
-        getCurrentState() {
-            return [this.candles, this.orderbook, this.lastPrice];
         }
 
         // {
