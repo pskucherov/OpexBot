@@ -1,4 +1,4 @@
-const { mkDirByPathSync, todayDate } = require('tradingbot/src/utils');
+const { mkDirByPathSync } = require('tradingbot/src/utils');
 const path = require('path');
 const fs = require('fs');
 
@@ -21,23 +21,12 @@ try {
 
             // console.log(this.accountId);
 
-            // Если робот работает в режиме советника,
-            // то он только обозначает предположения, но не делает сделки.
-            this.adviser = Boolean(adviser);
             this.backtest = Boolean(backtest);
 
             this.enums = options.enums;
 
             // Методы, с помощью которых робот может общаться с внешним миром.
             this.cb = callbacks;
-
-            // 1 = 100%, 0.003 = 0.003%
-            this.takeProfit = 0.009;
-
-            // this.stopLoss = 0.003;
-
-            // На сколько процентов от текущей цены выставлять stopLoss.
-            // this.stopLoss = options.stopLoss;
 
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
             // this.useTrailingStop = options.useTrailingStop;
@@ -51,9 +40,6 @@ try {
         }
 
         init() {
-            // Количество лотов, которым оперирует робот.
-            this.lotsSize = 1;
-
             // Таймер подписки на события.
             this.subscribesTimer = 1500;
 
@@ -62,6 +48,8 @@ try {
             this.subscribeDataUpdated = {};
 
             this.orders = {};
+
+            this.getCurrentSettings();
         }
 
         async initAsync() {
@@ -69,6 +57,10 @@ try {
         }
 
         async updateOrders() {
+            if (this.backtest) {
+                return;
+            }
+
             this.currentOrders = await this.getOpenOrders();
 
             // this.currentPositions = await this.getPositions();
@@ -86,29 +78,6 @@ try {
             // console.log(this.currentPortfolio);
             // console.log('operations');
             // console.log(this.currentOperations);
-
-            // q;
-            // console.log(JSON.stringify(this.currentPortfolio));
-
-            // {
-            //     [1]       id: '31318535371',
-            //     [1]       parentOperationId: '',
-            //     [1]       currency: 'rub',
-            //     [1]       payment: [Object],
-            //     [1]       price: [Object],
-            //     [1]       state: 1,
-            //     [1]       quantity: 20,
-            //     [1]       quantityRest: 0,
-            //     [1]       figi: 'BBG004730N88',
-            //     [1]       instrumentType: 'share',
-            //     [1]       date: 2022-05-17T10:11:40.047Z,
-            //     [1]       type: 'Продажа ЦБ',
-            //     [1]       operationType: 22,
-            //     [1]       trades: [Array]
-            //     [1]     },
-
-            // console.log(this.currentOperations &&
-            //     this.currentOperations.operations.forEach(c => console.log(c.trades)));
 
             this.ordersInited = true;
         }
@@ -199,17 +168,21 @@ try {
                 return;
             }
 
-            await this.timer(this.robotTimer);
-
-            await this.updateOrders();
+            if (!this.backtest) {
+                await this.timer(this.robotTimer);
+                await this.updateOrders();
+            }
 
             // Обрабатываем логику только после инициализации статуса.
-            if (this.ordersInited) {
+            if (this.ordersInited || this.backtest) {
                 if (await this.decisionClosePosition()) {
+                    console.log('decisionClosePosition'); // eslint-disable-line no-console
                     await this.closePosition(this.lastPrice);
                 } else if (await this.decisionBuy()) {
+                    console.log('decisionBuy'); // eslint-disable-line no-console
                     await this.buy();
                 } else if (await this.decisionSell()) {
+                    console.log('decisionBuy'); // eslint-disable-line no-console
                     await this.sell();
                 }
             }
@@ -330,7 +303,7 @@ try {
             }
 
             if (this.backtest) {
-                return this.backtestBuy(price, this.lotsSize);
+                return this.backtestBuy(price || this.lastPrice, lotsSize || this.lotsSize);
             }
 
             console.log('buy', type); // eslint-disable-line no-console
@@ -409,7 +382,11 @@ try {
                 return this.getBacktestPositions();
             }
 
-            return this.currentPortfolio && this.currentPortfolio.positions || []; // this.accountId && await this.cb.getPositions(this.accountId);
+            return (this.currentPortfolio && this.currentPortfolio.positions || []).filter(p => p.figi === this.figi);
+        }
+
+        async getOrders() {
+            return (this.currentOrders || []).filter(p => p.figi === this.figi);
         }
 
         async hasOpenPositions() {
@@ -418,11 +395,11 @@ try {
             }
 
             return Boolean(this.currentPortfolio && this.currentPortfolio.positions &&
-                this.currentPortfolio.positions.length);
+                this.currentPortfolio.positions.filter(p => p.figi === this.figi).length);
         }
 
         hasOpenOrders() {
-            return Boolean(this.currentOrders && this.currentOrders.length);
+            return Boolean(this.currentOrders && this.currentOrders.filter(o => o.figi === this.figi).length);
         }
 
         async sell(price, figi, lotsSize, type) {
@@ -431,7 +408,7 @@ try {
             }
 
             if (this.backtest) {
-                return this.backtestSell(price, this.lotsSize);
+                return this.backtestClosePosition(price || this.lastPrice, lotsSize || this.lotsSize);
             }
 
             console.log('sell', type); // eslint-disable-line no-console
@@ -466,6 +443,36 @@ try {
                 return;
             }
             const profit = buy ? (this.takeProfit + 1) : (1 - this.takeProfit);
+
+            const p = this.getPrice(price) * profit;
+            let units = Math.floor(p);
+            let nano = p * 1e9 - Math.floor(p) * 1e9;
+
+            if (this.tickerInfo.minPriceIncrement) {
+                if (this.tickerInfo.minPriceIncrement.units) {
+                    units = this.getMinPriceIncrement(units, this.tickerInfo.minPriceIncrement.units);
+                }
+
+                if (this.tickerInfo.minPriceIncrement.nano) {
+                    nano = this.getMinPriceIncrement(nano, this.tickerInfo.minPriceIncrement.nano);
+                }
+            }
+
+            return {
+                units,
+                nano,
+            };
+        }
+
+        getStopLossPrice(buy, price) {
+            if (typeof buy === 'undefined') {
+                return;
+            }
+
+            if (!price || !this.tickerInfo) {
+                return;
+            }
+            const profit = buy ? (1 - this.stopLoss) : (1 + this.stopLoss);
 
             const p = this.getPrice(price) * profit;
             let units = Math.floor(p);
@@ -568,6 +575,90 @@ try {
                 dir: path.resolve(__dirname, '../../orders', name, accountId, figi),
                 name: new Date(Number(date)).toLocaleString('ru', dateOptions) + '.json',
             };
+        }
+
+        static getStaticFile(name) {
+            return path.resolve(__dirname, `../${name}/settings.json`);
+        }
+
+        /**
+         * Получение настроек робота из файла или значений по умолчанию.
+         *
+         * @param {String} name
+         * @returns
+         */
+        static getSettings(name) {
+            const settings = {
+                isAdviser: true,
+                takeProfit: 0.005,
+                stopLoss: 0.0025,
+                lotsSize: 1,
+            };
+
+            if (name && fs.existsSync(this.getStaticFile(name))) {
+                return JSON.parse(fs.readFileSync(this.getStaticFile(name)).toString());
+            }
+
+            return settings;
+        }
+
+        /**
+         * Устанавливает настройки и сохраняет в файл.
+         *
+         * @param {String} name
+         * @param {Object} settings
+         * @returns
+         */
+        static setSettings(name, settings) {
+            const current = this.getSettings(name);
+
+            typeof settings.isAdviser !== 'undefined' && (current.isAdviser = Boolean(settings.isAdviser));
+
+            settings.takeProfit = parseFloat(settings.takeProfit);
+            settings.takeProfit > 0 && (current.takeProfit = settings.takeProfit);
+
+            settings.stopLoss = parseFloat(settings.stopLoss);
+            settings.stopLoss > 0 && (current.stopLoss = settings.stopLoss);
+
+            settings.lotsSize = parseInt(settings.lotsSize, 10);
+            settings.lotsSize > 0 && (current.lotsSize = settings.lotsSize);
+
+            fs.writeFileSync(this.getStaticFile(name), JSON.stringify(current));
+
+            return current;
+        }
+
+        /**
+         * Устанавливает настройки для запущенного робота.
+         *
+         * @param {String} name
+         * @param {Object} settings
+         * @returns
+         */
+        setCurrentSettings(settings) {
+            const current = Common.setSettings(this.name, settings);
+
+            this.getCurrentSettings();
+        }
+
+        getCurrentSettings() {
+            const current = Common.getSettings(this.name);
+
+            // Если робот работает в режиме советника,
+            // то он только обозначает предположения, но не делает сделки.
+            // this.adviser = Boolean(adviser);
+            // 1 = 100%, 0.003 = 0.003%
+            // this.takeProfit = 0.004;
+            // На сколько процентов от текущей цены выставлять stopLoss.
+            // 1 = 100%, 0.003 = 0.003%
+            // this.stopLoss = 0.002;
+            // Количество лотов, которым оперирует робот.
+            // this.lotsSize = 1;
+
+            this.isAdviser = current.isAdviser;
+            this.takeProfit = current.takeProfit;
+            this.stopLoss = current.stopLoss;
+            this.lotsSize = current.lotsSize;
         }
     }
 

@@ -16,7 +16,7 @@ try {
         // нет открытых позиций и заявок.
         async decisionBuy() {
             if (this.lastPrice &&
-                (!this.backtest || this.step > 10) &&
+                (!this.backtest || this.step > 1) &&
                 !(await this.hasOpenPositions()) &&
                 !this.hasOpenOrders()
             ) {
@@ -32,45 +32,51 @@ try {
         }
 
         async takeProfitPosition() {
-            if (this.currentPortfolio && this.takeProfit) {
+            if (this.backtest) {
+                await this.sell(this.getTakeProfitPrice(1, this.lastPrice), this.figi, this.lotsSize, 'TP');
+            } else if (this.currentPortfolio && this.takeProfit) {
+                // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
-                    await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, p.quantityLots.units, 'TP');
+                    let lots = Number(p.quantityLots.units / 2);
 
-                    // const currentYield = this.getPrice(p.expectedYield);
-                    // const averagePrice = this.getPrice(p.averagePositionPrice);
-                    // if ((averagePrice * this.takeProfit) > currentYield) {
-                    //     console.log(p);
-                    //     console.log('currentYield', currentYield);
-                    //     console.log('averagePositionPrice', averagePrice);
-                    //     console.log('currentPrice', p.currentPrice);
-                    //     console.log('if', (averagePrice * this.takeProfit));
+                    if (lots < 1) {
+                        lots = 1;
+                    }
 
-                    //     await this.sell(p.currentPrice, p.figi, p.quantityLots.units, 'TP');
-                    // }
+                    await this.sell(this.lastPrice, p.figi, lots, 'TP');
+
+                    // await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
                 });
             }
         }
 
         async stopLossPosition() {
-            if (this.currentPortfolio && this.stopLoss) {
+            // Срабатывает для любой позиции без привязки к figi
+            if (this.backtest) {
+                await this.sell(this.getStopLossPrice(1, this.lastPrice), this.figi, this.lotsSize, 'SL');
+            } else if (this.currentPortfolio && this.stopLoss) {
+                // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
-                    const currentYield = this.getPrice(p.expectedYield);
-                    const averagePrice = this.getPrice(p.averagePositionPrice);
+                    let lots = Number(p.quantityLots.units / 2);
 
-                    if (averagePrice * (1 - this.stopLoss) > currentYield) {
-                        await this.sell(p.currentPrice, p.figi, p.quantityLots.units, 'SL');
+                    if (lots < 1) {
+                        lots = 1;
                     }
+
+                    await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), p.figi, lots, 'SL');
                 });
             }
         }
 
         async decisionClosePosition() {
-            // Если есть позиции и нет открытых заявок, то пробуем закрыт сделку по профиту или SL.
-            return (await this.hasOpenPositions()) && !this.hasOpenOrders();
+            // Если есть позиции, то пробуем закрыт сделку по профиту или SL.
+            return (await this.hasOpenPositions()) && !this.hasOpenOrders(); // < 2; // Открытых заявок должно быть не меньше двух, одна на TP, другая на SL.
         }
 
         async closePosition() {
             await this.takeProfitPosition();
+
+            // await this.stopLossPosition();
         }
 
         stop() {

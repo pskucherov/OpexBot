@@ -233,7 +233,7 @@ try {
 
         stop() {
             super.stop();
-            console.log('stopt'); // eslint-disable-line no-console
+            console.log('stop'); // eslint-disable-line no-console
         }
     }
 
