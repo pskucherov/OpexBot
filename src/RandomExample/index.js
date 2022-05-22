@@ -33,7 +33,11 @@ try {
 
         async takeProfitPosition() {
             if (this.backtest) {
-                await this.sell(this.getTakeProfitPrice(1, this.lastPrice), this.figi, this.lotsSize, 'TP');
+                this.backtestPositions.filter(p => !p.closed).forEach(async p => {
+                    if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
+                        await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
+                    }
+                })
             } else if (this.currentPortfolio && this.takeProfit) {
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
@@ -43,8 +47,6 @@ try {
                         lots = 1;
                     }
 
-                    // await this.sell(this.lastPrice, p.figi, lots, 'TP');
-
                     await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
                 });
             }
@@ -53,7 +55,9 @@ try {
         async stopLossPosition() {
             // Срабатывает для любой позиции без привязки к figi
             if (this.backtest) {
-                await this.sell(this.getStopLossPrice(1, this.lastPrice), this.figi, this.lotsSize, 'SL');
+                if (this.getPrice(this.lastPrice) < this.getPrice(this.getTakeProfitPrice(1, this.lastPrice))) {
+                    await this.sell(this.lastPrice, this.figi, this.lotsSize, 'SL');
+                }
             } else if (this.currentPortfolio && this.stopLoss) {
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
@@ -75,13 +79,11 @@ try {
 
         async closePosition() {
             await this.takeProfitPosition();
-
             // await this.stopLossPosition();
         }
 
         stop() {
             super.stop();
-            console.log('stop'); // eslint-disable-line no-console
         }
     }
 

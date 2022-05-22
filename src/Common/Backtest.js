@@ -42,8 +42,12 @@ try {
                 parentId: '',
                 step: this.step,
                 price: price,
+                averagePositionPrice: price,
                 lots: lots || this.lotsSize,
                 direction: this.enums.OrderDirection.ORDER_DIRECTION_BUY,
+                quantity: {
+                    units: this.tickerInfo.lot
+                },
                 closed: false,
             });
         }
@@ -58,9 +62,13 @@ try {
                         parentId: p.id,
                         step: this.step,
                         price: price,
+                        averagePositionPrice: price,
                         lots: lots || this.lotsSize,
+                        quantity: {
+                            units: this.tickerInfo.lot
+                        },       
                         direction: this.enums.OrderDirection.ORDER_DIRECTION_SELL,
-                        profit: {
+                        expectedYield: {
                             units: price.units - p.price.units,
                             nano: price.nano - p.price.nano,
                         },
