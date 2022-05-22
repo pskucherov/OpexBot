@@ -1,15 +1,18 @@
 try {
     const { Backtest } = require('../Common/Backtest');
 
+    const path = require('path');
+    const name = __dirname.split(path.sep).pop();
+
     /**
      * Торговый робот без логики со случайным срабатыванием.
      * Работает только на покупку, дальше ждёт исполнения заявки.
      * После исполнения заявки ждёт выхода по TP или SP.
      */
-    class RandomExample extends Backtest {
+    class Bot extends Backtest {
         constructor(...args) {
             super(...args);
-            this.name = 'RandomExample';
+            this.name = name;
         }
 
         // Покупаем, если известна последняя цена,
@@ -37,7 +40,7 @@ try {
                     if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
                         await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
                     }
-                })
+                });
             } else if (this.currentPortfolio && this.takeProfit) {
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
@@ -79,6 +82,7 @@ try {
 
         async closePosition() {
             await this.takeProfitPosition();
+
             // await this.stopLossPosition();
         }
 
@@ -87,7 +91,7 @@ try {
         }
     }
 
-    module.exports.RandomExample = RandomExample;
+    module.exports[name] = Bot;
 } catch (e) {
     console.log(e); // eslint-disable-line no-console
 }

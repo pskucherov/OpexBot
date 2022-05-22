@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+
 const hmr = require('node-hmr');
 
 /**
@@ -14,7 +15,7 @@ hmr(() => {
     fs.readdirSync(path.resolve(__dirname)).forEach(file => {
         const p = path.resolve(__dirname, file);
 
-        if (fs.lstatSync(p).isDirectory() && file !== 'Common') {
+        if (fs.lstatSync(p).isDirectory() && file !== 'Common' && file !== 'Example') {
             const module = require(p);
 
             if (module[file]) {

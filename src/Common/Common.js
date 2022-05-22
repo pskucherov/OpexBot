@@ -68,17 +68,6 @@ try {
 
             // this.currentOperations = await this.getOperations();
 
-            // console.log('orders');
-            // console.log(this.currentOrders);
-
-            // console.log('positions');
-            // console.log(this.currentPositions);
-
-            // console.log('portfolio');
-            // console.log(this.currentPortfolio);
-            // console.log('operations');
-            // console.log(this.currentOperations);
-
             this.ordersInited = true;
         }
 
@@ -577,26 +566,40 @@ try {
             };
         }
 
-        static getStaticFile(name) {
-            return path.resolve(__dirname, `../${name}/settings.json`);
+        static getStaticFileSettings(name, accountId, figi) {
+            if (!name || !accountId || !figi) {
+                return;
+            }
+
+            const dir = path.resolve(__dirname, '../../orders', name, accountId, figi);
+
+            mkDirByPathSync(dir);
+
+            return path.join(dir, 'settings.json');
         }
 
         /**
          * Получение настроек робота из файла или значений по умолчанию.
          *
          * @param {String} name
+         * @param {String} figi
+         * @param {String} accountId
          * @returns
          */
-        static getSettings(name) {
+        static getSettings(name, accountId, figi) {
             const settings = {
                 isAdviser: false,
                 takeProfit: 0.005,
                 stopLoss: 0.0025,
                 lotsSize: 1,
+                support: { units: 0, nano: 0 },
+                resistance: { units: 0, nano: 0 },
             };
 
-            if (name && fs.existsSync(this.getStaticFile(name))) {
-                return JSON.parse(fs.readFileSync(this.getStaticFile(name)).toString());
+            const file = name && this.getStaticFileSettings(name, accountId, figi);
+
+            if (name && file && fs.existsSync(file)) {
+                return JSON.parse(fs.readFileSync(file).toString());
             }
 
             return settings;
@@ -607,9 +610,11 @@ try {
          *
          * @param {String} name
          * @param {Object} settings
+         * @param {String} accountId
+         * @param {String} figi
          * @returns
          */
-        static setSettings(name, settings) {
+        static setSettings(name, settings, accountId, figi) {
             const current = this.getSettings(name);
 
             typeof settings.isAdviser !== 'undefined' && (current.isAdviser = Boolean(settings.isAdviser));
@@ -623,7 +628,19 @@ try {
             settings.lotsSize = parseInt(settings.lotsSize, 10);
             settings.lotsSize > 0 && (current.lotsSize = settings.lotsSize);
 
-            fs.writeFileSync(this.getStaticFile(name), JSON.stringify(current));
+            settings.su = parseInt(settings.su, 10);
+            settings.su > 0 && (current.support.units = settings.su);
+            settings.sn = parseInt(settings.sn, 10);
+            settings.sn > 0 && (current.support.nano = settings.sn);
+
+            settings.ru = parseInt(settings.ru, 10);
+            settings.ru > 0 && (current.resistance.units = settings.ru);
+            settings.rn = parseInt(settings.rn, 10);
+            settings.rn > 0 && (current.resistance.nano = settings.rn);
+
+            const file = this.getStaticFileSettings(name, accountId, figi);
+
+            file && fs.writeFileSync(file, JSON.stringify(current));
 
             return current;
         }
@@ -633,16 +650,18 @@ try {
          *
          * @param {String} name
          * @param {Object} settings
+         * @param {String} accountId
+         * @param {String} figi
          * @returns
          */
         setCurrentSettings(settings) {
-            const current = Common.setSettings(this.name, settings);
+            const current = Common.setSettings(this.name, settings, this.accountId, this.figi);
 
             this.getCurrentSettings();
         }
 
         getCurrentSettings() {
-            const current = Common.getSettings(this.name);
+            const current = Common.getSettings(this.name, this.accountId, this.figi);
 
             // Если робот работает в режиме советника,
             // то он только обозначает предположения, но не делает сделки.
@@ -659,6 +678,10 @@ try {
             this.takeProfit = current.takeProfit;
             this.stopLoss = current.stopLoss;
             this.lotsSize = current.lotsSize;
+
+            // Уровни поддержки и сопротивления.
+            this.support = current.support;
+            this.resistance = current.resistance;
         }
     }
 

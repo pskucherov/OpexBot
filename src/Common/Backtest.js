@@ -46,7 +46,7 @@ try {
                 lots: lots || this.lotsSize,
                 direction: this.enums.OrderDirection.ORDER_DIRECTION_BUY,
                 quantity: {
-                    units: this.tickerInfo.lot
+                    units: this.tickerInfo.lot,
                 },
                 closed: false,
             });
@@ -65,8 +65,8 @@ try {
                         averagePositionPrice: price,
                         lots: lots || this.lotsSize,
                         quantity: {
-                            units: this.tickerInfo.lot
-                        },       
+                            units: this.tickerInfo.lot,
+                        },
                         direction: this.enums.OrderDirection.ORDER_DIRECTION_SELL,
                         expectedYield: {
                             units: price.units - p.price.units,
