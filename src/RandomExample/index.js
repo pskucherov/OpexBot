@@ -43,9 +43,9 @@ try {
                         lots = 1;
                     }
 
-                    await this.sell(this.lastPrice, p.figi, lots, 'TP');
+                    // await this.sell(this.lastPrice, p.figi, lots, 'TP');
 
-                    // await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
+                    await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
                 });
             }
         }

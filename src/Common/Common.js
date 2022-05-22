@@ -439,7 +439,7 @@ try {
                 return;
             }
 
-            if (!price || !this.tickerInfo) {
+            if (!this.backtest && (!price || !this.tickerInfo)) {
                 return;
             }
             const profit = buy ? (this.takeProfit + 1) : (1 - this.takeProfit);
@@ -589,7 +589,7 @@ try {
          */
         static getSettings(name) {
             const settings = {
-                isAdviser: true,
+                isAdviser: false,
                 takeProfit: 0.005,
                 stopLoss: 0.0025,
                 lotsSize: 1,

@@ -9,7 +9,7 @@ try {
             this.backtestOrders = [];
         }
 
-        setBacktestState(step, interval, figi, date) {
+        setBacktestState(step, interval, figi, date, options) {
             interval && (this.interval = interval);
             figi && (this.figi = figi);
             date && (this.date = date);
@@ -19,6 +19,10 @@ try {
 
                 // Для каждого шага вызываем обработчик.
                 this.processing();
+            }
+
+            if (options && options.tickerInfo) {
+                this.tickerInfo = options.tickerInfo;
             }
         }
 
