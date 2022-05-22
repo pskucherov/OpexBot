@@ -1,4 +1,4 @@
-const { mkDirByPathSync } = require('tradingbot/src/utils');
+const { mkDirByPathSync } = require('../utils');
 const path = require('path');
 const fs = require('fs');
 
