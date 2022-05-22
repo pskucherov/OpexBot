@@ -7,9 +7,11 @@ const hmr = require('node-hmr');
  * Подключает все папки из текущей директории.
  *
  * При изменении в файлах перезагружает роботов,
- * чтобы не перезапускать сервис при правках робота.
+ * чтобы не перезапускать сервис при правках.
  */
 hmr(() => {
+    console.log('hmr restarted'); // eslint-disable-line no-console
+
     const bots = {};
 
     fs.readdirSync(path.resolve(__dirname)).forEach(file => {
@@ -23,6 +25,10 @@ hmr(() => {
             }
         }
     });
+
+    const { connector } = require('tinkofftradingbot');
+
+    connector({ bots });
 
     exports.bots = bots;
 }, {

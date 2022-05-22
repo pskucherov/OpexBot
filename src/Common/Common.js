@@ -18,11 +18,7 @@ try {
             // useTrailingStop: true,
         }) {
             this.accountId = accountId;
-
-            // console.log(this.accountId);
-
             this.backtest = Boolean(backtest);
-
             this.enums = options.enums;
 
             // Методы, с помощью которых робот может общаться с внешним миром.
@@ -165,13 +161,13 @@ try {
             // Обрабатываем логику только после инициализации статуса.
             if (this.ordersInited || this.backtest) {
                 if (await this.decisionClosePosition()) {
-                    console.log('decisionClosePosition'); // eslint-disable-line no-console
+                    // console.log('decisionClosePosition'); // eslint-disable-line no-console
                     await this.closePosition(this.lastPrice);
                 } else if (await this.decisionBuy()) {
-                    console.log('decisionBuy'); // eslint-disable-line no-console
+                    // console.log('decisionBuy'); // eslint-disable-line no-console
                     await this.buy();
                 } else if (await this.decisionSell()) {
-                    console.log('decisionBuy'); // eslint-disable-line no-console
+                    // console.log('decisionBuy'); // eslint-disable-line no-console
                     await this.sell();
                 }
             }
@@ -295,7 +291,7 @@ try {
                 return this.backtestBuy(price || this.lastPrice, lotsSize || this.lotsSize);
             }
 
-            console.log('buy', type); // eslint-disable-line no-console
+            console.log('buy', type || ''); // eslint-disable-line no-console
 
             this.logOrders(await this.cb.postOrder(
                 this.accountId,
@@ -400,7 +396,7 @@ try {
                 return this.backtestClosePosition(price || this.lastPrice, lotsSize || this.lotsSize);
             }
 
-            console.log('sell', type); // eslint-disable-line no-console
+            console.log('sell', type || ''); // eslint-disable-line no-console
 
             this.logOrders(await this.cb.postOrder(
                 this.accountId,
