@@ -108,3 +108,5 @@ data/cachedcandles/*
 data/cachedorderbooks/*
 
 orders/*
+
+package-lock.json
