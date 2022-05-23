@@ -40,7 +40,7 @@ PORT=3006 SERVERPORT=8006 npx opexbot
 1. [SDK](https://www.npmjs.com/package/tinkoff-sdk-grpc-js) (forked from mtvkand/invest-nodejs-grpc-sdk)
 > В основной репозиторий добавил appname, обновил proto и список ошибок, добавил возможность проброса метода для логирования ([раз](https://github.com/mtvkand/invest-nodejs-grpc-sdk/pull/3/commits), [два](https://github.com/mtvkand/invest-nodejs-grpc-sdk/pull/7/commits)). В форке привёл экспорт к нужному мне виду и вынес в npm.
 
-2. [Connector](https://www.npmjs.com/package/tinkofftradingbot) [^1]
+2. [TinkoffTradingBotConnector](https://www.npmjs.com/package/tinkofftradingbotconnector) [^1]
 > Библиотека, связывающая терминал, sdk и робота. Ведёт журнал логов по дням, кеширует данные от брокера и сохраняет настройки из терминала.
 
 3. [OpexViewer](https://www.npmjs.com/package/opexviewer)
