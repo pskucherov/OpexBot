@@ -43,7 +43,7 @@ PORT=3006 SERVERPORT=8006 npx opexbot
 2. [Connector](https://www.npmjs.com/package/tinkofftradingbot) [^1]
 > Библиотека, связывающая терминал, sdk и робота. Ведёт журнал логов по дням, кеширует данные от брокера и сохраняет настройки из терминала.
 
-3. [Terminal](https://www.npmjs.com/package/opexviewer)
+3. [OpexViewer](https://www.npmjs.com/package/opexviewer)
 > Пользовательский инетрфейс для бектестирования и дневной торговли.
 
 4. Непосредственно сам [робот](https://www.npmjs.com/package/opexbot)
