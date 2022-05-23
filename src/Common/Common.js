@@ -158,6 +158,8 @@ try {
                 await this.updateOrders();
             }
 
+            this.getCurrentSettings();
+
             // Обрабатываем логику только после инициализации статуса.
             if (this.ordersInited || this.backtest) {
                 if (await this.decisionClosePosition()) {
@@ -592,10 +594,12 @@ try {
                 resistance: { units: 0, nano: 0 },
             };
 
-            const file = name && this.getStaticFileSettings(name, accountId, figi);
+            if (name && accountId && figi) {
+                const file = this.getStaticFileSettings(name, accountId, figi);
 
-            if (name && file && fs.existsSync(file)) {
-                return JSON.parse(fs.readFileSync(file).toString());
+                if (fs.existsSync(file)) {
+                    return JSON.parse(fs.readFileSync(file).toString());
+                }
             }
 
             return settings;
@@ -634,9 +638,11 @@ try {
             settings.rn = parseInt(settings.rn, 10);
             settings.rn > 0 && (current.resistance.nano = settings.rn);
 
-            const file = this.getStaticFileSettings(name, accountId, figi);
+            if (name && accountId && figi) {
+                const file = this.getStaticFileSettings(name, accountId, figi);
 
-            file && fs.writeFileSync(file, JSON.stringify(current));
+                file && fs.writeFileSync(file, JSON.stringify(current));
+            }
 
             return current;
         }
