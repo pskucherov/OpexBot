@@ -34,7 +34,7 @@ PORT=3006 SERVERPORT=8006 npx opexbot
 
 Вся дальнейшая настройка и взаимодействие с роботом через UI.
 
-Подробности в репозитории терминала: https://github.com/pskucherov/OpexViewer/
+Подробности в репозитории терминала: [https://github.com/pskucherov/OpexViewer/](https://github.com/pskucherov/OpexViewer/#возможности)
 
 ## Модули
 1. [SDK](https://www.npmjs.com/package/tinkoff-sdk-grpc-js) (forked from mtvkand/invest-nodejs-grpc-sdk)
