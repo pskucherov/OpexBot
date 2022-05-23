@@ -29,6 +29,13 @@ npm start
 PORT=3006 SERVERPORT=8006 npx opexbot
 ```
 
+## UI
+После старта откройте http://localhost:3000/settings
+
+Вся дальнейшая настройка и взаимодействие с роботом через UI.
+
+Подробности в репозитории терминала: https://github.com/pskucherov/OpexViewer/
+
 ## Модули
 1. [SDK](https://www.npmjs.com/package/tinkoff-sdk-grpc-js) (forked from mtvkand/invest-nodejs-grpc-sdk)
 > В основной репозиторий добавил appname, обновил proto и список ошибок, добавил возможность проброса метода для логирования ([раз](https://github.com/mtvkand/invest-nodejs-grpc-sdk/pull/3/commits), [два](https://github.com/mtvkand/invest-nodejs-grpc-sdk/pull/7/commits)). В форке привёл экспорт к нужному мне виду и вынес в npm.
@@ -39,8 +46,8 @@ PORT=3006 SERVERPORT=8006 npx opexbot
 3. [Terminal](https://www.npmjs.com/package/opexviewer)
 > Пользовательский инетрфейс для бектестирования и дневной торговли.
 
-4. Непосредственно сам (робот)(https://www.npmjs.com/package/opexbot)
+4. Непосредственно сам [робот](https://www.npmjs.com/package/opexbot)
 > Состоит из основного класса обработки данных Common, наследуемого от него Backtest для обработки данных в режиме бектестирования и класса робота, в котором реализуется торговая стратегия.
 
 
-[^1]: Изначально это должен был быть сам робот. Но из-за большого объёма кода решил разделить логику, чтобы не пугать неподготовленных пользователей.
+[^1]: Изначально это должен был быть сам робот. Но из-за большого объёма кода решил разделить логику, чтобы не смешивать разные сущности.
