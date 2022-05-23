@@ -26,7 +26,7 @@ hmr(() => {
         }
     });
 
-    const { connector } = require('tinkofftradingbot');
+    const { connector } = require('tinkofftradingbotconnector');
 
     connector({ bots });
 
