@@ -2,7 +2,7 @@
     "name": "opexbot",
     "author": "pskucherov",
     "license": "Apache-2.0",
-    "version": "0.1.7",
+    "version": "0.2.0",
     "main": "src/main.js",
     "bin": {
         "opexbot": "opexbot.js"
@@ -33,8 +33,8 @@
     },
     "dependencies": {
         "concurrently": "^7.2.0",
-        "opexviewer": "^0.1.4",
+        "opexviewer": "^0.2.0",
         "node-hmr": "^1.3.1",
-        "tinkofftradingbot": "^0.1.6"
+        "tinkofftradingbotconnector": "^0.2.0"
     }
 }
