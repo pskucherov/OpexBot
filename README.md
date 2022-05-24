@@ -73,6 +73,7 @@ PORT=3006 SERVERPORT=8006 npx opexbot
 
 2. Кеширование стакана для анализа торгов, бектестирования и создания новых роботов.
 > Когда робот запущен, то все заявки, сделки и стакан сохраняются в файл. При выборе робота для бектестирования в эту дату для заданного инструмента все данные восстанавливаются и можно проанализировать поведение робота. А так же отладить его на сохранённом стакане.
+
 Примеры
 * [закешированные заявки и трейды](https://github.com/pskucherov/OpexBot/blob/3805bbb08fe4ff4e7a28ec0ad4924937c2931459/orders/RandomExample/2125297396/BBG004730N88/18.05.2022.json) 
 * [закешированный](https://github.com/pskucherov/TinkoffTradingBotConnector/blob/abfbf643a8a5341e892d01095b7fffcce3e07afb/data/cachedorderbooks/BBG004730N88/18.05.2022.json) и [сжатый](https://github.com/pskucherov/TinkoffTradingBotConnector/blob/abfbf643a8a5341e892d01095b7fffcce3e07afb/data/cachedorderbooks/BBG004730N88/18.05.2022compressed.json) стаканы. Полный кеш стакана можно использовать для машинного обучения. Сжатый схлопнут до минут и используется для отрисовке на графике.
