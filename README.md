@@ -65,7 +65,7 @@ PORT=3006 SERVERPORT=8006 npx opexbot
                                                                                                                         
 <img src="https://user-images.githubusercontent.com/3197868/169852077-ae5ad9df-66e7-47c7-82bd-e2cf043c2c07.png" height="300" >
 
-И получается лаконичный робот, в котором нет ничего лишнего. [Пример робота](https://github.com/pskucherov/OpexBot/blob/main/src/SupportResistance/index.js), торгующего по уровням поддержки и сопротивления.
+И получается лаконичный робот, в котором нет ничего лишнего. [Пример робота](https://github.com/pskucherov/OpexBot/blob/main/src/SupportResistance/index.js), который торгует от уровня поддержки и закрывает сделки по takeProfit.
 
 ## Оригинальное использование
 
