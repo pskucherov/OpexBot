@@ -10,7 +10,7 @@ const hmr = require('node-hmr');
  * чтобы не перезапускать сервис при правках.
  */
 hmr(() => {
-    console.log('hmr restarted'); // eslint-disable-line no-console
+    console.log('hmr started'); // eslint-disable-line no-console
 
     const bots = {};
 

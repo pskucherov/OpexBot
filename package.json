@@ -2,7 +2,7 @@
     "name": "opexbot",
     "author": "pskucherov",
     "license": "Apache-2.0",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "main": "src/main.js",
     "repository": {
         "type": "git",

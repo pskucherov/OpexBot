@@ -45,7 +45,34 @@ try {
 
             this.orders = {};
 
+            // Устанавливает возможна ли торговля в данный момент.
+            // Для бектеста всегда включено.
+            this.tradingTime = Boolean(this.backtest);
+
             this.getCurrentSettings();
+        }
+
+        /**
+         * Проверяет возможность торговли в данный день и время.
+         */
+        async checkTradingDayAndTime() {
+            if (this.backtest) {
+                this.tradingTime = true;
+            }
+
+            if (!this.tickerInfo || !this.exchange) {
+                return;
+            }
+
+            const { isTradingDay, startTime, endTime } = this.exchange;
+            const now = new Date().getTime();
+
+            // TODO: добавить обновление данных при смене дня.
+            if (!isTradingDay || !startTime || !endTime) {
+                this.tradingTime = false;
+            } else if ((new Date(startTime).getTime()) <= now && (new Date(endTime).getTime() > now)) {
+                this.tradingTime = true;
+            }
         }
 
         async initAsync() {
@@ -156,30 +183,33 @@ try {
             if (!this.backtest) {
                 await this.timer(this.robotTimer);
                 await this.updateOrders();
+                await this.checkTradingDayAndTime();
             }
 
-            this.getCurrentSettings();
+            if (this.tradingTime) {
+                this.getCurrentSettings();
 
-            // Обрабатываем логику только после инициализации статуса.
-            if (this.ordersInited || this.backtest) {
-                if (await this.decisionClosePosition()) {
-                    // console.log('decisionClosePosition'); // eslint-disable-line no-console
-                    await this.closePosition(this.lastPrice);
-                } else if (await this.decisionBuy()) {
-                    // console.log('decisionBuy'); // eslint-disable-line no-console
-                    await this.buy();
-                } else if (await this.decisionSell()) {
-                    // console.log('decisionBuy'); // eslint-disable-line no-console
-                    await this.sell();
+                // Обрабатываем логику только после инициализации статуса.
+                if (this.ordersInited || this.backtest) {
+                    if (await this.decisionClosePosition()) {
+                        // console.log('decisionClosePosition'); // eslint-disable-line no-console
+                        await this.closePosition(this.lastPrice);
+                    } else if (await this.decisionBuy()) {
+                        // console.log('decisionBuy'); // eslint-disable-line no-console
+                        await this.buy();
+                    } else if (await this.decisionSell()) {
+                        // console.log('decisionBuy'); // eslint-disable-line no-console
+                        await this.sell();
+                    }
                 }
-            }
 
-            // Записываем новое состояние, только если оно изминилось.
-            if (!this.backtest && this.figi && this.cb.cacheState &&
-                (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
-                this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
-                this.subscribeDataUpdated.lastPrice = false;
-                this.subscribeDataUpdated.orderbook = false;
+                // Записываем новое состояние, только если оно изминилось.
+                if (!this.backtest && this.figi && this.cb.cacheState &&
+                    (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
+                    this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
+                    this.subscribeDataUpdated.lastPrice = false;
+                    this.subscribeDataUpdated.orderbook = false;
+                }
             }
 
             // Для бектестирования производится пошаговая обработка сделок,
@@ -237,10 +267,7 @@ try {
                 this.tickerInfo = options.tickerInfo;
                 this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
 
-                const q = await this.cb.getTradingSchedules(options.tickerInfo.exchange,
-                    new Date().getTime(), new Date().getTime());
-
-                // {"exchanges":[{"exchange":"MOEX_MORNING","days":[{"date":"2022-05-18T00:00:00.000Z","isTradingDay":true,"startTime":"2022-05-18T07:00:00.000Z","endTime":"2022-05-18T15:40:00.000Z","openingAuctionStartTime":"2022-05-18T06:50:00.000Z","closingAuctionEndTime":"2022-05-18T15:50:00.000Z","eveningOpeningAuctionStartTime":"2022-05-18T15:50:00.000Z","eveningStartTime":"2022-05-18T15:50:00.000Z","eveningEndTime":"2022-05-18T20:50:00.000Z","premarketStartTime":"2022-05-18T06:50:00.000Z","premarketEndTime":"2022-05-18T07:00:00.000Z"}]}]}
+                await this.setExchangesTradingTime();
             }
 
             if (!this.logOrdersFile && this.accountId && this.figi) {
@@ -248,6 +275,21 @@ try {
 
                 mkDirByPathSync(dir);
                 this.logOrdersFile = path.join(dir, name);
+            }
+        }
+
+        async setExchangesTradingTime() {
+            const now = new Date().getTime();
+            const { exchanges } = await this.cb.getTradingSchedules(this.tickerInfo.exchange, now, now);
+
+            if (exchanges && exchanges.length) {
+                const { startTime, endTime, isTradingDay } = exchanges[0] && exchanges[0].days && exchanges[0].days[0];
+
+                this.exchange = {
+                    startTime,
+                    endTime,
+                    isTradingDay,
+                };
             }
         }
 
@@ -282,6 +324,7 @@ try {
 
         stop() {
             this.inProgress = false;
+            clearInterval(this.intervalId);
         }
 
         async buy(price, figi, lotsSize, type) {
