@@ -17,7 +17,7 @@ hmr(() => {
     fs.readdirSync(path.resolve(__dirname)).forEach(file => {
         const p = path.resolve(__dirname, file);
 
-        if (fs.lstatSync(p).isDirectory() && file !== 'Common' && file !== 'Example') {
+        if (fs.lstatSync(p).isDirectory() && !['Common', 'Example'].includes(file)) {
             const module = require(p);
 
             if (module[file]) {

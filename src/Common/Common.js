@@ -11,6 +11,7 @@ try {
             postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => {}, // eslint-disable-line max-params
             cacheState: (figi, time, lastPrice, orderBook) => {},
         }, options = {
+            token: '',
             enums: {},
 
             // takeProfit: 3,
@@ -27,6 +28,9 @@ try {
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
             // this.useTrailingStop = options.useTrailingStop;
             this.isSandbox = Boolean(options.isSandbox);
+
+            // Здесь токен не используется, но может понадобиться для связки с py роботом.
+            this.token = options.token;
 
             (async () => {
                 this.init();
@@ -324,7 +328,6 @@ try {
 
         stop() {
             this.inProgress = false;
-            clearInterval(this.intervalId);
         }
 
         async buy(price, figi, lotsSize, type) {
