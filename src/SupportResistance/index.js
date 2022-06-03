@@ -23,7 +23,14 @@ try {
                 return false;
             }
 
-            return this.getPrice(this.lastPrice) <= this.getPrice(this.support);
+            if ((!this.backtest || this.step > 1) &&
+                !(await this.hasOpenPositions()) &&
+                !this.hasOpenOrders()
+            ) {
+                return this.getPrice(this.lastPrice) <= this.getPrice(this.support);
+            }
+            
+            return false;
         }
 
         /**
