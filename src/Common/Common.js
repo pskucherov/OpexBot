@@ -280,7 +280,8 @@ try {
 
         async setExchangesTradingTime() {
             const now = new Date().getTime();
-            const { exchanges } = await this.cb.getTradingSchedules(this.tickerInfo.exchange, now, now);
+            const { exchanges } = this.cb.getTradingSchedules &&
+                await this.cb.getTradingSchedules(this.tickerInfo.exchange, now, now) || {};
 
             if (exchanges && exchanges.length) {
                 const { startTime, endTime, isTradingDay } = exchanges[0] && exchanges[0].days && exchanges[0].days[0];
@@ -338,7 +339,7 @@ try {
 
             console.log('buy', type || ''); // eslint-disable-line no-console
 
-            this.logOrders(await this.cb.postOrder(
+            this.cb.postOrder && this.logOrders(await this.cb.postOrder(
                 this.accountId,
                 figi || this.figi,
                 lotsSize || this.lotsSize,
@@ -400,11 +401,12 @@ try {
         }
 
         async getOperations() {
-            return this.accountId && this.figi && await this.cb.getOperations(this.accountId, this.figi, 1, this.date);
+            return this.accountId && this.figi && this.cb.getOperations &&
+                await this.cb.getOperations(this.accountId, this.figi, 1, this.date);
         }
 
         async getPortfolio() {
-            return this.accountId && await this.cb.getPortfolio(this.accountId);
+            return this.accountId && this.cb.getPortfolio && await this.cb.getPortfolio(this.accountId);
         }
 
         async getPositions() {
@@ -443,7 +445,7 @@ try {
 
             console.log('sell', type || ''); // eslint-disable-line no-console
 
-            this.logOrders(await this.cb.postOrder(
+            this.cb.postOrder && this.logOrders(await this.cb.postOrder(
                 this.accountId,
                 figi || this.figi,
                 lotsSize || this.lotsSize,
@@ -532,7 +534,7 @@ try {
             // TODO: брать из OrderExecutionReportStatus
             // EXECUTION_REPORT_STATUS_NEW (4)
             // EXECUTION_REPORT_STATUS_PARTIALLYFILL (5)
-            const { orders } = (await this.cb.getOrders(this.accountId)) || {};
+            const { orders } = this.cb.getOrders && (await this.cb.getOrders(this.accountId)) || {};
 
             return orders && orders.filter(o => [4, 5].includes(o.executionReportStatus));
         }
@@ -544,6 +546,10 @@ try {
         }
 
         async cancelUnfulfilledOrders() {
+            if (!this.cb.getOrders) {
+                return;
+            }
+
             const { orders } = await this.cb.getOrders(this.accountId);
 
             for (const o of orders) {

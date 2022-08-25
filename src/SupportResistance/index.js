@@ -29,7 +29,7 @@ try {
             ) {
                 return this.getPrice(this.lastPrice) <= this.getPrice(this.support);
             }
-            
+
             return false;
         }
 
