@@ -12,7 +12,7 @@ try {
             cacheState: (figi, time, lastPrice, orderBook) => {},
         }, options = {
             enums: {},
-
+            brokerId: '',
             // takeProfit: 3,
             // stopLoss: 1,
             // useTrailingStop: true,
@@ -20,6 +20,7 @@ try {
             this.accountId = accountId;
             this.backtest = Boolean(backtest);
             this.enums = options.enums;
+            this.brokerId = options.brokerId;
 
             // Методы, с помощью которых робот может общаться с внешним миром.
             this.cb = callbacks;
@@ -58,6 +59,14 @@ try {
         async checkTradingDayAndTime() {
             if (this.backtest) {
                 this.tradingTime = true;
+            }
+
+            if (this.brokerId === 'FINAM') {
+                // По умолчанию для финам всегда торговый день.
+                // И запускать можно только на торги.
+                // TODO: сделать переход с одних торгов на другие.
+                this.tradingTime = true;
+                return;
             }
 
             if (!this.tickerInfo || !this.exchange) {
@@ -174,48 +183,58 @@ try {
          * По сути бесконечный цикл, который обрабатывает входящие данные.
          */
         async processing() {
-            if (!this.inProgress && !this.backtest) {
-                setImmediate(() => this.processing());
+            try {
+                if (!this.inProgress && !this.backtest) {
+                    setImmediate(() => this.processing());
 
-                return;
-            }
+                    return;
+                }
 
-            if (!this.backtest) {
-                await this.timer(this.robotTimer);
-                await this.updateOrders();
-                await this.checkTradingDayAndTime();
-            }
+                console.log(1);
 
-            if (this.tradingTime) {
-                this.getCurrentSettings();
+                if (!this.backtest) {
+                    await this.timer(this.robotTimer);
+                    await this.updateOrders();
+                    await this.checkTradingDayAndTime();
+                }
+                console.log(2);
 
-                // Обрабатываем логику только после инициализации статуса.
-                if (this.ordersInited || this.backtest) {
-                    if (await this.decisionClosePosition()) {
-                        // console.log('decisionClosePosition'); // eslint-disable-line no-console
-                        await this.closePosition(this.lastPrice);
-                    } else if (await this.decisionBuy()) {
-                        // console.log('decisionBuy'); // eslint-disable-line no-console
-                        await this.buy();
-                    } else if (await this.decisionSell()) {
-                        // console.log('decisionBuy'); // eslint-disable-line no-console
-                        await this.sell();
+                
+
+                if (this.tradingTime) {
+                    this.getCurrentSettings();
+
+                    // Обрабатываем логику только после инициализации статуса.
+                    if (this.ordersInited || this.backtest) {
+                        console.log(4);
+                        if (await this.decisionClosePosition()) {
+                            console.log('decisionClosePosition'); // eslint-disable-line no-console
+                            await this.closePosition(this.lastPrice);
+                        } else if (await this.decisionBuy()) {
+                            console.log('decisionBuy'); // eslint-disable-line no-console
+                            await this.buy();
+                        } else if (await this.decisionSell()) {
+                            console.log('decisionBuy'); // eslint-disable-line no-console
+                            await this.sell();
+                        }
+                    }
+
+                    // Записываем новое состояние, только если оно изминилось.
+                    if (!this.backtest && this.figi && this.cb.cacheState &&
+                        (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
+                        this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
+                        this.subscribeDataUpdated.lastPrice = false;
+                        this.subscribeDataUpdated.orderbook = false;
                     }
                 }
 
-                // Записываем новое состояние, только если оно изминилось.
-                if (!this.backtest && this.figi && this.cb.cacheState &&
-                    (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
-                    this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
-                    this.subscribeDataUpdated.lastPrice = false;
-                    this.subscribeDataUpdated.orderbook = false;
+                // Для бектестирования производится пошаговая обработка сделок,
+                // а не рекурсивная.
+                if (!this.backtest) {
+                    setImmediate(() => this.processing());
                 }
-            }
-
-            // Для бектестирования производится пошаговая обработка сделок,
-            // а не рекурсивная.
-            if (!this.backtest) {
-                setImmediate(() => this.processing());
+            } catch (e) {
+                console.log(e);
             }
         }
 
@@ -326,6 +345,7 @@ try {
         stop() {
             this.inProgress = false;
             clearInterval(this.intervalId);
+            console.log('stop');
         }
 
         async buy(price, figi, lotsSize, type) {
@@ -414,7 +434,11 @@ try {
                 return this.getBacktestPositions();
             }
 
-            return (this.currentPortfolio && this.currentPortfolio.positions || []).filter(p => p.figi === this.figi);
+            return (this.currentPortfolio && this.currentPortfolio.positions || [])
+                .filter(p => {
+                    return p.figi === this.figi ||
+                        p.figi === this.tickerInfo.noBoardFigi // FINAM figi
+                });
         }
 
         async getOrders() {
@@ -425,7 +449,7 @@ try {
             if (this.backtest) {
                 return this.hasBacktestOpenPositions();
             }
-
+            
             return Boolean(this.currentPortfolio && this.currentPortfolio.positions &&
                 this.currentPortfolio.positions.filter(p => p.figi === this.figi).length);
         }
