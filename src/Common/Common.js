@@ -13,6 +13,7 @@ try {
         }, options = {
             enums: {},
             brokerId: '',
+
             // takeProfit: 3,
             // stopLoss: 1,
             // useTrailingStop: true,
@@ -41,7 +42,7 @@ try {
             this.subscribesTimer = 1500;
 
             // Таймер выполнения process
-            this.robotTimer = 15000;
+            this.robotTimer = 3000 || 15000;
             this.subscribeDataUpdated = {};
 
             this.orders = {};
@@ -66,6 +67,7 @@ try {
                 // И запускать можно только на торги.
                 // TODO: сделать переход с одних торгов на другие.
                 this.tradingTime = true;
+
                 return;
             }
 
@@ -190,23 +192,24 @@ try {
                     return;
                 }
 
-                console.log(1);
-
                 if (!this.backtest) {
                     await this.timer(this.robotTimer);
                     await this.updateOrders();
                     await this.checkTradingDayAndTime();
-                }
-                console.log(2);
 
-                
+                    if (this.brokerId === 'FINAM') {
+                        // update orderbook
+                        // update price
+                        this.testData = this.cb.getQuotationsAndOrderbook(this.figi);
+                        this.lastPrice = this.testData.quotations.bid;
+                    }
+                }
 
                 if (this.tradingTime) {
                     this.getCurrentSettings();
 
                     // Обрабатываем логику только после инициализации статуса.
                     if (this.ordersInited || this.backtest) {
-                        console.log(4);
                         if (await this.decisionClosePosition()) {
                             console.log('decisionClosePosition'); // eslint-disable-line no-console
                             await this.closePosition(this.lastPrice);
@@ -234,7 +237,7 @@ try {
                     setImmediate(() => this.processing());
                 }
             } catch (e) {
-                console.log(e);
+                console.log(e); // eslint-disable-line no-console
             }
         }
 
@@ -337,6 +340,7 @@ try {
 
         start() {
             this.inProgress = true;
+
             this.subscribes();
 
             console.log('start'); // eslint-disable-line no-console
@@ -345,7 +349,7 @@ try {
         stop() {
             this.inProgress = false;
             clearInterval(this.intervalId);
-            console.log('stop');
+            console.log('stop'); // eslint-disable-line no-console
         }
 
         async buy(price, figi, lotsSize, type) {
@@ -437,7 +441,7 @@ try {
             return (this.currentPortfolio && this.currentPortfolio.positions || [])
                 .filter(p => {
                     return p.figi === this.figi ||
-                        p.figi === this.tickerInfo.noBoardFigi // FINAM figi
+                        p.figi === this.tickerInfo.noBoardFigi; // FINAM figi
                 });
         }
 
@@ -449,7 +453,7 @@ try {
             if (this.backtest) {
                 return this.hasBacktestOpenPositions();
             }
-            
+
             return Boolean(this.currentPortfolio && this.currentPortfolio.positions &&
                 this.currentPortfolio.positions.filter(p => p.figi === this.figi).length);
         }

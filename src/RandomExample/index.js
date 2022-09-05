@@ -18,19 +18,19 @@ try {
         // Покупаем, если известна последняя цена,
         // нет открытых позиций и заявок.
         async decisionBuy() {
-            console.log('decisionBuy', this.lastPrice, !(await this.hasOpenPositions()), !this.hasOpenOrders());
+            try {
+                if (this.lastPrice &&
+                    (!this.backtest || this.step > 1) &&
+                    !(await this.hasOpenPositions()) &&
+                    !this.hasOpenOrders()
+                ) {
+                    return Math.floor(Math.random() * 100) > 80;
+                }
 
-            if (this.lastPrice &&
-                (!this.backtest || this.step > 1) &&
-                !(await this.hasOpenPositions()) &&
-                !this.hasOpenOrders()
-            ) {
-                return Math.floor(Math.random() * 100) > 80;
+                return false;
+            } catch (e) {
+                console.log('decisionBuy error', e); // eslint-disable-line no-console
             }
-
-            console.log('false')
-
-            return false;
         }
 
         decisionSell() {
