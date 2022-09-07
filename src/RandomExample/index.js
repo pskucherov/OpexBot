@@ -39,23 +39,31 @@ try {
         }
 
         async takeProfitPosition() {
-            if (this.backtest) {
-                this.backtestPositions.filter(p => !p.closed).forEach(async p => {
-                    if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
-                        await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
-                    }
-                });
-            } else if (this.currentPortfolio && this.takeProfit) {
-                // Срабатывает для любой позиции без привязки к figi
-                this.currentPortfolio.positions.forEach(async p => {
-                    let lots = Number(p.quantityLots.units / 2);
+            try {
+                if (this.backtest) {
+                    this.backtestPositions.filter(p => !p.closed).forEach(async p => {
+                        if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
+                            await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
+                        }
+                    });
+                } else if (this.currentPortfolio && this.takeProfit) {
+                    // Срабатывает для любой позиции без привязки к figi
+                    this.currentPortfolio.positions.forEach(async p => {
+                        if (p.quantityLots?.units) {
+                            let lots = Number(p.quantityLots.units / 2);
 
-                    if (lots < 1) {
-                        lots = 1;
-                    }
+                            if (lots < 1) {
+                                lots = 1;
+                            }
 
-                    await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
-                });
+                            await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
+                        } else {
+                            console.log('takeProfitPosition empty quantityLots.units');
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log('takeProfitPosition', e);
             }
         }
 
