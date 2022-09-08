@@ -56,7 +56,10 @@ try {
                                 lots = 1;
                             }
 
-                            await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
+                            console.log('this.getTakeProfitPrice(1, p.averagePositionPrice)', this.getTakeProfitPrice(1, p.averagePositionPrice));
+
+                            // p.figi => this.figi
+                            await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), this.figi, lots, 'TP');
                         } else {
                             console.log('takeProfitPosition empty quantityLots.units');
                         }
@@ -82,7 +85,8 @@ try {
                         lots = 1;
                     }
 
-                    await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), p.figi, lots, 'SL');
+                    // p.figi => this.figi
+                    await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), this.figi, lots, 'SL');
                 });
             }
         }
