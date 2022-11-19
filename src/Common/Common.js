@@ -42,7 +42,7 @@ try {
             this.subscribesTimer = 1500;
 
             // Таймер выполнения process
-            this.robotTimer = 1000 || 15000;
+            this.robotTimer = 1500;
             this.subscribeDataUpdated = {};
 
             this.orders = {};
@@ -380,7 +380,7 @@ try {
 
                 await this.updateOrders();
             } catch (e) {
-                console.log('buy', e);
+                console.log('buy', e); // eslint-disable-line no-console
             }
         }
 
@@ -426,7 +426,7 @@ try {
                 // orderId
                 fs.writeFileSync(this.logOrdersFile, JSON.stringify(orders));
             } catch (e) {
-                console.log('logOrders', e);
+                console.log('logOrders', e); // eslint-disable-line no-console
             }
         }
 
@@ -503,7 +503,7 @@ try {
 
                 await this.updateOrders();
             } catch (e) {
-                console.log('sell', e);
+                console.log('sell', e); // eslint-disable-line no-console
             }
         }
 
@@ -545,7 +545,7 @@ try {
                     nano,
                 };
             } catch (e) {
-                console.log('getTakeProfitPrice', e);
+                console.log('getTakeProfitPrice', e); // eslint-disable-line no-console
             }
         }
 
@@ -697,6 +697,7 @@ try {
                 isAdviser: false,
                 takeProfit: 0.005,
                 stopLoss: 0.0025,
+                volume: 0.5,
                 lotsSize: 1,
                 support: { units: 0, nano: 0 },
                 resistance: { units: 0, nano: 0 },
@@ -728,10 +729,13 @@ try {
             typeof settings.isAdviser !== 'undefined' && (current.isAdviser = Boolean(settings.isAdviser));
 
             settings.takeProfit = parseFloat(settings.takeProfit);
-            settings.takeProfit > 0 && (current.takeProfit = settings.takeProfit);
+            settings.takeProfit > 0 && settings.takeProfit <= 100 && (current.takeProfit = settings.takeProfit);
 
             settings.stopLoss = parseFloat(settings.stopLoss);
-            settings.stopLoss > 0 && (current.stopLoss = settings.stopLoss);
+            settings.stopLoss > 0 && settings.stopLoss <= 100 && (current.stopLoss = settings.stopLoss);
+
+            settings.volume = parseFloat(settings.volume);
+            settings.volume > 0 && settings.volume <= 100 && (current.volume = settings.volume);
 
             settings.lotsSize = parseInt(settings.lotsSize, 10);
             settings.lotsSize > 0 && (current.lotsSize = settings.lotsSize);

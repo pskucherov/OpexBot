@@ -9,7 +9,7 @@ try {
      */
     class Bot extends Backtest {
         // instrument — торгует одним инструментом. portfolio — всем портфелем.
-        static type = 'instrument';
+        static type = 'portfolio';
 
         constructor(...args) {
             super(...args);
