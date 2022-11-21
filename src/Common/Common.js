@@ -8,8 +8,8 @@ try {
             subscribes: {},
 
             // TODO: порефакторить количество параметров
-            postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => {}, // eslint-disable-line max-params
-            cacheState: (figi, time, lastPrice, orderBook) => {},
+            postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => { }, // eslint-disable-line max-params
+            cacheState: (figi, time, lastPrice, orderBook) => { },
         }, options = {
             enums: {},
             brokerId: '',
@@ -39,7 +39,7 @@ try {
 
         init() {
             // Таймер подписки на события.
-            this.subscribesTimer = 1500;
+            this.subscribesTimer = 100;
 
             // Таймер выполнения process
             this.robotTimer = 1500;
@@ -49,7 +49,8 @@ try {
 
             // Устанавливает возможна ли торговля в данный момент.
             // Для бектеста всегда включено.
-            this.tradingTime = Boolean(this.backtest);
+            // this.tradingTime = Boolean(this.backtest);
+            this.tradingTime = true;
 
             this.getCurrentSettings();
         }
@@ -98,11 +99,15 @@ try {
             this.currentOrders = await this.getOpenOrders();
 
             // this.currentPositions = await this.getPositions();
-            this.currentPortfolio = await this.getPortfolio();
+            await this.updatePortfolio();
 
             // this.currentOperations = await this.getOperations();
 
             this.ordersInited = true;
+        }
+
+        async updatePortfolio() {
+            this.currentPortfolio = await this.getPortfolio();
         }
 
         /**
@@ -132,19 +137,34 @@ try {
                 const { subscribes } = this.cb;
 
                 ['lastPrice', 'orderbook'].forEach(name => {
-                    if (subscribes[name]) {
+                    if (subscribes[name] && !this.isSandbox) {
                         setImmediate(async () => {
-                            const gen = subscribes[name][0]((async function* () {
+                            const subscribeArr = subscribes[name]();
+
+                            const gen = subscribeArr[0]((async function* () {
                                 while (this.inProgress) {
                                     await this.timer(this.subscribesTimer);
-                                    yield subscribes[name][1]();
+
+                                    if (this.figi) {
+                                        const figi = typeof this.figi === 'string' ? this.figi.split(',') : this.figi;
+
+                                        yield subscribeArr[1](figi);
+                                    }
                                 }
                             }).call(this));
 
                             for await (const data of gen) {
                                 if (data[name]) {
                                     this.subscribeDataUpdated[name] = true;
-                                    this[name] = name === 'lastPrice' ? data[name].price : data[name];
+
+                                    const currentData = name === 'lastPrice' ? data[name].price : data[name];
+
+                                    this[data[name].figi] || (this[data[name].figi] = {});
+                                    this[data[name].figi][name] = currentData;
+
+                                    if (!this.isPortfolio) {
+                                        this[name] = currentData;
+                                    }
                                 }
                                 if (!this.inProgress) {
                                     break;
@@ -154,30 +174,48 @@ try {
                     }
                 });
 
-                if (subscribes.orders && !this.isSandbox) {
-                    setImmediate(async () => {
-                        const gen = subscribes.orders({
-                            accounts: [this.accountId],
-                        });
+                ['orders', 'positions'].forEach(name => {
+                    if (subscribes[name] && !this.isSandbox) {
+                        setImmediate(async () => {
+                            const gen = subscribes[name]({
+                                accounts: [this.accountId],
+                            });
 
-                        for await (const data of gen) {
-                            if (data.orderTrades) {
-                                if (!this.orderTrades) {
-                                    this.orderTrades = [];
+                            for await (const data of gen) {
+                                if (data.orderTrades) {
+                                    if (!this.orderTrades) {
+                                        this.orderTrades = [];
+                                    }
+
+                                    this.orderTrades.push(data.orderTrades);
+                                    this.logOrders(data);
+                                    await this.updateOrders();
+                                } else if (data.position && this.isPortfolio) {
+                                    await this.updateFigi();
                                 }
 
-                                this.orderTrades.push(data.orderTrades);
-                                this.logOrders(data);
-                                await this.updateOrders();
+                                if (!this.inProgress) {
+                                    break;
+                                }
                             }
-
-                            if (!this.inProgress) {
-                                break;
-                            }
-                        }
-                    });
-                }
+                        });
+                    }
+                });
             } catch (e) { console.log(e) } // eslint-disable-line no-console
+        }
+
+        /**
+         * Обновляем figi для портфельного управления.
+         */
+        async updateFigi() {
+            // При портфельном управлении содержимое портфеля может меняться.
+            // Это нужно учитывать в подписках на цену.
+            if (this.isPortfolio) {
+                await this.updatePortfolio();
+                if (this.currentPortfolio?.positions?.length) {
+                    this.figi = this.currentPortfolio.positions.map(p => p.figi);
+                }
+            }
         }
 
         /**
@@ -195,7 +233,8 @@ try {
                 if (!this.backtest) {
                     await this.timer(this.robotTimer);
                     await this.updateOrders();
-                    await this.checkTradingDayAndTime();
+
+                    // await this.checkTradingDayAndTime();
 
                     if (this.brokerId === 'FINAM') {
                         // update orderbook
@@ -205,6 +244,7 @@ try {
                         this.lastPrice = this.testData?.quotations?.bid;
                     }
                 }
+
                 if (this.tradingTime) {
                     this.getCurrentSettings();
 
@@ -225,7 +265,7 @@ try {
                     // Записываем новое состояние, только если оно изминилось.
                     if (!this.backtest && this.figi && this.cb.cacheState &&
                         (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
-                        this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
+                        this.cb.cacheState(this.getFileName(), new Date().getTime(), this.lastPrice, this.orderbook);
                         this.subscribeDataUpdated.lastPrice = false;
                         this.subscribeDataUpdated.orderbook = false;
                     }
@@ -289,17 +329,28 @@ try {
 
             if (options && options.tickerInfo) {
                 this.tickerInfo = options.tickerInfo;
-                this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
+
+                // this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
+                options.figi && (this.figi = options.figi);
+                if (options.type) {
+                    this.isPortfolio = options.type === 'portfolio';
+                    this.type = options.type;
+                }
 
                 await this.setExchangesTradingTime();
             }
 
             if (!this.logOrdersFile && this.accountId && this.figi) {
-                const { dir, name } = Common.getLogFileName(this.name, this.accountId, this.figi, new Date());
+                const { dir, name } = Common.getLogFileName(this.name, this.accountId,
+                    this.getFileName(), new Date());
 
                 mkDirByPathSync(dir);
                 this.logOrdersFile = path.join(dir, name);
             }
+        }
+
+        getFileName() {
+            return this.isPortfolio ? this.type : this.figi;
         }
 
         async setExchangesTradingTime() {
@@ -325,6 +376,7 @@ try {
                 figi: this.figi,
                 date: this.date,
                 backtest: this.backtest,
+                type: this.type,
             };
         }
 
@@ -438,11 +490,13 @@ try {
 
         async getOperations() {
             return this.accountId && this.figi && this.cb.getOperations &&
-                await this.cb.getOperations(this.accountId, this.figi, 1, this.date);
+                await this.cb.getOperations(this.accountId,
+                    this.isPortfolio ? undefined : this.figi, 1, this.date);
         }
 
         async getPortfolio() {
-            return this.accountId && this.cb.getPortfolio && await this.cb.getPortfolio(this.accountId, this.figi);
+            return this.accountId && this.cb.getPortfolio &&
+                await this.cb.getPortfolio(this.accountId, this.isPortfolio ? undefined : this.figi);
         }
 
         async getPositions() {
@@ -452,11 +506,15 @@ try {
 
             return (this.currentPortfolio && this.currentPortfolio.positions || [])
                 .filter(p => {
-                    return this.checkFigi(p.figi); // FINAM figi
+                    return this.isPortfolio || this.checkFigi(p.figi); // FINAM figi
                 });
         }
 
         checkFigi(figi) {
+            if (this.isPortfolio) {
+                return true;
+            }
+
             return figi === this.figi ||
                 figi === this.tickerInfo.noBoardFigi ||
                 figi === this.tickerInfo.noMarketFigi;
@@ -612,8 +670,12 @@ try {
             const { orders } = await this.cb.getOrders(this.accountId, this.figi);
 
             for (const o of orders) {
-                await this.cb.cancelOrder(this.accountId, o.orderId);
+                await this.cancelOrder(o.orderId);
             }
+        }
+
+        async cancelOrder(orderId) {
+            return (await this.cb.cancelOrder(this.accountId, orderId));
         }
 
         /**
@@ -769,13 +831,13 @@ try {
          * @returns
          */
         setCurrentSettings(settings) {
-            const current = Common.setSettings(this.name, settings, this.accountId, this.figi);
+            const current = Common.setSettings(this.name, settings, this.accountId, this.getFileName());
 
             this.getCurrentSettings();
         }
 
         getCurrentSettings() {
-            const current = Common.getSettings(this.name, this.accountId, this.figi);
+            const current = Common.getSettings(this.name, this.accountId, this.getFileName());
 
             // Если робот работает в режиме советника,
             // то он только обозначает предположения, но не делает сделки.
@@ -791,6 +853,7 @@ try {
             this.isAdviser = current.isAdviser;
             this.takeProfit = current.takeProfit;
             this.stopLoss = current.stopLoss;
+            this.volume = current.volume;
             this.lotsSize = current.lotsSize;
 
             // Уровни поддержки и сопротивления.
