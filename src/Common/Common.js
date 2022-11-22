@@ -380,7 +380,7 @@ try {
             };
         }
 
-        getPrice(quotation) {
+        static getPrice(quotation) {
             if (!quotation || typeof quotation !== 'object') {
                 return quotation;
             }
@@ -390,6 +390,10 @@ try {
             }
 
             return quotation.units;
+        }
+
+        getPrice(quotation) {
+            return Common.getPrice(quotation);
         }
 
         start() {

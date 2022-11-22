@@ -1,3 +1,5 @@
+const { parse } = require('path');
+
 try {
     const { Backtest } = require('../Common/Backtest');
 
@@ -104,6 +106,57 @@ try {
          */
         stop() {
             super.stop();
+        }
+
+        static calcPortfolioVolume(portfolio, settings, type = 'share') {
+            try {
+                if (!portfolio?.positions?.length) {
+                    return {};
+                }
+
+                const { totalStartSharesAmount, expectedYield } = portfolio.positions.reduce((prev, current) => {
+                    if (current?.instrumentType !== type) {
+                        return;
+                    }
+
+                    prev.totalStartSharesAmount += this.getPrice(current.averagePositionPrice) *
+                        Math.abs(this.getPrice(current.quantity));
+                    prev.expectedYield += this.getPrice(current.expectedYield);
+
+                    return prev;
+                }, {
+                    totalStartSharesAmount: 0,
+                    expectedYield: 0,
+                });
+
+                // setSharesPrice((expectedYield < 0 ? '-' : '') + getYield(totalStartSharesAmount, expectedYield));
+
+                const positionsProfit = portfolio?.positions?.reduce((prev, p) => {
+                    prev[p.figi] = {
+                        positionVolume: p.quantityLots.nano ? 0 :
+                            parseInt(p.quantityLots.units * settings.volume, 10),
+                    };
+
+                    if (prev[p.figi].positionVolume) {
+                        // const lotSize = Math.abs(parseInt(p.quantity.units / p.quantityLots.units));
+                        prev.currentTP = totalStartSharesAmount + totalStartSharesAmount * settings.takeProfit;
+                        prev.currentSL = totalStartSharesAmount - totalStartSharesAmount * settings.stopLoss;
+                    }
+
+                    return prev;
+                }, {
+                    currentTP: 0,
+                    currentSL: 0,
+                });
+
+                return {
+                    ...positionsProfit,
+                    totalStartSharesAmount,
+                    expectedYield,
+                };
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
         }
     }
 
