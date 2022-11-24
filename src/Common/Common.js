@@ -234,7 +234,7 @@ try {
                     await this.timer(this.robotTimer);
                     await this.updateOrders();
 
-                    // await this.checkTradingDayAndTime();
+                    await this.checkTradingDayAndTime();
 
                     if (this.brokerId === 'FINAM') {
                         // update orderbook
@@ -541,6 +541,12 @@ try {
             return Boolean(this.currentOrders && this.currentOrders.filter(o => this.checkFigi(o.figi)).length);
         }
 
+        closeAllOrders() {
+            this.currentOrders
+                .filter(o => [4, 5].includes(o.executionReportStatus))
+                .forEach(o => this.cancelOrder(o.orderId));
+        }
+
         async sell(price, figi, lotsSize, type) {
             try {
                 if (!this.figi && !figi) {
@@ -577,16 +583,24 @@ try {
             return Math.floor(sum / minInc) * minInc;
         }
 
-        getTakeProfitPrice(buy, price) {
+        /**
+         * Расчитывает цену фиксации по TP.
+         *
+         * @param {?Boolean} isForShort — расчитать для позиции шорта.
+         * @param {Object[units, nano]} price — цена, от которой расчитывать цену заявки.
+         * @returns
+         */
+        getTakeProfitPrice(isForShort, price) {
             try {
-                if (typeof buy === 'undefined') {
+                if (typeof isForShort === 'undefined') {
                     return;
                 }
 
                 if (!this.backtest && (!price || !this.tickerInfo)) {
                     return;
                 }
-                const profit = buy ? (this.takeProfit + 1) : (1 - this.takeProfit);
+
+                const profit = isForShort ? (this.takeProfit + 1) : (1 - this.takeProfit);
 
                 const p = this.getPrice(price) * profit;
                 let units = Math.floor(p);
@@ -610,6 +624,34 @@ try {
                 console.log('getTakeProfitPrice', e); // eslint-disable-line no-console
             }
         }
+
+        // /**
+        //  * Расчитывает цену лимитной заявки, которая ставится меньше текущей цены.
+        //  *
+        //  * @param {?Boolean} isForShort — расчитать для позиции шорта.
+        //  * @param {Object[units, nano]} price
+        //  * @param {Object[units, nano]} minPriceIncrement
+        //  * @param {?Number} deltaSize — сколько раз по minPriceIncrement нужно отступить от текущей цены.
+        //  */
+        // getLimitPrice(isForShort, price, minPriceIncrement, deltaSize = 1) {
+        //     let units;
+        //     let nano;
+
+        //     // Для лонга уменьшаем заявку,
+        //     // для шорта увеличиваем.
+        //     if (isForShort) {
+        //         price.units = price.units + minPriceIncrement.units * deltaSize;
+        //         price.nano = price.nano + minPriceIncrement.nano * deltaSize;
+        //     } else {
+        //         price.units = price.units - minPriceIncrement.units * deltaSize;
+        //         price.nano = price.nano - minPriceIncrement.nano * deltaSize;
+        //     }
+
+        //     return {
+        //         units,
+        //         nano,
+        //     };
+        // }
 
         getStopLossPrice(buy, price) {
             if (typeof buy === 'undefined') {
@@ -761,9 +803,9 @@ try {
         static getSettings(name, accountId, figi) {
             const settings = {
                 isAdviser: false,
-                takeProfit: 0.005,
-                stopLoss: 0.0025,
-                volume: 0.5,
+                takeProfit: 0.05,
+                stopLoss: 0.02,
+                volume: 1,
                 lotsSize: 1,
                 support: { units: 0, nano: 0 },
                 resistance: { units: 0, nano: 0 },

@@ -1,3 +1,4 @@
+const { throws } = require('assert');
 const { parse } = require('path');
 
 try {
@@ -41,30 +42,61 @@ try {
          * @returns {Boolean}
          */
         async decisionClosePosition() {
-            // Если есть позиции, то пробуем закрыт сделку по профиту или SL.
-            // return (await this.hasOpenPositions()) && !this.hasOpenOrders();
+            try {
+                // Закрываем открытые ордера.
+                if (this.hasOpenOrders()) {
+                    this.closeAllOrders();
+
+                    return false;
+                }
+
+                // Если есть позиции, и нет выставленных заявок.
+                if ((await this.hasOpenPositions()) && !this.hasOpenOrders()) {
+                    // Если не для всех позиций проставлены цены, то не можем их закрывать.
+                    // if (!this.currentPortfolio.positions
+                    //     .every(p => Boolean(this[p.figi] && this[p.figi].lastPrice))
+                    // ) {
+                    //     return false;
+                    // }
+
+                    this.calcPortfolio();
+
+                    const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
+
+                    // Цена достигла TP или SL, тогда закрываем позицию.
+                    return totalAmountShares >= this.currentTP ||
+                        totalAmountShares <= this.currentSL;
+                }
+
+                return false;
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         /**
          * Обрабатывает позиции с профитом.
          */
         async takeProfitPosition() {
-            if (this.backtest) {
-                this.backtestPositions.filter(p => !p.closed).forEach(async p => {
-                    if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
-                        // await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
-                    }
-                });
-            } else if (this.currentPortfolio && this.takeProfit) {
+            // if (this.backtest) {
+            //     this.backtestPositions.filter(p => !p.closed).forEach(async p => {
+            //         if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
+            //             // await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
+            //         }
+            //     });
+            // } else
+            if (this.currentPortfolio) {
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
-                    // let lots = Number(p.quantityLots.units / 2);
+                    const { positionVolume } = this.positionsProfit[p.figi];
 
-                    // if (lots < 1) {
-                    //     lots = 1;
-                    // }
-
-                    //  await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.figi, lots, 'TP');
+                    if (positionVolume > 0) {
+                        // Закрываем long.
+                        await this.sell(p.currentPrice, p.figi, positionVolume, 'TP');
+                    } else if (positionVolume < 0) {
+                        // Закрываем short.
+                        await this.buy(p.currentPrice, p.figi, positionVolume, 'TP');
+                    }
                 });
             }
         }
@@ -73,21 +105,25 @@ try {
          * Обрабатывает позиции с убытком.
          */
         async stopLossPosition() {
-            // Срабатывает для любой позиции без привязки к figi
-            if (this.backtest) {
-                if (this.getPrice(this.lastPrice) < this.getPrice(this.getTakeProfitPrice(1, this.lastPrice))) {
-                    // await this.sell(this.lastPrice, this.figi, this.lotsSize, 'SL');
-                }
-            } else if (this.currentPortfolio && this.stopLoss) {
+            // if (this.backtest) {
+            //     this.backtestPositions.filter(p => !p.closed).forEach(async p => {
+            //         if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
+            //             // await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
+            //         }
+            //     });
+            // } else
+            if (this.currentPortfolio) {
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
-                    // let lots = Number(p.quantityLots.units / 2);
+                    const { positionVolume } = this.positionsProfit[p.figi];
 
-                    // if (lots < 1) {
-                    //     lots = 1;
-                    // }
-
-                    // await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), p.figi, lots, 'SL');
+                    if (positionVolume > 0) {
+                        // Закрываем long.
+                        await this.sell(p.currentPrice, p.figi, positionVolume, 'SL');
+                    } else if (positionVolume < 0) {
+                        // Закрываем short.
+                        await this.buy(p.currentPrice, p.figi, positionVolume, 'SL');
+                    }
                 });
             }
         }
@@ -96,8 +132,17 @@ try {
          * Закрывает позиции.
          */
         async closePosition() {
-            // await this.takeProfitPosition();
-            // await this.stopLossPosition();
+            try {
+                const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
+
+                if (totalAmountShares >= this.currentTP) {
+                    await this.takeProfitPosition();
+                } else if (totalAmountShares <= this.currentSL) {
+                    await this.stopLossPosition();
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         /**
@@ -108,7 +153,47 @@ try {
             super.stop();
         }
 
-        static calcPortfolioVolume(portfolio, settings, type = 'share') {
+        /**
+         * Сохраняет основные параметры расчётов по портфелю,
+         * чтобы не пересчитывать их при выставлении ордеров.
+         *
+         * @param {*} params
+         * @returns
+         */
+        saveCalculatedPortfolioParams(params) {
+            const {
+                expectedYield,
+                currentTP,
+                currentSL,
+            } = params;
+
+            this.expectedYield = expectedYield;
+            this.currentTP = currentTP;
+            this.currentSL = currentSL;
+            this.positionsProfit = params;
+
+            return params;
+        }
+
+        /**
+         * Рассчитывает параметры торговли для портфеля.
+         *
+         * @param {?String} type — тип инструментов, для которых нужно посчитать.
+         * @returns
+         */
+        calcPortfolio(type = 'share') {
+            const calcParams = Bot.calcPortfolio(this.currentPortfolio, {
+                volume: this.volume,
+                takeProfit: this.takeProfit,
+                stopLoss: this.stopLoss,
+            }, type);
+
+            this.saveCalculatedPortfolioParams(calcParams);
+
+            return calcParams;
+        }
+
+        static calcPortfolio(portfolio, settings, type = 'share') {
             try {
                 if (!portfolio?.positions?.length) {
                     return {};
@@ -133,8 +218,10 @@ try {
 
                 const positionsProfit = portfolio?.positions?.reduce((prev, p) => {
                     prev[p.figi] = {
-                        positionVolume: p.quantityLots.nano ? 0 :
-                            parseInt(p.quantityLots.units * settings.volume, 10),
+                        // Для неполной позиции не применяем.
+                        // Берём часть позиции в соответствии с настройками, но не менее одной позиции.
+                        positionVolume: !p.quantityLots.units && p.quantityLots.nano ? 0 :
+                            Math.max(parseInt(p.quantityLots.units * settings.volume, 10), 1),
                     };
 
                     if (prev[p.figi].positionVolume) {
