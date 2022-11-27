@@ -43,15 +43,22 @@ try {
          */
         async decisionClosePosition() {
             try {
-                // Закрываем открытые ордера.
+                this.resetCalculatedPortfolioParams();
+
+                if (this.hasOpenOrders() && this.lastOrderTime && (this.lastOrderTime + 30000) > new Date().getTime()) {
+                    return false;
+                }
+
+                // Закрываем открытые ордера, которые были выставлены больше минуты назад.
                 if (this.hasOpenOrders()) {
-                    this.closeAllOrders();
+                    await this.closeAllOrders();
 
                     return false;
                 }
 
+                // console.log('this.currentPortfolio', this.currentPortfolio)
                 // Если есть позиции, и нет выставленных заявок.
-                if ((await this.hasOpenPositions()) && !this.hasOpenOrders()) {
+                if ((await this.hasOpenPositions('share')) && !this.hasOpenOrders()) {
                     // Если не для всех позиций проставлены цены, то не можем их закрывать.
                     // if (!this.currentPortfolio.positions
                     //     .every(p => Boolean(this[p.figi] && this[p.figi].lastPrice))
@@ -61,11 +68,14 @@ try {
 
                     this.calcPortfolio();
 
-                    const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
+                    if (!this.totalNowSharesAmount || !this.currentTP || !this.currentSL) {
+                        return false;
+                    }
 
+                    // const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
                     // Цена достигла TP или SL, тогда закрываем позицию.
-                    return totalAmountShares >= this.currentTP ||
-                        totalAmountShares <= this.currentSL;
+                    return this.totalNowSharesAmount >= this.currentTP ||
+                        this.totalNowSharesAmount <= this.currentSL;
                 }
 
                 return false;
@@ -78,16 +88,13 @@ try {
          * Обрабатывает позиции с профитом.
          */
         async takeProfitPosition() {
-            // if (this.backtest) {
-            //     this.backtestPositions.filter(p => !p.closed).forEach(async p => {
-            //         if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
-            //             // await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
-            //         }
-            //     });
-            // } else
             if (this.currentPortfolio) {
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
+                    if (p.instrumentType !== 'share') {
+                        return;
+                    }
+
                     const { positionVolume } = this.positionsProfit[p.figi];
 
                     if (positionVolume > 0) {
@@ -95,7 +102,7 @@ try {
                         await this.sell(p.currentPrice, p.figi, positionVolume, 'TP');
                     } else if (positionVolume < 0) {
                         // Закрываем short.
-                        await this.buy(p.currentPrice, p.figi, positionVolume, 'TP');
+                        await this.buy(p.currentPrice, p.figi, Math.abs(positionVolume), 'TP');
                     }
                 });
             }
@@ -115,6 +122,10 @@ try {
             if (this.currentPortfolio) {
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPortfolio.positions.forEach(async p => {
+                    if (p.instrumentType !== 'share') {
+                        return;
+                    }
+
                     const { positionVolume } = this.positionsProfit[p.figi];
 
                     if (positionVolume > 0) {
@@ -122,7 +133,7 @@ try {
                         await this.sell(p.currentPrice, p.figi, positionVolume, 'SL');
                     } else if (positionVolume < 0) {
                         // Закрываем short.
-                        await this.buy(p.currentPrice, p.figi, positionVolume, 'SL');
+                        await this.buy(p.currentPrice, p.figi, Math.abs(positionVolume), 'SL');
                     }
                 });
             }
@@ -133,11 +144,11 @@ try {
          */
         async closePosition() {
             try {
-                const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
+                // const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
 
-                if (totalAmountShares >= this.currentTP) {
+                if (this.totalNowSharesAmount >= this.currentTP) {
                     await this.takeProfitPosition();
-                } else if (totalAmountShares <= this.currentSL) {
+                } else if (this.totalNowSharesAmount <= this.currentSL) {
                     await this.stopLossPosition();
                 }
             } catch (e) {
@@ -162,17 +173,27 @@ try {
          */
         saveCalculatedPortfolioParams(params) {
             const {
+                totalNowSharesAmount,
                 expectedYield,
                 currentTP,
                 currentSL,
             } = params;
 
+            this.totalNowSharesAmount = totalNowSharesAmount;
             this.expectedYield = expectedYield;
             this.currentTP = currentTP;
             this.currentSL = currentSL;
             this.positionsProfit = params;
 
             return params;
+        }
+
+        resetCalculatedPortfolioParams() {
+            delete this.totalNowSharesAmount;
+            delete this.expectedYield;
+            delete this.currentTP;
+            delete this.currentSL;
+            delete this.positionsProfit;
         }
 
         /**
@@ -182,15 +203,19 @@ try {
          * @returns
          */
         calcPortfolio(type = 'share') {
-            const calcParams = Bot.calcPortfolio(this.currentPortfolio, {
-                volume: this.volume,
-                takeProfit: this.takeProfit,
-                stopLoss: this.stopLoss,
-            }, type);
+            try {
+                const calcParams = Bot.calcPortfolio(this.currentPortfolio, {
+                    volume: this.volume,
+                    takeProfit: this.takeProfit,
+                    stopLoss: this.stopLoss,
+                }, type);
 
-            this.saveCalculatedPortfolioParams(calcParams);
+                this.saveCalculatedPortfolioParams(calcParams);
 
-            return calcParams;
+                return calcParams;
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
         }
 
         static calcPortfolio(portfolio, settings, type = 'share') {
@@ -199,29 +224,43 @@ try {
                     return {};
                 }
 
-                const { totalStartSharesAmount, expectedYield } = portfolio.positions.reduce((prev, current) => {
+                const { totalStartSharesAmount,
+                    expectedYield,
+                    totalNowSharesAmount,
+                } = portfolio.positions.reduce((prev, current) => {
                     if (current?.instrumentType !== type) {
-                        return;
+                        return prev;
                     }
 
-                    prev.totalStartSharesAmount += this.getPrice(current.averagePositionPrice) *
+                    const avgPrice = this.getPrice(current.averagePositionPrice) *
                         Math.abs(this.getPrice(current.quantity));
-                    prev.expectedYield += this.getPrice(current.expectedYield);
+                    const expectedYield = this.getPrice(current.expectedYield);
+
+                    prev.totalStartSharesAmount += avgPrice;
+                    prev.totalNowSharesAmount += avgPrice + expectedYield;
+                    prev.expectedYield += expectedYield;
 
                     return prev;
                 }, {
                     totalStartSharesAmount: 0,
+                    totalNowSharesAmount: 0,
                     expectedYield: 0,
-                });
+                }) || {};
 
                 // setSharesPrice((expectedYield < 0 ? '-' : '') + getYield(totalStartSharesAmount, expectedYield));
-
                 const positionsProfit = portfolio?.positions?.reduce((prev, p) => {
+                    if (p?.instrumentType !== type) {
+                        return prev;
+                    }
+
+                    const positionVolume = !p.quantityLots.units && p.quantityLots.nano ? 0 :
+                        p.quantityLots.units * settings.volume;
+
                     prev[p.figi] = {
                         // Для неполной позиции не применяем.
                         // Берём часть позиции в соответствии с настройками, но не менее одной позиции.
-                        positionVolume: !p.quantityLots.units && p.quantityLots.nano ? 0 :
-                            Math.max(parseInt(p.quantityLots.units * settings.volume, 10), 1),
+                        positionVolume: positionVolume > 0 ? Math.max(positionVolume, 1) :
+                            positionVolume < 0 ? Math.min(positionVolume, -1) : 0,
                     };
 
                     if (prev[p.figi].positionVolume) {
@@ -234,11 +273,12 @@ try {
                 }, {
                     currentTP: 0,
                     currentSL: 0,
-                });
+                }) || {};
 
                 return {
                     ...positionsProfit,
                     totalStartSharesAmount,
+                    totalNowSharesAmount,
                     expectedYield,
                 };
             } catch (e) {
