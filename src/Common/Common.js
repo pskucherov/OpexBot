@@ -90,6 +90,7 @@ try {
         async initAsync() {
             await this.updateOrders();
             await this.updatePortfolio();
+            await this.updatePositions();
         }
 
         async updateOrders() {
@@ -108,6 +109,10 @@ try {
 
         async updatePortfolio() {
             this.currentPortfolio = await this.getPortfolio();
+        }
+
+        async updatePositions() {
+            this.currentPositions = await this.getPositions();
         }
 
         /**
@@ -156,8 +161,8 @@ try {
                             for await (const data of gen) {
                                 if (data[name]) {
                                     this.subscribeDataUpdated[name] = true;
-
-                                    const currentData = name === 'lastPrice' ? data[name].price : data[name];
+                                    const isLastPrice = name === 'lastPrice';
+                                    const currentData = isLastPrice ? data[name].price : data[name];
 
                                     this[data[name].figi] || (this[data[name].figi] = {});
                                     this[data[name].figi][name] = currentData;
@@ -191,6 +196,32 @@ try {
                                     this.logOrders(data);
                                     await this.updateOrders();
                                 } else if (data.position && this.isPortfolio) {
+                                    [
+                                        'securities',
+
+                                        // 'futures',
+                                        // 'options',
+                                    ].forEach(name => {
+                                        if (!data.position[name] || !data.position[name].length) {
+                                            return;
+                                        }
+
+                                        data.position[name].forEach(p => {
+                                            const currentIndex = this.currentPositions.findIndex(c => {
+                                                return c.figi === p.figi && c.instrumentType === p.instrumentType;
+                                            });
+
+                                            if (currentIndex >= 0) {
+                                                this.currentPositions[currentIndex] = {
+                                                    ...this.currentPositions[currentIndex],
+                                                    ...p,
+                                                };
+                                            } else {
+                                                this.updatePositions();
+                                            }
+                                        });
+                                    });
+
                                     await this.updateFigi();
                                 }
 
@@ -211,7 +242,8 @@ try {
             // При портфельном управлении содержимое портфеля может меняться.
             // Это нужно учитывать в подписках на цену.
             if (this.isPortfolio) {
-                await this.updatePortfolio();
+                // await this.updatePortfolio();
+
                 if (this.currentPortfolio?.positions?.length) {
                     this.figi = this.currentPortfolio.positions.map(p => p.figi);
                 } else {
@@ -250,7 +282,9 @@ try {
 
                 if (this.tradingTime) {
                     await this.updateOrders();
-                    await this.updatePortfolio();
+
+                    // await this.updatePortfolio();
+                    await this.updatePositions();
 
                     this.getCurrentSettings();
 
@@ -837,6 +871,17 @@ try {
                 stopLoss: 0.02,
                 volume: 1,
                 lotsSize: 1,
+
+                orderType: 1, // лимитная заявка =1. Рыночная =2. this.enums.OrderType.ORDER_TYPE_LIMIT
+                orderTimeout: 30, // секунд.
+
+                startTradingTimeHours: 0,
+                startTradingTimeMinutes: 0,
+                endTradingTimeHours: 23,
+                endTradingTimeMinutes: 59,
+
+                tradingDays: 0b1111100, // Битовая маска 7 значений для 7 дней. Старший бит — понедельник.
+
                 support: { units: 0, nano: 0 },
                 resistance: { units: 0, nano: 0 },
             };
@@ -861,7 +906,7 @@ try {
          * @param {String} figi
          * @returns
          */
-        static setSettings(name, settings, accountId, figi) {
+        static setSettings(name, settings, accountId, figi) { // eslint-disable-line
             const current = this.getSettings(name);
 
             typeof settings.isAdviser !== 'undefined' && (current.isAdviser = Boolean(settings.isAdviser));
@@ -875,18 +920,70 @@ try {
             settings.volume = parseFloat(settings.volume);
             settings.volume > 0 && settings.volume <= 100 && (current.volume = settings.volume);
 
-            settings.lotsSize = parseInt(settings.lotsSize, 10);
+            [
+                'lotsSize',
+
+                'su',
+                'sn',
+                'ru',
+                'rn',
+
+                'orderType',
+                'orderTimeout',
+
+                'startTradingTimeHours',
+                'startTradingTimeMinutes',
+                'endTradingTimeHours',
+                'endTradingTimeMinutes',
+
+                'tradingDays',
+            ].forEach(name => {
+                settings[name] = parseInt(settings[name], 10);
+            });
+
             settings.lotsSize > 0 && (current.lotsSize = settings.lotsSize);
 
-            settings.su = parseInt(settings.su, 10);
             settings.su > 0 && (current.support.units = settings.su);
-            settings.sn = parseInt(settings.sn, 10);
             settings.sn > 0 && (current.support.nano = settings.sn);
 
-            settings.ru = parseInt(settings.ru, 10);
             settings.ru > 0 && (current.resistance.units = settings.ru);
-            settings.rn = parseInt(settings.rn, 10);
             settings.rn > 0 && (current.resistance.nano = settings.rn);
+
+            [1, 2].includes(settings.orderType) && (current.orderType = settings.orderType);
+
+            settings.orderTimeout > 0 && (current.orderTimeout = settings.orderTimeout);
+
+            if (settings.startTradingTimeHours >= 0 && settings.startTradingTimeHours <= 23 &&
+                settings.startTradingTimeHours <= settings.endTradingTimeHours) {
+                current.startTradingTimeHours = settings.startTradingTimeHours;
+            } else {
+                current.startTradingTimeHours = 0;
+            }
+
+            if (settings.endTradingTimeHours >= 0 && settings.endTradingTimeHours <= 23 &&
+                settings.endTradingTimeHours >= settings.startTradingTimeHours) {
+                current.endTradingTimeHours = settings.endTradingTimeHours;
+            } else {
+                current.endTradingTimeHours = 23;
+            }
+
+            if (settings.startTradingTimeMinutes >= 0 && settings.startTradingTimeMinutes <= 59 &&
+                settings.startTradingTimeMinutes <= settings.endTradingTimeMinutes) {
+                current.startTradingTimeMinutes = settings.startTradingTimeMinutes;
+            } else {
+                current.startTradingTimeMinutes = 0;
+            }
+
+            if (settings.endTradingTimeMinutes >= 0 && settings.endTradingTimeMinutes <= 59 &&
+                settings.endTradingTimeMinutes >= settings.startTradingTimeMinutes) {
+                current.endTradingTimeMinutes = settings.endTradingTimeMinutes;
+            } else {
+                current.endTradingTimeMinutes = 59;
+            }
+
+            if (settings.tradingDays > 0 && settings.tradingDays <= 127) {
+                current.tradingDays = settings.tradingDays;
+            }
 
             if (name && accountId && figi) {
                 const file = this.getStaticFileSettings(name, accountId, figi);
@@ -935,6 +1032,16 @@ try {
             // Уровни поддержки и сопротивления.
             this.support = current.support;
             this.resistance = current.resistance;
+
+            this.orderType = current.orderType;
+            this.orderTimeout = current.orderTimeout;
+
+            this.startTradingTimeHours = current.startTradingTimeHours;
+            this.startTradingTimeMinutes = current.startTradingTimeMinutes;
+            this.endTradingTimeHours = current.endTradingTimeHours;
+            this.endTradingTimeMinutes = current.endTradingTimeMinutes;
+
+            this.tradingDays = current.tradingDays;
         }
 
         getTickerInfo() {
