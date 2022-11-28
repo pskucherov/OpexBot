@@ -56,11 +56,18 @@ try {
                     return false;
                 }
 
-                // console.log('this.currentPortfolio', this.currentPortfolio)
+                if (this.hasBlockedPositions()) {
+                    return false;
+                }
+
+                if (this.hasNoSyncedBalance()) {
+                    return false;
+                }
+
                 // Если есть позиции, и нет выставленных заявок.
                 if ((await this.hasOpenPositions('share')) && !this.hasOpenOrders()) {
                     // Если не для всех позиций проставлены цены, то не можем их закрывать.
-                    // if (!this.currentPortfolio.positions
+                    // if (!this.currentPositions
                     //     .every(p => Boolean(this[p.figi] && this[p.figi].lastPrice))
                     // ) {
                     //     return false;
@@ -88,9 +95,9 @@ try {
          * Обрабатывает позиции с профитом.
          */
         async takeProfitPosition() {
-            if (this.currentPortfolio) {
+            if (this.currentPositions) {
                 // Срабатывает для любой позиции без привязки к figi
-                this.currentPortfolio.positions.forEach(async p => {
+                this.currentPositions.forEach(async p => {
                     if (p.instrumentType !== 'share') {
                         return;
                     }
@@ -119,9 +126,10 @@ try {
             //         }
             //     });
             // } else
-            if (this.currentPortfolio) {
+
+            if (this.currentPositions) {
                 // Срабатывает для любой позиции без привязки к figi
-                this.currentPortfolio.positions.forEach(async p => {
+                this.currentPositions.forEach(async p => {
                     if (p.instrumentType !== 'share') {
                         return;
                     }
@@ -144,8 +152,6 @@ try {
          */
         async closePosition() {
             try {
-                // const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
-
                 if (this.totalNowSharesAmount >= this.currentTP) {
                     await this.takeProfitPosition();
                 } else if (this.totalNowSharesAmount <= this.currentSL) {
@@ -204,7 +210,7 @@ try {
          */
         calcPortfolio(type = 'share') {
             try {
-                const calcParams = Bot.calcPortfolio(this.currentPortfolio, {
+                const calcParams = Bot.calcPortfolio(this.currentPositions, {
                     volume: this.volume,
                     takeProfit: this.takeProfit,
                     stopLoss: this.stopLoss,
@@ -218,16 +224,16 @@ try {
             }
         }
 
-        static calcPortfolio(portfolio, settings, type = 'share') {
+        static calcPortfolio(positions, settings, type = 'share') {
             try {
-                if (!portfolio?.positions?.length) {
+                if (!positions?.length) {
                     return {};
                 }
 
                 const { totalStartSharesAmount,
                     expectedYield,
                     totalNowSharesAmount,
-                } = portfolio.positions.reduce((prev, current) => {
+                } = positions.reduce((prev, current) => {
                     if (current?.instrumentType !== type) {
                         return prev;
                     }
@@ -248,7 +254,7 @@ try {
                 }) || {};
 
                 // setSharesPrice((expectedYield < 0 ? '-' : '') + getYield(totalStartSharesAmount, expectedYield));
-                const positionsProfit = portfolio?.positions?.reduce((prev, p) => {
+                const positionsProfit = positions?.reduce((prev, p) => {
                     if (p?.instrumentType !== type) {
                         return prev;
                     }

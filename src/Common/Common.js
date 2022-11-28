@@ -32,8 +32,8 @@ try {
 
             (async () => {
                 this.init();
-                this.processing();
                 this.initAsync();
+                this.processing();
             })();
         }
 
@@ -49,8 +49,7 @@ try {
 
             // Устанавливает возможна ли торговля в данный момент.
             // Для бектеста всегда включено.
-            // this.tradingTime = Boolean(this.backtest);
-            this.tradingTime = true;
+            this.tradingTime = Boolean(this.backtest);
 
             this.getCurrentSettings();
         }
@@ -79,11 +78,14 @@ try {
             const { isTradingDay, startTime, endTime } = this.exchange;
             const now = new Date().getTime();
 
+            // console.log( this.exchange);
             // TODO: добавить обновление данных при смене дня.
             if (!isTradingDay || !startTime || !endTime) {
                 this.tradingTime = false;
             } else if ((new Date(startTime).getTime()) <= now && (new Date(endTime).getTime() > now)) {
                 this.tradingTime = true;
+            } else {
+                this.tradingTime = false;
             }
         }
 
@@ -112,7 +114,23 @@ try {
         }
 
         async updatePositions() {
-            this.currentPositions = await this.getPositions();
+            const p = await this.getPositions();
+
+            this.currentPositions = ([].concat(p.securities, p.futures, p.options))
+                .reduce((prev, cur) => {
+                    const i = this.currentPortfolio?.positions?.findIndex(f => f.figi === cur.figi);
+
+                    if (i === -1) {
+                        return prev;
+                    }
+
+                    prev.push({
+                        ...this.currentPortfolio?.positions[i],
+                        ...cur,
+                    });
+
+                    return prev;
+                }, []);
         }
 
         /**
@@ -202,24 +220,28 @@ try {
                                         // 'futures',
                                         // 'options',
                                     ].forEach(name => {
-                                        if (!data.position[name] || !data.position[name].length) {
-                                            return;
-                                        }
-
-                                        data.position[name].forEach(p => {
-                                            const currentIndex = this.currentPositions.findIndex(c => {
-                                                return c.figi === p.figi && c.instrumentType === p.instrumentType;
-                                            });
-
-                                            if (currentIndex >= 0) {
-                                                this.currentPositions[currentIndex] = {
-                                                    ...this.currentPositions[currentIndex],
-                                                    ...p,
-                                                };
-                                            } else {
-                                                this.updatePositions();
+                                        try {
+                                            if (!data.position[name] || !data.position[name].length) {
+                                                return;
                                             }
-                                        });
+
+                                            data.position[name].forEach(async p => {
+                                                const currentIndex = this.currentPositions.findIndex(c => {
+                                                    return c.figi === p.figi && c.instrumentType === p.instrumentType;
+                                                });
+
+                                                if (currentIndex >= 0) {
+                                                    this.currentPositions[currentIndex] = {
+                                                        ...this.currentPositions[currentIndex],
+                                                        ...p,
+                                                    };
+                                                } else {
+                                                    await this.updatePositions();
+                                                }
+                                            });
+                                        } catch (e) {
+                                            console.log(e); // eslint-disable-line no-console
+                                        }
                                     });
 
                                     await this.updateFigi();
@@ -244,8 +266,8 @@ try {
             if (this.isPortfolio) {
                 // await this.updatePortfolio();
 
-                if (this.currentPortfolio?.positions?.length) {
-                    this.figi = this.currentPortfolio.positions.map(p => p.figi);
+                if (this.currentPositions?.length) {
+                    this.figi = this.currentPositions.map(p => p.figi);
                 } else {
                     this.figi = [];
                 }
@@ -355,41 +377,45 @@ try {
         }
 
         async setCurrentState(lastPrice, candles, balance, orderbook, options) {
-            // Текущая цена
-            // История свечей
-            // История стакана
-            // Существующие позиции
-            // Существующие заявки
-            // Баланс
-            // Информация об инструменте
+            try {
+                // Текущая цена
+                // История свечей
+                // История стакана
+                // Существующие позиции
+                // Существующие заявки
+                // Баланс
+                // Информация об инструменте
 
-            candles && (this.candles = candles);
-            orderbook && (this.orderbook = orderbook);
-            lastPrice && (this.lastPrice = lastPrice);
-            balance && (this.balance = balance);
+                candles && (this.candles = candles);
+                orderbook && (this.orderbook = orderbook);
+                lastPrice && (this.lastPrice = lastPrice);
+                balance && (this.balance = balance);
 
-            if (options) {
-                if (options.type) {
-                    this.isPortfolio = options.type === 'portfolio';
-                    this.type = options.type;
+                if (options) {
+                    if (options.type) {
+                        this.isPortfolio = options.type === 'portfolio';
+                        this.type = options.type;
+                    }
+
+                    if (options.tickerInfo) {
+                        this.tickerInfo = options.tickerInfo;
+
+                        // this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
+                        options.figi && (this.figi = options.figi);
+
+                        await this.setExchangesTradingTime();
+                    }
                 }
 
-                if (options.tickerInfo) {
-                    this.tickerInfo = options.tickerInfo;
+                if (!this.logOrdersFile && this.accountId) {
+                    const { dir, name } = Common.getLogFileName(this.name, this.accountId,
+                        this.getFileName(), new Date());
 
-                    // this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
-                    options.figi && (this.figi = options.figi);
-
-                    await this.setExchangesTradingTime();
+                    mkDirByPathSync(dir);
+                    this.logOrdersFile = path.join(dir, name);
                 }
-            }
-
-            if (!this.logOrdersFile && this.accountId) {
-                const { dir, name } = Common.getLogFileName(this.name, this.accountId,
-                    this.getFileName(), new Date());
-
-                mkDirByPathSync(dir);
-                this.logOrdersFile = path.join(dir, name);
+            } catch (e) {
+                console.log(e); // eslint-disable-line
             }
         }
 
@@ -562,10 +588,13 @@ try {
                 return this.getBacktestPositions();
             }
 
-            return (this.currentPortfolio && this.currentPortfolio.positions || [])
-                .filter(p => {
-                    return this.isPortfolio || this.checkFigi(p.figi); // FINAM figi
-                });
+            return this.accountId && this.cb.getPositions &&
+                (await this.cb.getPositions(this.accountId));
+
+            // return (this.currentPositions || [])
+            //     .filter(p => {
+            //         return this.isPortfolio || this.checkFigi(p.figi); // FINAM figi
+            //     });
         }
 
         checkFigi(figi) {
@@ -587,13 +616,21 @@ try {
                 return this.hasBacktestOpenPositions();
             }
 
-            return Boolean(this.currentPortfolio && this.currentPortfolio.positions &&
-                this.currentPortfolio.positions.filter(p =>
+            return Boolean(this.currentPositions &&
+                this.currentPositions.filter(p =>
                     Boolean(this.checkFigi(p.figi)).length && p.instrumentType === type));
         }
 
         hasOpenOrders() {
             return Boolean(this.currentOrders && this.currentOrders.filter(o => this.checkFigi(o.figi)).length);
+        }
+
+        hasBlockedPositions() {
+            return !this.currentPositions.every(p => !p.blocked);
+        }
+
+        hasNoSyncedBalance() {
+            return !this.currentPositions.every(p => p.quantity.units === p.balance);
         }
 
         async closeAllOrders() {
