@@ -29,6 +29,7 @@ try {
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
             // this.useTrailingStop = options.useTrailingStop;
             this.isSandbox = Boolean(options.isSandbox);
+            this.blueChipsShares = options.blueChipsShares;
 
             (async () => {
                 this.init();
@@ -55,7 +56,7 @@ try {
         /**
          * Проверяет возможность торговли в данный день и время.
          */
-        async checkTradingDayAndTime() {
+        async checkTradingDayAndTime() { // eslint-disable-line
             if (this.backtest) {
                 this.tradingTime = true;
             }
@@ -69,9 +70,15 @@ try {
                 return;
             }
 
-            if (!this.tickerInfo || !this.exchange) {
-                this.tradingTime = false;
+            if (!this.tickerInfo || !this.exchange || (Array.isArray(this.tickerInfo) && !this.tickerInfo.length)) {
+                if (!(await this.hasOpenPositions()) && !(await this.hasOpenOrders())) {
+                    this.tradingTime = true;
+                    this.tradingTimeInfo = 'Нет данных про тикер или биржу. Можно пробовать покупать.';
 
+                    return;
+                }
+
+                this.tradingTime = false;
                 this.tradingTimeInfo = 'Нет тикера или данных биржи. Торги остановлены.';
 
                 return;
@@ -79,7 +86,7 @@ try {
 
             this.currentTime = new Date();
             if (this.currentTime.getHours() < this.startTradingTimeHours ||
-            this.currentTime.getHours() > this.endTradingTimeHours) {
+                this.currentTime.getHours() > this.endTradingTimeHours) {
                 this.tradingTime = false;
                 this.tradingTimeInfo = 'Не проходит ограничение по часам. Торги остановлены.';
 
@@ -87,7 +94,7 @@ try {
             }
 
             if (this.currentTime.getHours() === this.startTradingTimeHours &&
-            this.currentTime.getMinutes() < this.startTradingTimeMinutes ||
+                this.currentTime.getMinutes() < this.startTradingTimeMinutes ||
                 this.currentTime.getHours() === this.endTradingTimeHours &&
                 this.currentTime.getMinutes() > this.endTradingTimeMinutes) {
                 this.tradingTime = false;
@@ -155,6 +162,10 @@ try {
         async updatePositions() {
             const p = await this.getPositions();
 
+            if (!p || !p.securities) {
+                return [];
+            }
+
             this.currentPositions = ([].concat(p.securities, p.futures, p.options))
                 .reduce((prev, cur) => {
                     const i = this.currentPortfolio?.positions?.findIndex(f => f.figi === cur.figi);
@@ -203,7 +214,7 @@ try {
                         setImmediate(async () => {
                             const subscribeArr = subscribes[name]();
 
-                            const gen = subscribeArr[0]((async function* () {
+                            let gen = subscribeArr[0]((async function* () {
                                 while (this.inProgress) {
                                     await this.timer(this.subscribesTimer);
 
@@ -213,6 +224,8 @@ try {
                                         yield subscribeArr[1](figi);
                                     }
                                 }
+
+                                gen = null;
                             }).call(this));
 
                             for await (const data of gen) {
@@ -229,6 +242,7 @@ try {
                                     }
                                 }
                                 if (!this.inProgress) {
+                                    gen = null;
                                     break;
                                 }
                             }
@@ -239,7 +253,7 @@ try {
                 ['orders', 'positions'].forEach(name => {
                     if (subscribes[name] && !this.isSandbox) {
                         setImmediate(async () => {
-                            const gen = subscribes[name]({
+                            let gen = subscribes[name]({
                                 accounts: [this.accountId],
                             });
 
@@ -287,6 +301,7 @@ try {
                                 }
 
                                 if (!this.inProgress) {
+                                    gen = null;
                                     break;
                                 }
                             }
@@ -460,8 +475,17 @@ try {
             return this.isPortfolio ? this.type : this.figi;
         }
 
+        isEmptyTickerInfo() {
+            return !this.tickerInfo || Array.isArray(this.tickerInfo) && !this.tickerInfo.length;
+        }
+
         async setExchangesTradingTime() {
             const now = new Date().getTime();
+
+            if (this.isEmptyTickerInfo()) {
+                return;
+            }
+
             const { exchanges } = this.cb.getTradingSchedules &&
                 await this.cb.getTradingSchedules(
                     this.tickerInfo.exchange || this.tickerInfo[0].exchange, now, now,
@@ -479,8 +503,10 @@ try {
             }
         }
 
+        // TODO: переделать под все акции и разные условия торгов.
         async checkExchangeDay() {
-            if (!this.exchange || this.exchange && this.exchange.today !== new Date().getDate()) {
+            if (!this.exchange || this.exchange && this.exchange.today !== new Date().getDate() ||
+                !this.exchange && this.tradingTime) {
                 await this.setExchangesTradingTime();
             }
         }
@@ -649,13 +675,17 @@ try {
         }
 
         async hasOpenPositions(type = 'share') {
-            if (this.backtest) {
-                return this.hasBacktestOpenPositions();
-            }
+            try {
+                if (this.backtest) {
+                    return this.hasBacktestOpenPositions();
+                }
 
-            return Boolean(this.currentPositions &&
-                this.currentPositions.filter(p =>
-                    Boolean(this.checkFigi(p.figi)).length && p.instrumentType === type));
+                return Boolean(this.currentPositions &&
+                    this.currentPositions.filter(p =>
+                        Boolean(this.checkFigi(p.figi)) && p.instrumentType === type).length);
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         hasOpenOrders() {
@@ -1165,6 +1195,135 @@ try {
 
         getTickerInfo() {
             return this.tickerInfo || {};
+        }
+
+        /**
+         * Сохраняет основные параметры расчётов по портфелю,
+         * чтобы не пересчитывать их при выставлении ордеров.
+         *
+         * @param {*} params
+         * @returns
+         */
+        saveCalculatedPortfolioParams(params) {
+            const {
+                totalNowSharesAmount,
+                expectedYield,
+                currentTP,
+                currentSL,
+            } = params;
+
+            this.totalNowSharesAmount = totalNowSharesAmount;
+            this.expectedYield = expectedYield;
+            this.currentTP = currentTP;
+            this.currentSL = currentSL;
+            this.positionsProfit = params;
+
+            return params;
+        }
+
+        resetCalculatedPortfolioParams() {
+            delete this.totalNowSharesAmount;
+            delete this.expectedYield;
+            delete this.currentTP;
+            delete this.currentSL;
+            delete this.positionsProfit;
+        }
+
+        /**
+         * Рассчитывает параметры торговли для портфеля.
+         *
+         * @param {?String} type — тип инструментов, для которых нужно посчитать.
+         * @returns
+         */
+        calcPortfolio(type = 'share') {
+            try {
+                const calcParams = Common.calcPortfolio.call(this, this.currentPositions, {
+                    volume: this.volume,
+                    takeProfit: this.takeProfit,
+                    stopLoss: this.stopLoss,
+                }, type);
+
+                this.saveCalculatedPortfolioParams(calcParams);
+
+                return calcParams;
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
+
+        static calcPortfolio(positions, settings, type = 'share') { // eslint-disable-line
+            try {
+                if (!positions?.length) {
+                    return {};
+                }
+
+                const { totalStartSharesAmount,
+                    expectedYield,
+                    totalNowSharesAmount,
+                } = positions.reduce((prev, current) => {
+                    if (current?.instrumentType !== type) {
+                        return prev;
+                    }
+
+                    const avgPrice = this.getPrice(current.averagePositionPrice) *
+                        Math.abs(this.getPrice(current.quantity));
+
+                    const expectedYield = this.getPrice(current.expectedYield);
+
+                    if (this[current.figi]?.lastPrice) {
+                        prev.totalNowSharesAmount += this.getPrice(this[current.figi]?.lastPrice) *
+                            Math.abs(this.getPrice(current.quantity));
+                    } else {
+                        prev.totalNowSharesAmount += avgPrice + expectedYield;
+                    }
+
+                    prev.totalStartSharesAmount += avgPrice;
+                    prev.expectedYield += expectedYield;
+
+                    return prev;
+                }, {
+                    totalStartSharesAmount: 0,
+                    totalNowSharesAmount: 0,
+                    expectedYield: 0,
+                }) || {};
+
+                // setSharesPrice((expectedYield < 0 ? '-' : '') + getYield(totalStartSharesAmount, expectedYield));
+                const positionsProfit = positions?.reduce((prev, p) => {
+                    if (p?.instrumentType !== type) {
+                        return prev;
+                    }
+
+                    const positionVolume = !p.quantityLots.units && p.quantityLots.nano ? 0 :
+                        p.quantityLots.units * settings.volume;
+
+                    prev[p.figi] = {
+                        // Для неполной позиции не применяем.
+                        // Берём часть позиции в соответствии с настройками, но не менее одной позиции.
+                        positionVolume: positionVolume > 0 ? Math.max(positionVolume, 1) :
+                            positionVolume < 0 ? Math.min(positionVolume, -1) : 0,
+                    };
+
+                    if (prev[p.figi].positionVolume) {
+                        // const lotSize = Math.abs(parseInt(p.quantity.units / p.quantityLots.units));
+                        prev.currentTP = totalStartSharesAmount + totalStartSharesAmount * settings.takeProfit;
+                        prev.currentSL = totalStartSharesAmount - totalStartSharesAmount * settings.stopLoss;
+                    }
+
+                    return prev;
+                }, {
+                    currentTP: 0,
+                    currentSL: 0,
+                }) || {};
+
+                return {
+                    ...positionsProfit,
+                    totalStartSharesAmount,
+                    totalNowSharesAmount,
+                    expectedYield,
+                };
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
         }
     }
 
