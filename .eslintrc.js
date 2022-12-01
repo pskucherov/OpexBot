@@ -45,7 +45,7 @@ module.exports = {
         'lines-around-comment': ['error', { beforeLineComment: true, allowObjectStart: true, allowBlockStart: true, beforeBlockComment: true }],
         'no-unreachable': 'error',
         strict: 'off',
-        'max-params': ['error', 5],
+        'max-params': ['error', 6],
         'max-depth': ['error', 4],
         'no-eq-null': 'off',
         'no-unused-expressions': 'off',

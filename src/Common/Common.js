@@ -50,8 +50,6 @@ try {
             // Устанавливает возможна ли торговля в данный момент.
             // Для бектеста всегда включено.
             this.tradingTime = Boolean(this.backtest);
-
-            this.getCurrentSettings();
         }
 
         /**
@@ -72,19 +70,60 @@ try {
             }
 
             if (!this.tickerInfo || !this.exchange) {
+                this.tradingTime = false;
+
+                this.tradingTimeInfo = 'Нет тикера или данных биржи. Торги остановлены.';
+
+                return;
+            }
+
+            this.currentTime = new Date();
+            if (this.currentTime.getHours() < this.startTradingTimeHours ||
+            this.currentTime.getHours() > this.endTradingTimeHours) {
+                this.tradingTime = false;
+                this.tradingTimeInfo = 'Не проходит ограничение по часам. Торги остановлены.';
+
+                return;
+            }
+
+            if (this.currentTime.getHours() === this.startTradingTimeHours &&
+            this.currentTime.getMinutes() < this.startTradingTimeMinutes ||
+                this.currentTime.getHours() === this.endTradingTimeHours &&
+                this.currentTime.getMinutes() > this.endTradingTimeMinutes) {
+                this.tradingTime = false;
+                this.tradingTimeInfo = 'Не проходит ограничение по минутам. Торги остановлены.';
+
+                return;
+            }
+
+            const dayWeek = [
+                0b0000001, // воскресенье
+                0b1000000,
+                0b0100000,
+                0b0010000,
+                0b0001000,
+                0b0000100,
+                0b0000010, // суббота
+            ][this.currentTime.getDay()];
+
+            if (this.tradingDays && !(dayWeek & this.tradingDays)) {
+                this.tradingTime = false;
+                this.tradingTimeInfo = 'Не проходит ограничение по торговым дням. Торги остановлены.';
+
                 return;
             }
 
             const { isTradingDay, startTime, endTime } = this.exchange;
             const now = new Date().getTime();
 
-            // console.log( this.exchange);
-            // TODO: добавить обновление данных при смене дня.
             if (!isTradingDay || !startTime || !endTime) {
                 this.tradingTime = false;
+                this.tradingTimeInfo = 'Нет данных биржи про начало и окончание торгов. Торги остановлены.';
             } else if ((new Date(startTime).getTime()) <= now && (new Date(endTime).getTime() > now)) {
                 this.tradingTime = true;
+                delete this.tradingTimeInfo;
             } else {
+                this.tradingTimeInfo = 'Торги остановлены по времени биржи. Торги остановлены.';
                 this.tradingTime = false;
             }
         }
@@ -286,6 +325,8 @@ try {
                     return;
                 }
 
+                this.getCurrentSettings();
+
                 if (!this.backtest) {
                     await this.checkExchangeDay();
                     await this.checkTradingDayAndTime();
@@ -304,11 +345,7 @@ try {
 
                 if (this.tradingTime) {
                     await this.updateOrders();
-
-                    // await this.updatePortfolio();
                     await this.updatePositions();
-
-                    this.getCurrentSettings();
 
                     // Обрабатываем логику только после инициализации статуса.
                     if (this.ordersInited || this.backtest) {
@@ -443,7 +480,7 @@ try {
         }
 
         async checkExchangeDay() {
-            if (this.exchange && this.exchange.today !== new Date().getDate()) {
+            if (!this.exchange || this.exchange && this.exchange.today !== new Date().getDate()) {
                 await this.setExchangesTradingTime();
             }
         }
@@ -507,7 +544,7 @@ try {
                     lotsSize || this.lotsSize,
                     price || this.lastPrice, // структура из units и nano
                     this.enums.OrderDirection.ORDER_DIRECTION_BUY,
-                    this.enums.OrderType.ORDER_TYPE_LIMIT,
+                    this.orderType || this.enums.OrderType.ORDER_TYPE_LIMIT,
                     this.genOrderId(),
                 ));
 
@@ -629,8 +666,63 @@ try {
             return !this.currentPositions.every(p => !p.blocked);
         }
 
-        hasNoSyncedBalance() {
-            return !this.currentPositions.every(p => p.quantity.units === p.balance);
+        /**
+         * Сверяет позиции текущие и позиции в портфолио.
+         * Поскольку позиции в портфолио запаздывают с обновлением при активной торговле.
+         *
+         * @returns {Boolean}
+         */
+        async hasAllSyncedBalance() {
+            try {
+                if (!this.currentPositions || !this.currentPositions[0] || typeof this.currentPositions[0].quantity?.units === 'undefined') {
+                    return false;
+                }
+
+                const isSync = this.currentPositions.every(p =>
+                    p?.quantity?.units && p?.quantity?.units === p?.balance && !p?.blocked,
+                );
+
+                if (!isSync) {
+                    await this.updatePortfolio();
+
+                    return false;
+                }
+
+                const posFigiCache = this.currentPositions.reduce((prev, cur) => {
+                    if (cur.instrumentType === 'share') {
+                        prev[cur.figi] = true;
+                    }
+
+                    return prev;
+                }, {});
+
+                const portfolioPos = this.currentPortfolio?.positions?.reduce((prev, current) => {
+                    if (!prev.allMatch) {
+                        return prev;
+                    }
+
+                    if (current.instrumentType === 'share') {
+                        ++prev.sum;
+
+                        if (!posFigiCache[current.figi]) {
+                            prev.allMatch = false;
+                        }
+                    }
+
+                    return prev;
+                }, {
+                    sum: 0,
+                    allMatch: true,
+                });
+
+                if (!portfolioPos || !portfolioPos.allMatch) {
+                    return false;
+                }
+
+                return Object.keys(posFigiCache).length === portfolioPos.sum;
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         async closeAllOrders() {
@@ -657,7 +749,7 @@ try {
                     lotsSize || this.lotsSize,
                     price || this.lastPrice, // структура из units и nano
                     this.enums.OrderDirection.ORDER_DIRECTION_SELL,
-                    this.enums.OrderType.ORDER_TYPE_LIMIT,
+                    this.orderType || this.enums.OrderType.ORDER_TYPE_LIMIT,
                     this.genOrderId(),
                 ), type);
 
@@ -954,8 +1046,10 @@ try {
             settings.stopLoss = parseFloat(settings.stopLoss);
             settings.stopLoss > 0 && settings.stopLoss <= 100 && (current.stopLoss = settings.stopLoss);
 
-            settings.volume = parseFloat(settings.volume);
+            settings.volume = parseInt(settings.volume * 100, 10) / 100;
             settings.volume > 0 && settings.volume <= 100 && (current.volume = settings.volume);
+
+            settings.orderTimeout = parseFloat(settings.orderTimeout);
 
             [
                 'lotsSize',
@@ -966,7 +1060,6 @@ try {
                 'rn',
 
                 'orderType',
-                'orderTimeout',
 
                 'startTradingTimeHours',
                 'startTradingTimeMinutes',
@@ -1048,17 +1141,6 @@ try {
 
         getCurrentSettings() {
             const current = Common.getSettings(this.name, this.accountId, this.getFileName());
-
-            // Если робот работает в режиме советника,
-            // то он только обозначает предположения, но не делает сделки.
-            // this.adviser = Boolean(adviser);
-            // 1 = 100%, 0.003 = 0.003%
-            // this.takeProfit = 0.004;
-            // На сколько процентов от текущей цены выставлять stopLoss.
-            // 1 = 100%, 0.003 = 0.003%
-            // this.stopLoss = 0.002;
-            // Количество лотов, которым оперирует робот.
-            // this.lotsSize = 1;
 
             this.isAdviser = current.isAdviser;
             this.takeProfit = current.takeProfit;

@@ -16,6 +16,9 @@ try {
 
         constructor(...args) {
             super(...args);
+
+            this.type = Bot.type;
+            this.isPortfolio = true;
             this.name = name;
         }
 
@@ -45,13 +48,14 @@ try {
             try {
                 this.resetCalculatedPortfolioParams();
 
-                if (this.hasOpenOrders() && this.lastOrderTime && (this.lastOrderTime + 30000) > new Date().getTime()) {
+                if (this.hasOpenOrders() && this.lastOrderTime &&
+                    (this.lastOrderTime + (this.orderTimeout * 1000)) > new Date().getTime()) {
                     return false;
                 }
 
                 // Закрываем открытые ордера, которые были выставлены больше минуты назад.
                 if (this.hasOpenOrders()) {
-                    await this.closeAllOrders();
+                    //await this.closeAllOrders();
 
                     return false;
                 }
@@ -60,7 +64,7 @@ try {
                     return false;
                 }
 
-                if (this.hasNoSyncedBalance()) {
+                if (!(await this.hasAllSyncedBalance())) {
                     return false;
                 }
 
@@ -210,7 +214,7 @@ try {
          */
         calcPortfolio(type = 'share') {
             try {
-                const calcParams = Bot.calcPortfolio(this.currentPositions, {
+                const calcParams = Bot.calcPortfolio.call(this, this.currentPositions, {
                     volume: this.volume,
                     takeProfit: this.takeProfit,
                     stopLoss: this.stopLoss,
@@ -224,7 +228,7 @@ try {
             }
         }
 
-        static calcPortfolio(positions, settings, type = 'share') {
+        static calcPortfolio(positions, settings, type = 'share') { // eslint-disable-line
             try {
                 if (!positions?.length) {
                     return {};
@@ -240,10 +244,17 @@ try {
 
                     const avgPrice = this.getPrice(current.averagePositionPrice) *
                         Math.abs(this.getPrice(current.quantity));
+
                     const expectedYield = this.getPrice(current.expectedYield);
 
+                    if (this[current.figi]?.lastPrice) {
+                        prev.totalNowSharesAmount += this.getPrice(this[current.figi]?.lastPrice) *
+                            Math.abs(this.getPrice(current.quantity));
+                    } else {
+                        prev.totalNowSharesAmount += avgPrice + expectedYield;
+                    }
+
                     prev.totalStartSharesAmount += avgPrice;
-                    prev.totalNowSharesAmount += avgPrice + expectedYield;
                     prev.expectedYield += expectedYield;
 
                     return prev;
