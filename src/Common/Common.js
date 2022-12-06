@@ -498,14 +498,14 @@ try {
                     startTime,
                     endTime,
                     isTradingDay,
-                    today: new Date().getDate(),
                 };
             }
         }
 
         // TODO: переделать под все акции и разные условия торгов.
         async checkExchangeDay() {
-            if (!this.exchange || this.exchange && this.exchange.today !== new Date().getDate() ||
+            if (!this.exchange || (this.exchange &&
+                (new Date(this.exchange.startTime).getDate()) !== new Date().getDate()) ||
                 !this.exchange && this.tradingTime) {
                 await this.setExchangesTradingTime();
             }

@@ -70,6 +70,8 @@ try {
 
                 // Если есть позиции, и нет выставленных заявок.
                 if ((await this.hasOpenPositions('share')) && !this.hasOpenOrders()) {
+                    this.calcPortfolio();
+
                     // Если не для всех позиций проставлены цены, то не можем их закрывать.
                     if (!this.totalNowSharesAmount || !this.currentTP || !this.currentSL) {
                         return false;
