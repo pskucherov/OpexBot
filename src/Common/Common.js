@@ -202,6 +202,12 @@ try {
             return new Promise(resolve => setTimeout(resolve, time));
         }
 
+        async restart(timeout = 100) {
+            this.stop();
+            await this.timer(timeout);
+            this.start();
+        }
+
         subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
             try {
                 if (this.backtest) {
@@ -215,36 +221,50 @@ try {
                             const subscribeArr = subscribes[name]();
 
                             let gen = subscribeArr[0]((async function* () {
-                                while (this.inProgress) {
-                                    await this.timer(this.subscribesTimer);
+                                try {
+                                    while (this.inProgress) {
+                                        await this.timer(this.subscribesTimer);
 
-                                    if (this.figi) {
-                                        const figi = typeof this.figi === 'string' ? this.figi.split(',') : this.figi;
+                                        if (this.figi) {
+                                            const figi = typeof this.figi === 'string' ? this.figi.split(',') : this.figi;
 
-                                        yield subscribeArr[1](figi);
+                                            yield subscribeArr[1](figi);
+                                        }
                                     }
-                                }
 
-                                gen = null;
-                            }).call(this));
-
-                            for await (const data of gen) {
-                                if (data[name]) {
-                                    this.subscribeDataUpdated[name] = true;
-                                    const isLastPrice = name === 'lastPrice';
-                                    const currentData = isLastPrice ? data[name].price : data[name];
-
-                                    this[data[name].figi] || (this[data[name].figi] = {});
-                                    this[data[name].figi][name] = currentData;
-
-                                    if (!this.isPortfolio) {
-                                        this[name] = currentData;
-                                    }
-                                }
-                                if (!this.inProgress) {
                                     gen = null;
-                                    break;
+                                } catch (e) {
+                                    console.log(e); // eslint-disable-line no-console
                                 }
+                            }).call(this), {
+                                inProgress: this.inProgress,
+                            });
+
+                            try {
+                                for await (const data of gen) {
+                                    if (data[name]) {
+                                        this.subscribeDataUpdated[name] = true;
+                                        const isLastPrice = name === 'lastPrice';
+                                        const currentData = isLastPrice ? data[name].price : data[name];
+
+                                        this[data[name].figi] || (this[data[name].figi] = {});
+                                        this[data[name].figi][name] = currentData;
+
+                                        if (!this.isPortfolio) {
+                                            this[name] = currentData;
+                                        }
+                                    }
+                                    if (!this.inProgress) {
+                                        gen = null;
+                                        break;
+                                    }
+                                }
+                            } catch (e) {
+                                console.log(e); // eslint-disable-line no-console
+
+                                // Перезапускаем робота в случае ошибки.
+                                // Ошибка сюда прилетит в случае обрыва соединения.
+                                await this.restart(this.robotTimer + this.subscribesTimer);
                             }
                         });
                     }
@@ -253,62 +273,75 @@ try {
                 ['orders', 'positions'].forEach(name => {
                     if (subscribes[name] && !this.isSandbox) {
                         setImmediate(async () => {
-                            let gen = subscribes[name]({
-                                accounts: [this.accountId],
-                            });
+                            try {
+                                let gen = subscribes[name]({
+                                    accounts: [this.accountId],
+                                }, {
+                                    inProgress: this.inProgress,
+                                });
 
-                            for await (const data of gen) {
-                                if (data.orderTrades) {
-                                    if (!this.orderTrades) {
-                                        this.orderTrades = [];
+                                for await (const data of gen) {
+                                    if (data.orderTrades) {
+                                        if (!this.orderTrades) {
+                                            this.orderTrades = [];
+                                        }
+
+                                        this.orderTrades.push(data.orderTrades);
+                                        this.logOrders(data);
+                                        await this.updateOrders();
+                                    } else if (data.position && this.isPortfolio) {
+                                        [
+                                            'securities',
+
+                                            // 'futures',
+                                            // 'options',
+                                        ].forEach(name => {
+                                            try {
+                                                if (!data.position[name] || !data.position[name].length) {
+                                                    return;
+                                                }
+
+                                                data.position[name].forEach(async p => {
+                                                    const currentIndex = this.currentPositions.findIndex(c => {
+                                                        return c.figi === p.figi &&
+                                                            c.instrumentType === p.instrumentType;
+                                                    });
+
+                                                    if (currentIndex >= 0) {
+                                                        this.currentPositions[currentIndex] = {
+                                                            ...this.currentPositions[currentIndex],
+                                                            ...p,
+                                                        };
+                                                    } else {
+                                                        await this.updatePositions();
+                                                    }
+                                                });
+                                            } catch (e) {
+                                                console.log(e); // eslint-disable-line no-console
+                                            }
+                                        });
+
+                                        await this.updateFigi();
                                     }
 
-                                    this.orderTrades.push(data.orderTrades);
-                                    this.logOrders(data);
-                                    await this.updateOrders();
-                                } else if (data.position && this.isPortfolio) {
-                                    [
-                                        'securities',
-
-                                        // 'futures',
-                                        // 'options',
-                                    ].forEach(name => {
-                                        try {
-                                            if (!data.position[name] || !data.position[name].length) {
-                                                return;
-                                            }
-
-                                            data.position[name].forEach(async p => {
-                                                const currentIndex = this.currentPositions.findIndex(c => {
-                                                    return c.figi === p.figi && c.instrumentType === p.instrumentType;
-                                                });
-
-                                                if (currentIndex >= 0) {
-                                                    this.currentPositions[currentIndex] = {
-                                                        ...this.currentPositions[currentIndex],
-                                                        ...p,
-                                                    };
-                                                } else {
-                                                    await this.updatePositions();
-                                                }
-                                            });
-                                        } catch (e) {
-                                            console.log(e); // eslint-disable-line no-console
-                                        }
-                                    });
-
-                                    await this.updateFigi();
+                                    if (!this.inProgress) {
+                                        gen = null;
+                                        break;
+                                    }
                                 }
+                            } catch (e) {
+                                console.log(e); // eslint-disable-line no-console
 
-                                if (!this.inProgress) {
-                                    gen = null;
-                                    break;
-                                }
+                                // Перезапускаем робота в случае ошибки.
+                                // Ошибка сюда прилетит в случае обрыва соединения.
+                                await this.restart(this.robotTimer + this.subscribesTimer);
                             }
                         });
                     }
                 });
-            } catch (e) { console.log(e) } // eslint-disable-line no-console
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
         }
 
         /**
@@ -539,8 +572,11 @@ try {
         }
 
         start() {
-            this.inProgress = true;
+            if (this.inProgress) {
+                return;
+            }
 
+            this.inProgress = true;
             this.subscribes();
 
             console.log('start'); // eslint-disable-line no-console
