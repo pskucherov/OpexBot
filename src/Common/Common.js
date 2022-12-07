@@ -208,6 +208,20 @@ try {
             this.start();
         }
 
+        getSubscribeOptions() {
+            const abortSubscribe = (type, abort) => {
+                if (!this.inProgress) {
+                    abort();
+                }
+            };
+
+            return {
+                signal: {
+                    addEventListener: abortSubscribe,
+                    removeEventListener: abortSubscribe,
+                },
+            };
+        }
         subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
             try {
                 if (this.backtest) {
@@ -236,9 +250,7 @@ try {
                                 } catch (e) {
                                     console.log(e); // eslint-disable-line no-console
                                 }
-                            }).call(this), {
-                                inProgress: this.inProgress,
-                            });
+                            }).call(this), this.getSubscribeOptions());
 
                             try {
                                 for await (const data of gen) {
@@ -276,9 +288,7 @@ try {
                             try {
                                 let gen = subscribes[name]({
                                     accounts: [this.accountId],
-                                }, {
-                                    inProgress: this.inProgress,
-                                });
+                                }, this.getSubscribeOptions());
 
                                 for await (const data of gen) {
                                     if (data.orderTrades) {
@@ -493,15 +503,19 @@ try {
                 }
 
                 if (!this.logOrdersFile && this.accountId) {
-                    const { dir, name } = Common.getLogFileName(this.name, this.accountId,
-                        this.getFileName(), new Date());
-
-                    mkDirByPathSync(dir);
-                    this.logOrdersFile = path.join(dir, name);
+                    this.updateLogOrdersFile();
                 }
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
+        }
+
+        updateLogOrdersFile() {
+            const { dir, name } = Common.getLogFileName(this.name, this.accountId,
+                this.getFileName(), new Date());
+
+            mkDirByPathSync(dir);
+            this.logOrdersFile = path.join(dir, name);
         }
 
         getFileName() {
@@ -540,6 +554,7 @@ try {
             if (!this.exchange || (this.exchange &&
                 (new Date(this.exchange.startTime).getDate()) !== new Date().getDate()) ||
                 !this.exchange && this.tradingTime) {
+                this.updateLogOrdersFile();
                 await this.setExchangesTradingTime();
             }
         }
