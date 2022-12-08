@@ -4,6 +4,8 @@ const fs = require('fs');
 
 try {
     class Common {
+        static settingsFileName = 'settings.json';
+
         constructor(accountId, adviser, backtest, callbacks = {
             subscribes: {},
 
@@ -1033,6 +1035,7 @@ try {
             try {
                 const { dir, name } = this.getLogFileName(robotName, accountId, figi, date);
                 const logFile = path.join(dir, name);
+
                 let logs;
 
                 if (fs.existsSync(logFile)) {
@@ -1054,6 +1057,23 @@ try {
             };
         }
 
+        static getLogFiles(name, accountId, figi, date) {
+            const { dir } = this.getLogFileName(name, accountId, figi, date);
+
+            return fs.readdirSync(path.resolve(dir)).reduce((prev, file) => {
+                // const p = path.resolve(dir, file);
+
+                if (file !== this.settingsFileName) {
+                    const n = file.replace('.json', '').split('.');
+
+                    // Переставляем значения местами, чтобы привести ru формат к en.
+                    prev.push(new Date(n[2], n[1] - 1, n[0]).getTime());
+                }
+
+                return prev;
+            }, []);
+        }
+
         static getStaticFileSettings(name, accountId, figi) {
             if (!name || !accountId || !figi) {
                 return;
@@ -1063,7 +1083,7 @@ try {
 
             mkDirByPathSync(dir);
 
-            return path.join(dir, 'settings.json');
+            return path.join(dir, this.settingsFileName);
         }
 
         /**
