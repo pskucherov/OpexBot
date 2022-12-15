@@ -529,33 +529,41 @@ try {
         }
 
         async setExchangesTradingTime() {
-            const now = new Date().getTime();
+            try {
+                const now = new Date().getTime();
 
-            if (this.isEmptyTickerInfo()) {
-                return;
-            }
+                if (this.figi && this.cb.getTickerInfo) {
+                    this.tickerInfo = await this.cb.getTickerInfo(this.figi);
+                }
 
-            const { exchanges } = this.cb.getTradingSchedules &&
-                await this.cb.getTradingSchedules(
-                    this.tickerInfo.exchange || this.tickerInfo[0].exchange, now, now,
-                ) || {};
+                if (this.isEmptyTickerInfo()) {
+                    return;
+                }
 
-            if (exchanges && exchanges.length) {
-                const { startTime, endTime, isTradingDay } = exchanges[0] && exchanges[0].days && exchanges[0].days[0];
+                const { exchanges } = this.cb.getTradingSchedules &&
+                    await this.cb.getTradingSchedules(
+                        this.tickerInfo.exchange || this.tickerInfo[0].exchange, now, now,
+                    ) || {};
 
-                this.exchange = {
-                    startTime,
-                    endTime,
-                    isTradingDay,
-                };
+                if (exchanges && exchanges.length) {
+                    const { startTime, endTime, isTradingDay } = exchanges[0] &&
+                        exchanges[0].days && exchanges[0].days[0];
+
+                    this.exchange = {
+                        startTime,
+                        endTime,
+                        isTradingDay,
+                    };
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
             }
         }
 
         // TODO: переделать под все акции и разные условия торгов.
         async checkExchangeDay() {
             if (!this.exchange || (this.exchange &&
-                (new Date(this.exchange.startTime).getDate()) !== new Date().getDate()) ||
-                !this.exchange && this.tradingTime) {
+                (new Date(this.exchange.startTime).getDate()) !== new Date().getDate())) {
                 this.updateLogOrdersFile();
                 await this.setExchangesTradingTime();
             }
@@ -636,6 +644,14 @@ try {
             }
         }
 
+        getPositionsByFigi(figi) {
+            if (!figi) {
+                return;
+            }
+
+            return this.currentPositions?.find(p => p.figi === figi);
+        }
+
         async logOrders(order, type) {
             try {
                 if (this.backtest || !order) {
@@ -668,6 +684,12 @@ try {
 
                 if (type) {
                     order.type = type;
+                }
+
+                const position = this.getPositionsByFigi(order.figi);
+
+                if (position) {
+                    order.position = position;
                 }
 
                 // Тут могут быть ещё и positions.
