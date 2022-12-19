@@ -61,6 +61,8 @@ try {
         async checkTradingDayAndTime() { // eslint-disable-line
             if (this.backtest) {
                 this.tradingTime = true;
+
+                return;
             }
 
             if (this.brokerId === 'FINAM') {
@@ -141,6 +143,7 @@ try {
             await this.updateOrders();
             await this.updatePortfolio();
             await this.updatePositions();
+            await this.updateOrdersInLog();
         }
 
         async updateOrders() {
@@ -334,6 +337,7 @@ try {
                                         });
 
                                         await this.updateFigi();
+                                        await this.updateOrdersInLog();
                                     }
 
                                     if (!this.inProgress) {
@@ -428,6 +432,8 @@ try {
                         this.subscribeDataUpdated.lastPrice = false;
                         this.subscribeDataUpdated.orderbook = false;
                     }
+                } else {
+                    await this.setExchangesTradingTime();
                 }
 
                 // Для бектестирования производится пошаговая обработка сделок,
@@ -499,9 +505,9 @@ try {
 
                         // this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
                         options.figi && (this.figi = options.figi);
-
-                        await this.setExchangesTradingTime();
                     }
+
+                    await this.setExchangesTradingTime();
                 }
 
                 if (!this.logOrdersFile && this.accountId) {
@@ -528,13 +534,19 @@ try {
             return !this.tickerInfo || Array.isArray(this.tickerInfo) && !this.tickerInfo.length;
         }
 
+        async updateTickerInfo() {
+            await this.updateFigi();
+
+            if (this.figi && this.cb.getTickerInfo) {
+                this.tickerInfo = await this.cb.getTickerInfo(this.figi);
+            }
+        }
+
         async setExchangesTradingTime() {
             try {
                 const now = new Date().getTime();
 
-                if (this.figi && this.cb.getTickerInfo) {
-                    this.tickerInfo = await this.cb.getTickerInfo(this.figi);
-                }
+                await this.updateTickerInfo();
 
                 if (this.isEmptyTickerInfo()) {
                     return;
@@ -652,23 +664,60 @@ try {
             return this.currentPositions?.find(p => p.figi === figi);
         }
 
+        async updateOrdersInLog() {
+            const orders = this.getOrdersFromFile();
+            let isChanged = false;
+
+            if (this.cb.getOrderState) {
+                await Promise.all(orders.map(async (o, k) => {
+                    if (o.orderId && [4, 5].includes(o.executionReportStatus)) {
+                        isChanged = true;
+                        const newO = await this.cb.getOrderState(this.accountId, o.orderId);
+
+                        if (newO) {
+                            orders[k] = {
+                                ...orders[k],
+                                ...newO,
+                            };
+                        }
+                    }
+                }));
+            }
+
+            if (isChanged) {
+                this.setOrdersInFile(orders);
+            }
+        }
+
+        getOrdersFromFile() {
+            let orders;
+
+            if (fs.existsSync(this.logOrdersFile)) {
+                orders = fs.readFileSync(this.logOrdersFile).toString();
+            }
+
+            if (orders) {
+                orders = JSON.parse(orders);
+            } else {
+                orders = [];
+            }
+
+            return orders;
+        }
+
+        setOrdersInFile(orders) {
+            // orderTrades
+            // orderId
+            fs.writeFileSync(this.logOrdersFile, JSON.stringify(orders));
+        }
+
         async logOrders(order, type) {
             try {
                 if (this.backtest || !order) {
                     return;
                 }
 
-                let orders;
-
-                if (fs.existsSync(this.logOrdersFile)) {
-                    orders = fs.readFileSync(this.logOrdersFile).toString();
-                }
-
-                if (orders) {
-                    orders = JSON.parse(orders);
-                } else {
-                    orders = [];
-                }
+                const orders = this.getOrdersFromFile();
 
                 if (order.orderId) {
                     this.orders[order.orderId] = order;
@@ -677,13 +726,32 @@ try {
                 const time = new Date();
 
                 time.setMilliseconds(0);
-                time.setSeconds(0);
+
+                // time.setSeconds(0);
 
                 // Логируем время события, чтобы нанести на график.
                 order.logOrderTime = time.getTime();
 
                 if (type) {
                     order.type = type;
+                    order.settings = {
+                        takeProfit: this.takeProfit,
+                        stopLoss: this.stopLoss,
+                        volume: this.volume,
+                        lotsSize: this.lotsSize,
+                        support: this.support,
+                        resistance: this.resistance,
+                    };
+
+                    if (this.totalNowSharesAmount) {
+                        order.totalNowSharesAmount = this.totalNowSharesAmount;
+                    }
+                    if (this.currentTP) {
+                        order.currentTP = this.currentTP;
+                    }
+                    if (this.currentSL) {
+                        order.currentSL = this.currentSL;
+                    }
                 }
 
                 const position = this.getPositionsByFigi(order.figi);
@@ -696,9 +764,7 @@ try {
                 // TODO: переименовать.
                 orders.push(order);
 
-                // orderTrades
-                // orderId
-                fs.writeFileSync(this.logOrdersFile, JSON.stringify(orders));
+                this.setOrdersInFile(orders);
             } catch (e) {
                 console.log('logOrders', e); // eslint-disable-line no-console
             }
@@ -848,7 +914,7 @@ try {
 
                 console.log('sell', type || '', lotsSize); // eslint-disable-line no-console
 
-                this.cb.postOrder && this.logOrders(await this.cb.postOrder(
+                const order = this.cb.postOrder && (await this.cb.postOrder(
                     this.accountId,
                     figi || this.figi,
                     lotsSize || this.lotsSize,
@@ -856,7 +922,9 @@ try {
                     this.enums.OrderDirection.ORDER_DIRECTION_SELL,
                     this.orderType || this.enums.OrderType.ORDER_TYPE_LIMIT,
                     this.genOrderId(),
-                ), type);
+                ));
+
+                order && this.logOrders && this.logOrders(order, type);
 
                 await this.updateOrders();
                 this.setLastOrderTime();
