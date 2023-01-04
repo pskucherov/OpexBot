@@ -670,7 +670,7 @@ try {
 
             if (this.cb.getOrderState) {
                 await Promise.all(orders.map(async (o, k) => {
-                    if (o.orderId && [4, 5].includes(o.executionReportStatus)) {
+                    if (o.orderId && [1, 4, 5].includes(o.executionReportStatus)) {
                         isChanged = true;
                         const newO = await this.cb.getOrderState(this.accountId, o.orderId);
 
@@ -837,6 +837,11 @@ try {
             return !this.currentPositions.every(p => !p.blocked);
         }
 
+        async syncPos() {
+            await this.updatePortfolio();
+            await this.updatePositions();
+        }
+
         /**
          * Сверяет позиции текущие и позиции в портфолио.
          * Поскольку позиции в портфолио запаздывают с обновлением при активной торговле.
@@ -846,6 +851,8 @@ try {
         async hasAllSyncedBalance() {
             try {
                 if (!this.currentPositions || !this.currentPositions[0] || typeof this.currentPositions[0].quantity?.units === 'undefined') {
+                    await this.syncPos();
+
                     return false;
                 }
 
@@ -854,7 +861,7 @@ try {
                 );
 
                 if (!isSync) {
-                    await this.updatePortfolio();
+                    await this.syncPos();
 
                     return false;
                 }
@@ -887,10 +894,18 @@ try {
                 });
 
                 if (!portfolioPos || !portfolioPos.allMatch) {
+                    await this.syncPos();
+
                     return false;
                 }
 
-                return Object.keys(posFigiCache).length === portfolioPos.sum;
+                if (Object.keys(posFigiCache).length !== portfolioPos.sum) {
+                    await this.syncPos();
+
+                    return false;
+                }
+
+                return true;
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }

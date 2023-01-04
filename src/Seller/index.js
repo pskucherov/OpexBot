@@ -48,8 +48,11 @@ try {
             try {
                 this.resetCalculatedPortfolioParams();
 
+                this.decisionClosePositionMessage = 1;
                 if (this.hasOpenOrders() && this.lastOrderTime &&
                     (this.lastOrderTime + (this.orderTimeout * 1000)) > new Date().getTime()) {
+                    this.decisionClosePositionMessage = 'Есть открытая заявка. False.';
+
                     return false;
                 }
 
@@ -57,14 +60,20 @@ try {
                 if (this.hasOpenOrders()) {
                     await this.closeAllOrders();
 
+                    this.decisionClosePositionMessage = 'Закрыли все позиции. False.';
+
                     return false;
                 }
 
                 if (this.hasBlockedPositions()) {
+                    this.decisionClosePositionMessage = 'Есть заблокированные позиции. False.';
+
                     return false;
                 }
 
                 if (!(await this.hasAllSyncedBalance())) {
+                    this.decisionClosePositionMessage = 'Баланс позиций и портфолио не синхронизирован. False.';
+
                     return false;
                 }
 
@@ -72,10 +81,17 @@ try {
                 if ((await this.hasOpenPositions('share')) && !this.hasOpenOrders()) {
                     this.calcPortfolio();
 
+                    this.decisionClosePositionMessage = 'Считаем TP и SL.';
+
                     // Если не для всех позиций проставлены цены, то не можем их закрывать.
                     if (!this.totalNowSharesAmount || !this.currentTP || !this.currentSL) {
+                        this.decisionClosePositionMessage = 'Проблемы с рассчётом TP и SL. False.';
+
                         return false;
                     }
+
+                    this.decisionClosePositionMessage = 'TP, SL' + (this.totalNowSharesAmount >= this.currentTP ||
+                        this.totalNowSharesAmount <= this.currentSL).toString();
 
                     // const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
                     // Цена достигла TP или SL, тогда закрываем позицию.
