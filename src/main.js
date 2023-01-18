@@ -28,9 +28,9 @@ hmr(() => {
         }
     });
 
-    const { connector } = require('tinkofftradingbotconnector');
+    const { tradingbotconnector } = require('tinkofftradingbotconnector');
 
-    connector({
+    tradingbotconnector({
         bots,
         robotsStarted: [],
     });
