@@ -25,6 +25,7 @@
   "engines": {
     "node": ">=17.0.0"
   },
+  
   "devDependencies": {
     "@electron-forge/cli": "^6.0.4",
     "@electron-forge/maker-deb": "^6.0.4",
@@ -46,9 +47,9 @@
   },
   "dependencies": {
     "concurrently": "^7.2.0",
-    "electron-squirrel-startup": "^1.0.0",
+    "kill-port": "^2.0.1",
     "node-hmr": "^1.3.2",
-    "opexviewer": "~0.3.0",
-    "tinkofftradingbotconnector": "~0.3.0"
+    "opexviewer": "^0.3.1",
+    "tinkofftradingbotconnector": "^0.3.1"
   }
 }
