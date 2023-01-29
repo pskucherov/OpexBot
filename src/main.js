@@ -11,8 +11,8 @@ const hmr = require('node-hmr');
  * При изменении в файлах перезагружает роботов,
  * чтобы не перезапускать сервис при правках.
  */
-// hmr(() => {
-//     console.log('hmr started'); // eslint-disable-line no-console
+hmr(() => {
+    console.log('hmr started'); // eslint-disable-line no-console
 
     const bots = {};
 
@@ -36,7 +36,7 @@ const hmr = require('node-hmr');
     });
 
     exports.bots = bots;
-// }, {
-//     watchDir: './',
-//     watchFilePatterns: ['**/*.js'],
-// });
+}, {
+    watchDir: './',
+    watchFilePatterns: ['**/*.js'],
+});

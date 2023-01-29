@@ -1,3 +1,11 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+    reactStrictMode: true,
+    distDir: './node_modules/opexviewer/build',
+};
+
+module.exports = nextConfig;
+
 // /** @type {import('next').NextConfig} */
 // const fs = require('fs');
 // const { join } = require('path');
