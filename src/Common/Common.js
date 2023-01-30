@@ -4,12 +4,14 @@ const fs = require('fs');
 
 try {
     class Common {
+        static settingsFileName = 'settings.json';
+
         constructor(accountId, adviser, backtest, callbacks = {
             subscribes: {},
 
             // TODO: порефакторить количество параметров
-            postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => {}, // eslint-disable-line max-params
-            cacheState: (figi, time, lastPrice, orderBook) => {},
+            postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => { }, // eslint-disable-line max-params
+            cacheState: (figi, time, lastPrice, orderBook) => { },
         }, options = {
             enums: {},
             brokerId: '',
@@ -29,20 +31,21 @@ try {
             // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
             // this.useTrailingStop = options.useTrailingStop;
             this.isSandbox = Boolean(options.isSandbox);
+            this.blueChipsShares = options.blueChipsShares;
 
             (async () => {
                 this.init();
-                this.processing();
                 this.initAsync();
+                this.processing();
             })();
         }
 
         init() {
             // Таймер подписки на события.
-            this.subscribesTimer = 1500;
+            this.subscribesTimer = 100;
 
             // Таймер выполнения process
-            this.robotTimer = 1000 || 15000;
+            this.robotTimer = 1500;
             this.subscribeDataUpdated = {};
 
             this.orders = {};
@@ -50,16 +53,16 @@ try {
             // Устанавливает возможна ли торговля в данный момент.
             // Для бектеста всегда включено.
             this.tradingTime = Boolean(this.backtest);
-
-            this.getCurrentSettings();
         }
 
         /**
          * Проверяет возможность торговли в данный день и время.
          */
-        async checkTradingDayAndTime() {
+        async checkTradingDayAndTime() { // eslint-disable-line
             if (this.backtest) {
                 this.tradingTime = true;
+
+                return;
             }
 
             if (this.brokerId === 'FINAM') {
@@ -71,38 +74,118 @@ try {
                 return;
             }
 
-            if (!this.tickerInfo || !this.exchange) {
+            if (!this.tickerInfo || !this.exchange || (Array.isArray(this.tickerInfo) && !this.tickerInfo.length)) {
+                if (!(await this.hasOpenPositions()) && !(await this.hasOpenOrders())) {
+                    this.tradingTime = true;
+                    this.tradingTimeInfo = 'Нет данных про тикер или биржу. Можно пробовать покупать.';
+
+                    return;
+                }
+
+                this.tradingTime = false;
+                this.tradingTimeInfo = 'Нет тикера или данных биржи. Торги остановлены.';
+
+                return;
+            }
+
+            this.currentTime = new Date();
+            if (this.currentTime.getHours() < this.startTradingTimeHours ||
+                this.currentTime.getHours() > this.endTradingTimeHours) {
+                this.tradingTime = false;
+                this.tradingTimeInfo = 'Не проходит ограничение по часам. Торги остановлены.';
+
+                return;
+            }
+
+            if (this.currentTime.getHours() === this.startTradingTimeHours &&
+                this.currentTime.getMinutes() < this.startTradingTimeMinutes ||
+                this.currentTime.getHours() === this.endTradingTimeHours &&
+                this.currentTime.getMinutes() > this.endTradingTimeMinutes) {
+                this.tradingTime = false;
+                this.tradingTimeInfo = 'Не проходит ограничение по минутам. Торги остановлены.';
+
+                return;
+            }
+
+            const dayWeek = [
+                0b0000001, // воскресенье
+                0b1000000,
+                0b0100000,
+                0b0010000,
+                0b0001000,
+                0b0000100,
+                0b0000010, // суббота
+            ][this.currentTime.getDay()];
+
+            if (this.tradingDays && !(dayWeek & this.tradingDays)) {
+                this.tradingTime = false;
+                this.tradingTimeInfo = 'Не проходит ограничение по торговым дням. Торги остановлены.';
+
                 return;
             }
 
             const { isTradingDay, startTime, endTime } = this.exchange;
             const now = new Date().getTime();
 
-            // TODO: добавить обновление данных при смене дня.
             if (!isTradingDay || !startTime || !endTime) {
                 this.tradingTime = false;
+                this.tradingTimeInfo = 'Нет данных биржи про начало и окончание торгов. Торги остановлены.';
             } else if ((new Date(startTime).getTime()) <= now && (new Date(endTime).getTime() > now)) {
                 this.tradingTime = true;
+                delete this.tradingTimeInfo;
+            } else {
+                this.tradingTimeInfo = 'Торги остановлены по времени биржи. Торги остановлены.';
+                this.tradingTime = false;
             }
         }
 
         async initAsync() {
-            this.updateOrders();
+            await this.updateOrders();
+            await this.updatePortfolio();
+            await this.updatePositions();
+            await this.updateOrdersInLog();
         }
 
         async updateOrders() {
-            if (this.backtest && this.figi) {
+            if (this.backtest) {
                 return;
             }
 
             this.currentOrders = await this.getOpenOrders();
 
             // this.currentPositions = await this.getPositions();
-            this.currentPortfolio = await this.getPortfolio();
-
+            // await this.updatePortfolio();
             // this.currentOperations = await this.getOperations();
 
             this.ordersInited = true;
+        }
+
+        async updatePortfolio() {
+            this.currentPortfolio = await this.getPortfolio();
+        }
+
+        async updatePositions() {
+            const p = await this.getPositions();
+
+            if (!p || !p.securities) {
+                return [];
+            }
+
+            this.currentPositions = ([].concat(p.securities, p.futures, p.options))
+                .reduce((prev, cur) => {
+                    const i = this.currentPortfolio?.positions?.findIndex(f => f.figi === cur.figi);
+
+                    if (i === -1) {
+                        return prev;
+                    }
+
+                    prev.push({
+                        ...this.currentPortfolio?.positions[i],
+                        ...cur,
+                    });
+
+                    return prev;
+                }, []);
         }
 
         /**
@@ -124,6 +207,26 @@ try {
             return new Promise(resolve => setTimeout(resolve, time));
         }
 
+        async restart(timeout = 100) {
+            this.stop();
+            await this.timer(timeout);
+            this.start();
+        }
+
+        getSubscribeOptions() {
+            const abortSubscribe = (type, abort) => {
+                if (!this.inProgress) {
+                    abort();
+                }
+            };
+
+            return {
+                signal: {
+                    addEventListener: abortSubscribe,
+                    removeEventListener: abortSubscribe,
+                },
+            };
+        }
         subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
             try {
                 if (this.backtest) {
@@ -132,52 +235,146 @@ try {
                 const { subscribes } = this.cb;
 
                 ['lastPrice', 'orderbook'].forEach(name => {
-                    if (subscribes[name]) {
+                    if (subscribes[name] && !this.isSandbox) {
                         setImmediate(async () => {
-                            const gen = subscribes[name][0]((async function* () {
-                                while (this.inProgress) {
-                                    await this.timer(this.subscribesTimer);
-                                    yield subscribes[name][1]();
-                                }
-                            }).call(this));
+                            const subscribeArr = subscribes[name]();
 
-                            for await (const data of gen) {
-                                if (data[name]) {
-                                    this.subscribeDataUpdated[name] = true;
-                                    this[name] = name === 'lastPrice' ? data[name].price : data[name];
+                            let gen = subscribeArr[0]((async function* () {
+                                try {
+                                    while (this.inProgress) {
+                                        await this.timer(this.subscribesTimer);
+
+                                        if (this.figi) {
+                                            const figi = typeof this.figi === 'string' ? this.figi.split(',') : this.figi;
+
+                                            yield subscribeArr[1](figi);
+                                        }
+                                    }
+
+                                    gen = null;
+                                } catch (e) {
+                                    console.log(e); // eslint-disable-line no-console
                                 }
-                                if (!this.inProgress) {
-                                    break;
+                            }).call(this), this.getSubscribeOptions());
+
+                            try {
+                                for await (const data of gen) {
+                                    if (data[name]) {
+                                        this.subscribeDataUpdated[name] = true;
+                                        const isLastPrice = name === 'lastPrice';
+                                        const currentData = isLastPrice ? data[name].price : data[name];
+
+                                        this[data[name].figi] || (this[data[name].figi] = {});
+                                        this[data[name].figi][name] = currentData;
+
+                                        if (!this.isPortfolio) {
+                                            this[name] = currentData;
+                                        }
+                                    }
+                                    if (!this.inProgress) {
+                                        gen = null;
+                                        break;
+                                    }
                                 }
+                            } catch (e) {
+                                console.log(e); // eslint-disable-line no-console
+
+                                // Перезапускаем робота в случае ошибки.
+                                // Ошибка сюда прилетит в случае обрыва соединения.
+                                await this.restart(this.robotTimer + this.subscribesTimer);
                             }
                         });
                     }
                 });
 
-                if (subscribes.orders && !this.isSandbox) {
-                    setImmediate(async () => {
-                        const gen = subscribes.orders({
-                            accounts: [this.accountId],
-                        });
+                ['orders', 'positions'].forEach(name => {
+                    if (subscribes[name] && !this.isSandbox) {
+                        setImmediate(async () => {
+                            try {
+                                let gen = subscribes[name]({
+                                    accounts: [this.accountId],
+                                }, this.getSubscribeOptions());
 
-                        for await (const data of gen) {
-                            if (data.orderTrades) {
-                                if (!this.orderTrades) {
-                                    this.orderTrades = [];
+                                for await (const data of gen) {
+                                    if (data.orderTrades) {
+                                        if (!this.orderTrades) {
+                                            this.orderTrades = [];
+                                        }
+
+                                        this.orderTrades.push(data.orderTrades);
+                                        this.logOrders(data);
+                                        await this.updateOrders();
+                                    } else if (data.position && this.isPortfolio) {
+                                        [
+                                            'securities',
+
+                                            // 'futures',
+                                            // 'options',
+                                        ].forEach(name => {
+                                            try {
+                                                if (!data.position[name] || !data.position[name].length) {
+                                                    return;
+                                                }
+
+                                                data.position[name].forEach(async p => {
+                                                    const currentIndex = this.currentPositions.findIndex(c => {
+                                                        return c.figi === p.figi &&
+                                                            c.instrumentType === p.instrumentType;
+                                                    });
+
+                                                    if (currentIndex >= 0) {
+                                                        this.currentPositions[currentIndex] = {
+                                                            ...this.currentPositions[currentIndex],
+                                                            ...p,
+                                                        };
+                                                    } else {
+                                                        await this.updatePositions();
+                                                    }
+                                                });
+                                            } catch (e) {
+                                                console.log(e); // eslint-disable-line no-console
+                                            }
+                                        });
+
+                                        await this.updateFigi();
+                                        await this.updateOrdersInLog();
+                                    }
+
+                                    if (!this.inProgress) {
+                                        gen = null;
+                                        break;
+                                    }
                                 }
+                            } catch (e) {
+                                console.log(e); // eslint-disable-line no-console
 
-                                this.orderTrades.push(data.orderTrades);
-                                this.logOrders(data);
-                                await this.updateOrders();
+                                // Перезапускаем робота в случае ошибки.
+                                // Ошибка сюда прилетит в случае обрыва соединения.
+                                await this.restart(this.robotTimer + this.subscribesTimer);
                             }
+                        });
+                    }
+                });
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
 
-                            if (!this.inProgress) {
-                                break;
-                            }
-                        }
-                    });
+        /**
+         * Обновляем figi для портфельного управления.
+         */
+        async updateFigi() {
+            // При портфельном управлении содержимое портфеля может меняться.
+            // Это нужно учитывать в подписках на цену.
+            if (this.isPortfolio) {
+                // await this.updatePortfolio();
+
+                if (this.currentPositions?.length) {
+                    this.figi = this.currentPositions.map(p => p.figi);
+                } else {
+                    this.figi = [];
                 }
-            } catch (e) { console.log(e) } // eslint-disable-line no-console
+            }
         }
 
         /**
@@ -192,12 +389,16 @@ try {
                     return;
                 }
 
+                this.getCurrentSettings();
+
                 if (!this.backtest) {
-                    await this.timer(this.robotTimer);
-                    await this.updateOrders();
+                    await this.checkExchangeDay();
                     await this.checkTradingDayAndTime();
 
                     if (this.brokerId === 'FINAM') {
+                        await this.updateOrders();
+                        await this.updatePortfolio();
+
                         // update orderbook
                         // update price
                         // TODO: поменять на bid и ...
@@ -205,8 +406,10 @@ try {
                         this.lastPrice = this.testData?.quotations?.bid;
                     }
                 }
+
                 if (this.tradingTime) {
-                    this.getCurrentSettings();
+                    await this.updateOrders();
+                    await this.updatePositions();
 
                     // Обрабатываем логику только после инициализации статуса.
                     if (this.ordersInited || this.backtest) {
@@ -225,16 +428,19 @@ try {
                     // Записываем новое состояние, только если оно изминилось.
                     if (!this.backtest && this.figi && this.cb.cacheState &&
                         (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
-                        this.cb.cacheState(this.figi, new Date().getTime(), this.lastPrice, this.orderbook);
+                        this.cb.cacheState(this.getFileName(), new Date().getTime(), this.lastPrice, this.orderbook);
                         this.subscribeDataUpdated.lastPrice = false;
                         this.subscribeDataUpdated.orderbook = false;
                     }
+                } else {
+                    await this.setExchangesTradingTime();
                 }
 
                 // Для бектестирования производится пошаговая обработка сделок,
                 // а не рекурсивная.
                 if (!this.backtest) {
-                    setImmediate(() => {
+                    setImmediate(async () => {
+                        await this.timer(this.robotTimer);
                         this.processing();
                     });
                 }
@@ -274,47 +480,104 @@ try {
         }
 
         async setCurrentState(lastPrice, candles, balance, orderbook, options) {
-            // Текущая цена
-            // История свечей
-            // История стакана
-            // Существующие позиции
-            // Существующие заявки
-            // Баланс
-            // Информация об инструменте
+            try {
+                // Текущая цена
+                // История свечей
+                // История стакана
+                // Существующие позиции
+                // Существующие заявки
+                // Баланс
+                // Информация об инструменте
 
-            candles && (this.candles = candles);
-            orderbook && (this.orderbook = orderbook);
-            lastPrice && (this.lastPrice = lastPrice);
-            balance && (this.balance = balance);
+                candles && (this.candles = candles);
+                orderbook && (this.orderbook = orderbook);
+                lastPrice && (this.lastPrice = lastPrice);
+                balance && (this.balance = balance);
 
-            if (options && options.tickerInfo) {
-                this.tickerInfo = options.tickerInfo;
-                this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
+                if (options) {
+                    if (options.type) {
+                        this.isPortfolio = options.type === 'portfolio';
+                        this.type = options.type;
+                    }
 
-                await this.setExchangesTradingTime();
+                    if (options.tickerInfo) {
+                        this.tickerInfo = options.tickerInfo;
+
+                        // this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
+                        options.figi && (this.figi = options.figi);
+                    }
+
+                    await this.setExchangesTradingTime();
+                }
+
+                if (!this.logOrdersFile && this.accountId) {
+                    this.updateLogOrdersFile();
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line
             }
+        }
 
-            if (!this.logOrdersFile && this.accountId && this.figi) {
-                const { dir, name } = Common.getLogFileName(this.name, this.accountId, this.figi, new Date());
+        updateLogOrdersFile() {
+            const { dir, name } = Common.getLogFileName(this.name, this.accountId,
+                this.getFileName(), new Date());
 
-                mkDirByPathSync(dir);
-                this.logOrdersFile = path.join(dir, name);
+            mkDirByPathSync(dir);
+            this.logOrdersFile = path.join(dir, name);
+        }
+
+        getFileName() {
+            return this.isPortfolio ? this.type : this.figi;
+        }
+
+        isEmptyTickerInfo() {
+            return !this.tickerInfo || Array.isArray(this.tickerInfo) && !this.tickerInfo.length;
+        }
+
+        async updateTickerInfo() {
+            await this.updateFigi();
+
+            if (this.figi && this.cb.getTickerInfo) {
+                this.tickerInfo = await this.cb.getTickerInfo(this.figi);
             }
         }
 
         async setExchangesTradingTime() {
-            const now = new Date().getTime();
-            const { exchanges } = this.cb.getTradingSchedules &&
-                await this.cb.getTradingSchedules(this.tickerInfo.exchange, now, now) || {};
+            try {
+                const now = new Date().getTime();
 
-            if (exchanges && exchanges.length) {
-                const { startTime, endTime, isTradingDay } = exchanges[0] && exchanges[0].days && exchanges[0].days[0];
+                await this.updateTickerInfo();
 
-                this.exchange = {
-                    startTime,
-                    endTime,
-                    isTradingDay,
-                };
+                if (this.isEmptyTickerInfo()) {
+                    return;
+                }
+
+                const { exchanges } = this.cb.getTradingSchedules &&
+                    await this.cb.getTradingSchedules(
+                        this.tickerInfo.exchange || this.tickerInfo[0].exchange, now, now,
+                    ) || {};
+
+                if (exchanges && exchanges.length) {
+                    const { startTime, endTime, isTradingDay } = exchanges[0] &&
+                        exchanges[0].days && exchanges[0].days[0];
+
+                    this.exchange = {
+                        startTime,
+                        endTime,
+                        isTradingDay,
+                    };
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
+
+        // TODO: переделать под все акции и разные условия торгов.
+        async checkExchangeDay() {
+            if (!this.exchange || (this.exchange &&
+                (new Date(this.exchange.startTime).getDate()) !== new Date().getDate())) {
+                this.updateLogOrdersFile();
+                await this.setExchangesTradingTime();
             }
         }
 
@@ -325,10 +588,11 @@ try {
                 figi: this.figi,
                 date: this.date,
                 backtest: this.backtest,
+                type: this.type,
             };
         }
 
-        getPrice(quotation) {
+        static getPrice(quotation) {
             if (!quotation || typeof quotation !== 'object') {
                 return quotation;
             }
@@ -340,9 +604,16 @@ try {
             return quotation.units;
         }
 
-        start() {
-            this.inProgress = true;
+        getPrice(quotation) {
+            return Common.getPrice(quotation);
+        }
 
+        start() {
+            if (this.inProgress) {
+                return;
+            }
+
+            this.inProgress = true;
             this.subscribes();
 
             console.log('start'); // eslint-disable-line no-console
@@ -364,7 +635,7 @@ try {
                     return this.backtestBuy(price || this.lastPrice, lotsSize || this.lotsSize);
                 }
 
-                console.log('buy', type || ''); // eslint-disable-line no-console
+                console.log('buy', type || '', lotsSize); // eslint-disable-line no-console
 
                 const order = this.cb.postOrder && (await this.cb.postOrder(
                     this.accountId,
@@ -372,16 +643,72 @@ try {
                     lotsSize || this.lotsSize,
                     price || this.lastPrice, // структура из units и nano
                     this.enums.OrderDirection.ORDER_DIRECTION_BUY,
-                    this.enums.OrderType.ORDER_TYPE_LIMIT,
+                    this.orderType || this.enums.OrderType.ORDER_TYPE_LIMIT,
                     this.genOrderId(),
                 ));
 
                 order && this.logOrders && this.logOrders(order, type);
 
                 await this.updateOrders();
+                this.setLastOrderTime();
             } catch (e) {
-                console.log('buy', e);
+                console.log('buy', e); // eslint-disable-line no-console
             }
+        }
+
+        getPositionsByFigi(figi) {
+            if (!figi) {
+                return;
+            }
+
+            return this.currentPositions?.find(p => p.figi === figi);
+        }
+
+        async updateOrdersInLog() {
+            const orders = this.getOrdersFromFile();
+            let isChanged = false;
+
+            if (this.cb.getOrderState) {
+                await Promise.all(orders.map(async (o, k) => {
+                    if (o.orderId && [1, 4, 5].includes(o.executionReportStatus)) {
+                        isChanged = true;
+                        const newO = await this.cb.getOrderState(this.accountId, o.orderId);
+
+                        if (newO) {
+                            orders[k] = {
+                                ...orders[k],
+                                ...newO,
+                            };
+                        }
+                    }
+                }));
+            }
+
+            if (isChanged) {
+                this.setOrdersInFile(orders);
+            }
+        }
+
+        getOrdersFromFile() {
+            let orders;
+
+            if (fs.existsSync(this.logOrdersFile)) {
+                orders = fs.readFileSync(this.logOrdersFile).toString();
+            }
+
+            if (orders) {
+                orders = JSON.parse(orders);
+            } else {
+                orders = [];
+            }
+
+            return orders;
+        }
+
+        setOrdersInFile(orders) {
+            // orderTrades
+            // orderId
+            fs.writeFileSync(this.logOrdersFile, JSON.stringify(orders));
         }
 
         async logOrders(order, type) {
@@ -390,17 +717,7 @@ try {
                     return;
                 }
 
-                let orders;
-
-                if (fs.existsSync(this.logOrdersFile)) {
-                    orders = fs.readFileSync(this.logOrdersFile).toString();
-                }
-
-                if (orders) {
-                    orders = JSON.parse(orders);
-                } else {
-                    orders = [];
-                }
+                const orders = this.getOrdersFromFile();
 
                 if (order.orderId) {
                     this.orders[order.orderId] = order;
@@ -409,24 +726,47 @@ try {
                 const time = new Date();
 
                 time.setMilliseconds(0);
-                time.setSeconds(0);
+
+                // time.setSeconds(0);
 
                 // Логируем время события, чтобы нанести на график.
                 order.logOrderTime = time.getTime();
 
                 if (type) {
                     order.type = type;
+                    order.settings = {
+                        takeProfit: this.takeProfit,
+                        stopLoss: this.stopLoss,
+                        volume: this.volume,
+                        lotsSize: this.lotsSize,
+                        support: this.support,
+                        resistance: this.resistance,
+                    };
+
+                    if (this.totalNowSharesAmount) {
+                        order.totalNowSharesAmount = this.totalNowSharesAmount;
+                    }
+                    if (this.currentTP) {
+                        order.currentTP = this.currentTP;
+                    }
+                    if (this.currentSL) {
+                        order.currentSL = this.currentSL;
+                    }
+                }
+
+                const position = this.getPositionsByFigi(order.figi);
+
+                if (position) {
+                    order.position = position;
                 }
 
                 // Тут могут быть ещё и positions.
                 // TODO: переименовать.
                 orders.push(order);
 
-                // orderTrades
-                // orderId
-                fs.writeFileSync(this.logOrdersFile, JSON.stringify(orders));
+                this.setOrdersInFile(orders);
             } catch (e) {
-                console.log('logOrders', e);
+                console.log('logOrders', e); // eslint-disable-line no-console
             }
         }
 
@@ -438,11 +778,13 @@ try {
 
         async getOperations() {
             return this.accountId && this.figi && this.cb.getOperations &&
-                await this.cb.getOperations(this.accountId, this.figi, 1, this.date);
+                await this.cb.getOperations(this.accountId,
+                    this.isPortfolio ? undefined : this.figi, 1, this.date);
         }
 
         async getPortfolio() {
-            return this.accountId && this.cb.getPortfolio && await this.cb.getPortfolio(this.accountId, this.figi);
+            return this.accountId && this.cb.getPortfolio &&
+                (await this.cb.getPortfolio(this.accountId)); // , this.isPortfolio ? undefined : this.figi));
         }
 
         async getPositions() {
@@ -450,33 +792,129 @@ try {
                 return this.getBacktestPositions();
             }
 
-            return (this.currentPortfolio && this.currentPortfolio.positions || [])
-                .filter(p => {
-                    return this.checkFigi(p.figi); // FINAM figi
-                });
+            return this.accountId && this.cb.getPositions &&
+                (await this.cb.getPositions(this.accountId));
+
+            // return (this.currentPositions || [])
+            //     .filter(p => {
+            //         return this.isPortfolio || this.checkFigi(p.figi); // FINAM figi
+            //     });
         }
 
         checkFigi(figi) {
-            return figi === this.figi ||
+            if (this.isPortfolio) {
+                return true;
+            }
+
+            return figi === this.figi || Boolean(this.tickerInfo && (
                 figi === this.tickerInfo.noBoardFigi ||
-                figi === this.tickerInfo.noMarketFigi;
+                figi === this.tickerInfo.noMarketFigi));
         }
 
         async getOrders() {
             return (this.currentOrders || []).filter(p => this.checkFigi(p.figi));
         }
 
-        async hasOpenPositions() {
-            if (this.backtest) {
-                return this.hasBacktestOpenPositions();
-            }
+        async hasOpenPositions(type = 'share') {
+            try {
+                if (this.backtest) {
+                    return this.hasBacktestOpenPositions();
+                }
 
-            return Boolean(this.currentPortfolio && this.currentPortfolio.positions &&
-                this.currentPortfolio.positions.filter(p => this.checkFigi(p.figi)).length);
+                return Boolean(this.currentPositions &&
+                    this.currentPositions.filter(p =>
+                        Boolean(this.checkFigi(p.figi)) && p.instrumentType === type).length);
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         hasOpenOrders() {
             return Boolean(this.currentOrders && this.currentOrders.filter(o => this.checkFigi(o.figi)).length);
+        }
+
+        hasBlockedPositions() {
+            return !this.currentPositions.every(p => !p.blocked);
+        }
+
+        async syncPos() {
+            await this.updatePortfolio();
+            await this.updatePositions();
+        }
+
+        /**
+         * Сверяет позиции текущие и позиции в портфолио.
+         * Поскольку позиции в портфолио запаздывают с обновлением при активной торговле.
+         *
+         * @returns {Boolean}
+         */
+        async hasAllSyncedBalance() {
+            try {
+                if (!this.currentPositions || !this.currentPositions[0] || typeof this.currentPositions[0].quantity?.units === 'undefined') {
+                    await this.syncPos();
+
+                    return false;
+                }
+
+                const isSync = this.currentPositions.every(p =>
+                    p?.quantity?.units && p?.quantity?.units === p?.balance && !p?.blocked,
+                );
+
+                if (!isSync) {
+                    await this.syncPos();
+
+                    return false;
+                }
+
+                const posFigiCache = this.currentPositions.reduce((prev, cur) => {
+                    if (cur.instrumentType === 'share') {
+                        prev[cur.figi] = true;
+                    }
+
+                    return prev;
+                }, {});
+
+                const portfolioPos = this.currentPortfolio?.positions?.reduce((prev, current) => {
+                    if (!prev.allMatch) {
+                        return prev;
+                    }
+
+                    if (current.instrumentType === 'share') {
+                        ++prev.sum;
+
+                        if (!posFigiCache[current.figi]) {
+                            prev.allMatch = false;
+                        }
+                    }
+
+                    return prev;
+                }, {
+                    sum: 0,
+                    allMatch: true,
+                });
+
+                if (!portfolioPos || !portfolioPos.allMatch) {
+                    await this.syncPos();
+
+                    return false;
+                }
+
+                if (Object.keys(posFigiCache).length !== portfolioPos.sum) {
+                    await this.syncPos();
+
+                    return false;
+                }
+
+                return true;
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+        }
+
+        async closeAllOrders() {
+            this.currentOrders
+                .filter(o => [4, 5].includes(o.executionReportStatus))
+                .forEach(async o => await this.cancelOrder(o.orderId));
         }
 
         async sell(price, figi, lotsSize, type) {
@@ -489,22 +927,29 @@ try {
                     return this.backtestClosePosition(price || this.lastPrice, lotsSize || this.lotsSize);
                 }
 
-                console.log('sell', type || ''); // eslint-disable-line no-console
+                console.log('sell', type || '', lotsSize); // eslint-disable-line no-console
 
-                this.cb.postOrder && this.logOrders(await this.cb.postOrder(
+                const order = this.cb.postOrder && (await this.cb.postOrder(
                     this.accountId,
                     figi || this.figi,
                     lotsSize || this.lotsSize,
                     price || this.lastPrice, // структура из units и nano
                     this.enums.OrderDirection.ORDER_DIRECTION_SELL,
-                    this.enums.OrderType.ORDER_TYPE_LIMIT,
+                    this.orderType || this.enums.OrderType.ORDER_TYPE_LIMIT,
                     this.genOrderId(),
-                ), type);
+                ));
+
+                order && this.logOrders && this.logOrders(order, type);
 
                 await this.updateOrders();
+                this.setLastOrderTime();
             } catch (e) {
-                console.log('sell', e);
+                console.log('sell', e); // eslint-disable-line no-console
             }
+        }
+
+        setLastOrderTime() {
+            this.lastOrderTime = new Date().getTime();
         }
 
         setActiveOrder() {
@@ -515,16 +960,24 @@ try {
             return Math.floor(sum / minInc) * minInc;
         }
 
-        getTakeProfitPrice(buy, price) {
+        /**
+         * Расчитывает цену фиксации по TP.
+         *
+         * @param {?Boolean} isForShort — расчитать для позиции шорта.
+         * @param {Object[units, nano]} price — цена, от которой расчитывать цену заявки.
+         * @returns
+         */
+        getTakeProfitPrice(isForShort, price) {
             try {
-                if (typeof buy === 'undefined') {
+                if (typeof isForShort === 'undefined') {
                     return;
                 }
 
                 if (!this.backtest && (!price || !this.tickerInfo)) {
                     return;
                 }
-                const profit = buy ? (this.takeProfit + 1) : (1 - this.takeProfit);
+
+                const profit = isForShort ? (this.takeProfit + 1) : (1 - this.takeProfit);
 
                 const p = this.getPrice(price) * profit;
                 let units = Math.floor(p);
@@ -545,9 +998,37 @@ try {
                     nano,
                 };
             } catch (e) {
-                console.log('getTakeProfitPrice', e);
+                console.log('getTakeProfitPrice', e); // eslint-disable-line no-console
             }
         }
+
+        // /**
+        //  * Расчитывает цену лимитной заявки, которая ставится меньше текущей цены.
+        //  *
+        //  * @param {?Boolean} isForShort — расчитать для позиции шорта.
+        //  * @param {Object[units, nano]} price
+        //  * @param {Object[units, nano]} minPriceIncrement
+        //  * @param {?Number} deltaSize — сколько раз по minPriceIncrement нужно отступить от текущей цены.
+        //  */
+        // getLimitPrice(isForShort, price, minPriceIncrement, deltaSize = 1) {
+        //     let units;
+        //     let nano;
+
+        //     // Для лонга уменьшаем заявку,
+        //     // для шорта увеличиваем.
+        //     if (isForShort) {
+        //         price.units = price.units + minPriceIncrement.units * deltaSize;
+        //         price.nano = price.nano + minPriceIncrement.nano * deltaSize;
+        //     } else {
+        //         price.units = price.units - minPriceIncrement.units * deltaSize;
+        //         price.nano = price.nano - minPriceIncrement.nano * deltaSize;
+        //     }
+
+        //     return {
+        //         units,
+        //         nano,
+        //     };
+        // }
 
         getStopLossPrice(buy, price) {
             if (typeof buy === 'undefined') {
@@ -584,18 +1065,18 @@ try {
         }
 
         async getOpenOrders() {
-            if (!this.figi) {
-                return;
+            try {
+                // TODO: брать из OrderExecutionReportStatus
+                // EXECUTION_REPORT_STATUS_NEW (4)
+                // EXECUTION_REPORT_STATUS_PARTIALLYFILL (5)
+                const { orders } = this.cb.getOrders && (await this.cb.getOrders(this.accountId)) || {};
+
+                this.allOrders = orders;
+
+                return orders && orders.filter(o => [4, 5].includes(o.executionReportStatus));
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
             }
-
-            // TODO: брать из OrderExecutionReportStatus
-            // EXECUTION_REPORT_STATUS_NEW (4)
-            // EXECUTION_REPORT_STATUS_PARTIALLYFILL (5)
-            const { orders } = this.cb.getOrders && (await this.cb.getOrders(this.accountId, this.figi)) || {};
-
-            this.allOrders = orders;
-
-            return orders && orders.filter(o => [4, 5].includes(o.executionReportStatus));
         }
 
         async openOrdersExist() {
@@ -612,8 +1093,16 @@ try {
             const { orders } = await this.cb.getOrders(this.accountId, this.figi);
 
             for (const o of orders) {
-                await this.cb.cancelOrder(this.accountId, o.orderId);
+                await this.cancelOrder(o.orderId);
             }
+
+            this.setLastOrderTime();
+        }
+
+        async cancelOrder(orderId) {
+            this.setLastOrderTime();
+
+            return (await this.cb.cancelOrder(this.accountId, orderId));
         }
 
         /**
@@ -651,6 +1140,7 @@ try {
             try {
                 const { dir, name } = this.getLogFileName(robotName, accountId, figi, date);
                 const logFile = path.join(dir, name);
+
                 let logs;
 
                 if (fs.existsSync(logFile)) {
@@ -672,6 +1162,23 @@ try {
             };
         }
 
+        static getLogFiles(name, accountId, figi, date) {
+            const { dir } = this.getLogFileName(name, accountId, figi, date);
+
+            return fs.readdirSync(path.resolve(dir)).reduce((prev, file) => {
+                // const p = path.resolve(dir, file);
+
+                if (file !== this.settingsFileName) {
+                    const n = file.replace('.json', '').split('.');
+
+                    // Переставляем значения местами, чтобы привести ru формат к en.
+                    prev.push(new Date(n[2], n[1] - 1, n[0]).getTime());
+                }
+
+                return prev;
+            }, []);
+        }
+
         static getStaticFileSettings(name, accountId, figi) {
             if (!name || !accountId || !figi) {
                 return;
@@ -681,7 +1188,7 @@ try {
 
             mkDirByPathSync(dir);
 
-            return path.join(dir, 'settings.json');
+            return path.join(dir, this.settingsFileName);
         }
 
         /**
@@ -695,9 +1202,21 @@ try {
         static getSettings(name, accountId, figi) {
             const settings = {
                 isAdviser: false,
-                takeProfit: 0.005,
-                stopLoss: 0.0025,
+                takeProfit: 0.05,
+                stopLoss: 0.02,
+                volume: 1,
                 lotsSize: 1,
+
+                orderType: 1, // лимитная заявка =1. Рыночная =2. this.enums.OrderType.ORDER_TYPE_LIMIT
+                orderTimeout: 30, // секунд.
+
+                startTradingTimeHours: 0,
+                startTradingTimeMinutes: 0,
+                endTradingTimeHours: 23,
+                endTradingTimeMinutes: 59,
+
+                tradingDays: 0b1111100, // Битовая маска 7 значений для 7 дней. Старший бит — понедельник.
+
                 support: { units: 0, nano: 0 },
                 resistance: { units: 0, nano: 0 },
             };
@@ -722,29 +1241,85 @@ try {
          * @param {String} figi
          * @returns
          */
-        static setSettings(name, settings, accountId, figi) {
+        static setSettings(name, settings, accountId, figi) { // eslint-disable-line
             const current = this.getSettings(name);
 
             typeof settings.isAdviser !== 'undefined' && (current.isAdviser = Boolean(settings.isAdviser));
 
             settings.takeProfit = parseFloat(settings.takeProfit);
-            settings.takeProfit > 0 && (current.takeProfit = settings.takeProfit);
+            settings.takeProfit > 0 && settings.takeProfit <= 100 && (current.takeProfit = settings.takeProfit);
 
             settings.stopLoss = parseFloat(settings.stopLoss);
-            settings.stopLoss > 0 && (current.stopLoss = settings.stopLoss);
+            settings.stopLoss > 0 && settings.stopLoss <= 100 && (current.stopLoss = settings.stopLoss);
 
-            settings.lotsSize = parseInt(settings.lotsSize, 10);
+            settings.volume = parseInt(settings.volume * 100, 10) / 100;
+            settings.volume > 0 && settings.volume <= 100 && (current.volume = settings.volume);
+
+            settings.orderTimeout = parseFloat(settings.orderTimeout);
+
+            [
+                'lotsSize',
+
+                'su',
+                'sn',
+                'ru',
+                'rn',
+
+                'orderType',
+
+                'startTradingTimeHours',
+                'startTradingTimeMinutes',
+                'endTradingTimeHours',
+                'endTradingTimeMinutes',
+
+                'tradingDays',
+            ].forEach(name => {
+                settings[name] = parseInt(settings[name], 10);
+            });
+
             settings.lotsSize > 0 && (current.lotsSize = settings.lotsSize);
 
-            settings.su = parseInt(settings.su, 10);
             settings.su > 0 && (current.support.units = settings.su);
-            settings.sn = parseInt(settings.sn, 10);
             settings.sn > 0 && (current.support.nano = settings.sn);
 
-            settings.ru = parseInt(settings.ru, 10);
             settings.ru > 0 && (current.resistance.units = settings.ru);
-            settings.rn = parseInt(settings.rn, 10);
             settings.rn > 0 && (current.resistance.nano = settings.rn);
+
+            [1, 2].includes(settings.orderType) && (current.orderType = settings.orderType);
+
+            settings.orderTimeout > 0 && (current.orderTimeout = settings.orderTimeout);
+
+            if (settings.startTradingTimeHours >= 0 && settings.startTradingTimeHours <= 23 &&
+                settings.startTradingTimeHours <= settings.endTradingTimeHours) {
+                current.startTradingTimeHours = settings.startTradingTimeHours;
+            } else {
+                current.startTradingTimeHours = 0;
+            }
+
+            if (settings.endTradingTimeHours >= 0 && settings.endTradingTimeHours <= 23 &&
+                settings.endTradingTimeHours >= settings.startTradingTimeHours) {
+                current.endTradingTimeHours = settings.endTradingTimeHours;
+            } else {
+                current.endTradingTimeHours = 23;
+            }
+
+            if (settings.startTradingTimeMinutes >= 0 && settings.startTradingTimeMinutes <= 59 &&
+                settings.startTradingTimeMinutes <= settings.endTradingTimeMinutes) {
+                current.startTradingTimeMinutes = settings.startTradingTimeMinutes;
+            } else {
+                current.startTradingTimeMinutes = 0;
+            }
+
+            if (settings.endTradingTimeMinutes >= 0 && settings.endTradingTimeMinutes <= 59 &&
+                settings.endTradingTimeMinutes >= settings.startTradingTimeMinutes) {
+                current.endTradingTimeMinutes = settings.endTradingTimeMinutes;
+            } else {
+                current.endTradingTimeMinutes = 59;
+            }
+
+            if (settings.tradingDays > 0 && settings.tradingDays <= 127) {
+                current.tradingDays = settings.tradingDays;
+            }
 
             if (name && accountId && figi) {
                 const file = this.getStaticFileSettings(name, accountId, figi);
@@ -765,37 +1340,166 @@ try {
          * @returns
          */
         setCurrentSettings(settings) {
-            const current = Common.setSettings(this.name, settings, this.accountId, this.figi);
+            const current = Common.setSettings(this.name, settings, this.accountId, this.getFileName());
 
             this.getCurrentSettings();
         }
 
         getCurrentSettings() {
-            const current = Common.getSettings(this.name, this.accountId, this.figi);
-
-            // Если робот работает в режиме советника,
-            // то он только обозначает предположения, но не делает сделки.
-            // this.adviser = Boolean(adviser);
-            // 1 = 100%, 0.003 = 0.003%
-            // this.takeProfit = 0.004;
-            // На сколько процентов от текущей цены выставлять stopLoss.
-            // 1 = 100%, 0.003 = 0.003%
-            // this.stopLoss = 0.002;
-            // Количество лотов, которым оперирует робот.
-            // this.lotsSize = 1;
+            const current = Common.getSettings(this.name, this.accountId, this.getFileName());
 
             this.isAdviser = current.isAdviser;
             this.takeProfit = current.takeProfit;
             this.stopLoss = current.stopLoss;
+            this.volume = current.volume;
             this.lotsSize = current.lotsSize;
 
             // Уровни поддержки и сопротивления.
             this.support = current.support;
             this.resistance = current.resistance;
+
+            this.orderType = current.orderType;
+            this.orderTimeout = current.orderTimeout;
+
+            this.startTradingTimeHours = current.startTradingTimeHours;
+            this.startTradingTimeMinutes = current.startTradingTimeMinutes;
+            this.endTradingTimeHours = current.endTradingTimeHours;
+            this.endTradingTimeMinutes = current.endTradingTimeMinutes;
+
+            this.tradingDays = current.tradingDays;
         }
 
         getTickerInfo() {
             return this.tickerInfo || {};
+        }
+
+        /**
+         * Сохраняет основные параметры расчётов по портфелю,
+         * чтобы не пересчитывать их при выставлении ордеров.
+         *
+         * @param {*} params
+         * @returns
+         */
+        saveCalculatedPortfolioParams(params) {
+            const {
+                totalNowSharesAmount,
+                expectedYield,
+                currentTP,
+                currentSL,
+            } = params;
+
+            this.totalNowSharesAmount = totalNowSharesAmount;
+            this.expectedYield = expectedYield;
+            this.currentTP = currentTP;
+            this.currentSL = currentSL;
+            this.positionsProfit = params;
+
+            return params;
+        }
+
+        resetCalculatedPortfolioParams() {
+            delete this.totalNowSharesAmount;
+            delete this.expectedYield;
+            delete this.currentTP;
+            delete this.currentSL;
+            delete this.positionsProfit;
+        }
+
+        /**
+         * Рассчитывает параметры торговли для портфеля.
+         *
+         * @param {?String} type — тип инструментов, для которых нужно посчитать.
+         * @returns
+         */
+        calcPortfolio(type = 'share') {
+            try {
+                const calcParams = Common.calcPortfolio.call(this, this.currentPositions, {
+                    volume: this.volume,
+                    takeProfit: this.takeProfit,
+                    stopLoss: this.stopLoss,
+                }, type);
+
+                this.saveCalculatedPortfolioParams(calcParams);
+
+                return calcParams;
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
+
+        static calcPortfolio(positions, settings, type = 'share') { // eslint-disable-line
+            try {
+                if (!positions?.length) {
+                    return {};
+                }
+
+                const { totalStartSharesAmount,
+                    expectedYield,
+                    totalNowSharesAmount,
+                } = positions.reduce((prev, current) => {
+                    if (current?.instrumentType !== type) {
+                        return prev;
+                    }
+
+                    const avgPrice = this.getPrice(current.averagePositionPrice) *
+                        Math.abs(this.getPrice(current.quantity));
+
+                    const expectedYield = this.getPrice(current.expectedYield);
+
+                    if (this[current.figi]?.lastPrice) {
+                        prev.totalNowSharesAmount += this.getPrice(this[current.figi]?.lastPrice) *
+                            Math.abs(this.getPrice(current.quantity));
+                    } else {
+                        prev.totalNowSharesAmount += avgPrice + expectedYield;
+                    }
+
+                    prev.totalStartSharesAmount += avgPrice;
+                    prev.expectedYield += expectedYield;
+
+                    return prev;
+                }, {
+                    totalStartSharesAmount: 0,
+                    totalNowSharesAmount: 0,
+                    expectedYield: 0,
+                }) || {};
+
+                // setSharesPrice((expectedYield < 0 ? '-' : '') + getYield(totalStartSharesAmount, expectedYield));
+                const positionsProfit = positions?.reduce((prev, p) => {
+                    if (p?.instrumentType !== type) {
+                        return prev;
+                    }
+
+                    const positionVolume = !p.quantityLots.units && p.quantityLots.nano ? 0 :
+                        p.quantityLots.units * settings.volume;
+
+                    prev[p.figi] = {
+                        // Для неполной позиции не применяем.
+                        // Берём часть позиции в соответствии с настройками, но не менее одной позиции.
+                        positionVolume: positionVolume > 0 ? Math.max(positionVolume, 1) :
+                            positionVolume < 0 ? Math.min(positionVolume, -1) : 0,
+                    };
+
+                    if (prev[p.figi].positionVolume) {
+                        // const lotSize = Math.abs(parseInt(p.quantity.units / p.quantityLots.units));
+                        prev.currentTP = totalStartSharesAmount + totalStartSharesAmount * settings.takeProfit;
+                        prev.currentSL = totalStartSharesAmount - totalStartSharesAmount * settings.stopLoss;
+                    }
+
+                    return prev;
+                }, {
+                    currentTP: 0,
+                    currentSL: 0,
+                }) || {};
+
+                return {
+                    ...positionsProfit,
+                    totalStartSharesAmount,
+                    totalNowSharesAmount,
+                    expectedYield,
+                };
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
         }
     }
 

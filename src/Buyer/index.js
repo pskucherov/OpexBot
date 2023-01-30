@@ -9,10 +9,11 @@ try {
      */
     class Bot extends Backtest {
         // instrument — торгует одним инструментом. portfolio — всем портфелем.
-        static type = 'instrument';
+        static type = 'portfolio';
 
         constructor(...args) {
             super(...args);
+            this.isPortfolio = true;
             this.name = name;
         }
 
@@ -22,7 +23,29 @@ try {
          * @returns {Boolean}
          */
         async decisionBuy() {
-            return false;
+            try {
+                this.resetCalculatedPortfolioParams();
+
+                if (this.hasOpenOrders() && this.lastOrderTime &&
+                    (this.lastOrderTime + (this.orderTimeout * 1000)) > new Date().getTime()) {
+                    return false;
+                }
+
+                // Закрываем открытые ордера, которые были выставлены больше минуты назад.
+                if (this.hasOpenOrders()) {
+                    //await this.closeAllOrders();
+
+                    return false;
+                }
+
+                if (this.hasBlockedPositions()) {
+                    return false;
+                }
+
+                return !(await this.hasOpenPositions('share'));
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         /**
@@ -34,6 +57,39 @@ try {
             return false;
         }
 
+        async buy() {
+            function getRandomInt(max) {
+                return Math.floor(Math.random() * max);
+            }
+
+            function shuffle(array) {
+                let currentIndex = array.length,
+                    randomIndex;
+
+                // While there remain elements to shuffle.
+                while (currentIndex !== 0) {
+                    // Pick a remaining element.
+                    randomIndex = Math.floor(Math.random() * currentIndex);
+                    currentIndex--;
+
+                    // And swap it with the current element.
+                    [array[currentIndex], array[randomIndex]] = [
+                        array[randomIndex], array[currentIndex]];
+                }
+
+                return array;
+            }
+
+            const { lastPrices } = await this.cb.getLastPrices(this.blueChipsShares.map(f => f.figi));
+            const newChips = shuffle(this.blueChipsShares)[0];
+
+            newChips.price = this.getPrice(lastPrices.find(l => l.figi === newChips.figi).price) * newChips.lot;
+            const lot = getRandomInt(4) + 1;
+        }
+
+        async sell() {
+        }
+
         /**
          * Решает про вызов метода закрытия позиций.
          * @returns {Boolean}
@@ -41,6 +97,7 @@ try {
         async decisionClosePosition() {
             // Если есть позиции, то пробуем закрыт сделку по профиту или SL.
             // return (await this.hasOpenPositions()) && !this.hasOpenOrders();
+            return false;
         }
 
         /**

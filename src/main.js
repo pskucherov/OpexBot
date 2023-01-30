@@ -1,3 +1,5 @@
+process.setMaxListeners(0);
+
 const fs = require('fs');
 const path = require('path');
 
@@ -26,9 +28,12 @@ hmr(() => {
         }
     });
 
-    const { connector } = require('tinkofftradingbotconnector');
+    const { tradingbotconnector } = require('tinkofftradingbotconnector');
 
-    connector({ bots });
+    tradingbotconnector({
+        bots,
+        robotsStarted: [],
+    });
 
     exports.bots = bots;
 }, {

@@ -10,6 +10,9 @@ try {
      * После исполнения заявки ждёт выхода по TP или SP.
      */
     class Bot extends Backtest {
+        // instrument — торгует одним инструментом. portfolio — всем портфелем.
+        static type = 'instrument';
+
         constructor(...args) {
             super(...args);
             this.name = name;
@@ -56,17 +59,17 @@ try {
                                 lots = 1;
                             }
 
-                            console.log('this.getTakeProfitPrice(1, p.averagePositionPrice)', this.getTakeProfitPrice(1, p.averagePositionPrice));
+                            // console.log('this.getTakeProfitPrice(1, p.averagePositionPrice)', this.getTakeProfitPrice(1, p.averagePositionPrice));
 
                             // p.figi => this.figi
                             await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), this.figi, lots, 'TP');
                         } else {
-                            console.log('takeProfitPosition empty quantityLots.units');
+                            // console.log('takeProfitPosition empty quantityLots.units');
                         }
                     });
                 }
             } catch (e) {
-                console.log('takeProfitPosition', e);
+                console.log('takeProfitPosition', e); // eslint-disable-line no-console
             }
         }
 

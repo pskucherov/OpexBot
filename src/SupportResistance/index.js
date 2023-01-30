@@ -8,6 +8,9 @@ try {
      * Робот торгующий по линиям поддержки и сопротивления.
      */
     class Bot extends Backtest {
+        // instrument — торгует одним инструментом. portfolio — всем портфелем.
+        static type = 'instrument';
+
         constructor(...args) {
             super(...args);
             this.name = name;
