@@ -3,7 +3,6 @@
 try {
     process.env.NODE_ENV = 'production';
 
-    const path = require('path');
     const kill = require('kill-port');
     const { app, BrowserWindow, shell } = require('electron');
     const log = require('electron-log');

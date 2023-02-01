@@ -1,42 +1,63 @@
 process.setMaxListeners(0);
 
+const sqlite3 = require('sqlite3');
+const { open } = require('sqlite');
+
 const fs = require('fs');
 const path = require('path');
 
 const hmr = require('node-hmr');
+const { getDBPath, createTables, HistoryTables } = require('../db/tables');
 
-/**
- * Подключает все папки из текущей директории.
- *
- * При изменении в файлах перезагружает роботов,
- * чтобы не перезапускать сервис при правках.
- */
-hmr(() => {
-    console.log('hmr started'); // eslint-disable-line no-console
+// this is a top-level await
+(async () => {
+    // open the database
+    const db = await open({
+        filename: getDBPath(),
+        driver: sqlite3.Database,
+    });
 
-    const bots = {};
+    await createTables(db);
 
-    fs.readdirSync(path.resolve(__dirname)).forEach(file => {
-        const p = path.resolve(__dirname, file);
+    /**
+     * Подключает все папки из текущей директории.
+     *
+     * При изменении в файлах перезагружает роботов,
+     * чтобы не перезапускать сервис при правках.
+     */
+    hmr(() => {
+        console.log('hmr started'); // eslint-disable-line no-console
 
-        if (fs.lstatSync(p).isDirectory() && file !== 'Common' && file !== 'Example') {
-            const module = require(p);
+        const bots = {};
 
-            if (module[file]) {
-                bots[file] = module[file];
+        fs.readdirSync(path.resolve(__dirname)).forEach(file => {
+            const p = path.resolve(__dirname, file);
+
+            if (fs.lstatSync(p).isDirectory() && file !== 'Common' &&
+                file !== 'Example' && file !== 'Buyer') {
+                const module = require(p);
+
+                if (module[file]) {
+                    bots[file] = module[file];
+                }
             }
-        }
+        });
+
+        const { tradingbotconnector } = require('tinkofftradingbotconnector');
+
+        tradingbotconnector({
+            bots,
+            robotsStarted: [],
+        }, {
+            db,
+            historyTables: new HistoryTables(db),
+        });
+
+        exports.bots = bots;
+    }, {
+        watchDir: './',
+        watchFilePatterns: ['**/*.js'],
     });
+})();
 
-    const { tradingbotconnector } = require('tinkofftradingbotconnector');
-
-    tradingbotconnector({
-        bots,
-        robotsStarted: [],
-    });
-
-    exports.bots = bots;
-}, {
-    watchDir: './',
-    watchFilePatterns: ['**/*.js'],
-});
+setInterval(() => {}, 3600000);
