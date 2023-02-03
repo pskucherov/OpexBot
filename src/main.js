@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const hmr = require('node-hmr');
-const { getDBPath, createTables, HistoryTables } = require('../db/tables');
+const { getDBPath, createTables, AnalyticsTables } = require('../db/tables');
 
 // this is a top-level await
 (async () => {
@@ -50,7 +50,7 @@ const { getDBPath, createTables, HistoryTables } = require('../db/tables');
             robotsStarted: [],
         }, {
             db,
-            historyTables: new HistoryTables(db),
+            analyticsTables: new AnalyticsTables(db),
         });
 
         exports.bots = bots;

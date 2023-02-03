@@ -110,3 +110,5 @@ data/cachedorderbooks/*
 orders/*
 
 package-lock.json
+
+db/data
