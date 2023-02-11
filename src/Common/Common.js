@@ -134,7 +134,8 @@ try {
                 this.tradingTime = true;
                 delete this.tradingTimeInfo;
             } else {
-                this.tradingTimeInfo = 'Торги остановлены по времени биржи. Торги остановлены.';
+                // console.log(now, new Date().toISOString(), startTime, endTime, (new Date(startTime).getTime()), (new Date(endTime).getTime()), (new Date(startTime).getTime()) - now, new Date(endTime).getTime() - now);
+                // this.tradingTimeInfo = 'alarm todo!'; // Торги остановлены по времени биржи. Торги остановлены.';
                 this.tradingTime = false;
             }
         }
@@ -418,10 +419,10 @@ try {
                             await this.closePosition(this.lastPrice);
                         } else if (await this.decisionBuy()) {
                             console.log('decisionBuy'); // eslint-disable-line no-console
-                            await this.buy();
+                            await this.callBuy();
                         } else if (await this.decisionSell()) {
                             console.log('decisionBuy'); // eslint-disable-line no-console
-                            await this.sell();
+                            await this.callSell();
                         }
                     }
 
@@ -542,6 +543,9 @@ try {
             }
         }
 
+        async callBuy() {}
+        async callSell() {}
+
         async setExchangesTradingTime() {
             try {
                 const now = new Date().getTime();
@@ -557,6 +561,7 @@ try {
                         this.tickerInfo.exchange || this.tickerInfo[0].exchange, now, now,
                     ) || {};
 
+                // console.log(this.tickerInfo[0], exchanges);
                 if (exchanges && exchanges.length) {
                     const { startTime, endTime, isTradingDay } = exchanges[0] &&
                         exchanges[0].days && exchanges[0].days[0];
