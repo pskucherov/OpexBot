@@ -2,7 +2,7 @@ process.setMaxListeners(0);
 
 const sqlite3 = require('sqlite3');
 
-// sqlite3.verbose()
+sqlite3.verbose();
 
 const { open } = require('sqlite');
 

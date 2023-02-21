@@ -28,7 +28,44 @@ try {
          * @returns {Boolean}
          */
         async decisionBuy() {
-            return false;
+            this.decisionBuyPositionMessage = '';
+
+            if (this.lastOrderTime &&
+                (this.lastOrderTime + (this.orderTimeout * 1000)) > new Date().getTime()) {
+                this.decisionBuyPositionMessage = 'decisionBuy: таймаут выставления заявки. False.';
+
+                return false;
+            }
+
+            // Закрываем открытые ордера, которые были выставлены больше таймаута orderTimeout.
+            if (this.hasOpenOrders()) {
+                this.decisionBuyPositionMessage = 'decisionBuy: есть открытые ордера.';
+
+                await this.closeAllOrders();
+
+                return false;
+            }
+
+            if (this.hasBlockedPositions()) {
+                this.decisionBuyPositionMessage = 'decisionBuy: есть блокированные позиции.';
+
+                return false;
+            }
+
+            if (this.currentPositions?.[0] && !(await this.hasAllSyncedBalance())) {
+                this.decisionBuyPositionMessage = 'Баланс позиций и портфолио не синхронизирован. False.';
+
+                return false;
+            }
+
+            // Если есть позиции, и нет выставленных заявок.
+            if ((await this.hasOpenPositions('share')) || this.hasOpenOrders()) {
+                this.decisionBuyPositionMessage = 'decisionBuy: есть позиции';
+
+                return false;
+            }
+
+            return true;
         }
 
         /**
@@ -51,7 +88,7 @@ try {
                 this.decisionClosePositionMessage = 1;
                 if (this.hasOpenOrders() && this.lastOrderTime &&
                     (this.lastOrderTime + (this.orderTimeout * 1000)) > new Date().getTime()) {
-                    this.decisionClosePositionMessage = 'Есть открытая заявка. False.';
+                    this.decisionClosePositionMessage = 'Таймаут выставления заявки. False.';
 
                     return false;
                 }
@@ -84,13 +121,13 @@ try {
                     this.decisionClosePositionMessage = 'Считаем TP и SL.';
 
                     // Если не для всех позиций проставлены цены, то не можем их закрывать.
-                    if (!this.totalNowSharesAmount || !this.currentTP || !this.currentSL) {
-                        this.decisionClosePositionMessage = 'Проблемы с рассчётом TP и SL. False.';
+                    // if (!this.totalNowSharesAmount || !this.currentTP || !this.currentSL) {
+                    //     this.decisionClosePositionMessage = 'Проблемы с рассчётом TP и SL. False.';
 
-                        return false;
-                    }
+                    //     return false;
+                    // }
 
-                    this.decisionClosePositionMessage = 'TP, SL' + (this.totalNowSharesAmount >= this.currentTP ||
+                    this.decisionClosePositionMessage = 'TP, SL ' + (this.totalNowSharesAmount >= this.currentTP ||
                         this.totalNowSharesAmount <= this.currentSL).toString();
 
                     // const totalAmountShares = this.getPrice(this.currentPortfolio.totalAmountShares);
@@ -184,6 +221,36 @@ try {
          */
         stop() {
             super.stop();
+        }
+
+        async callBuy() {
+            function shuffle(array) {
+                let currentIndex = array.length,
+                    randomIndex;
+
+                // While there remain elements to shuffle.
+                while (currentIndex !== 0) {
+                    // Pick a remaining element.
+                    randomIndex = Math.floor(Math.random() * currentIndex);
+                    currentIndex--;
+
+                    // And swap it with the current element.
+                    [array[currentIndex], array[randomIndex]] = [
+                        array[randomIndex], array[currentIndex]];
+                }
+
+                return array;
+            }
+
+            const newChips = this.blueChipsShares.find(f => f.figi === 'BBG004PYF2N3');
+
+            const { lastPrices } = await this.cb.getLastPrices([newChips.figi]);
+
+            // newChips.price = this.getPrice(lastPrices.find(l => l.figi === newChips.figi).price) * newChips.lot;
+            const lot = 1;
+            const { price } = lastPrices.find(l => l.figi === newChips.figi);
+
+            await this.buy(price, newChips.figi, lot, 'callBuy');
         }
     }
 

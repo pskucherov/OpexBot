@@ -45,7 +45,7 @@ try {
             this.subscribesTimer = 100;
 
             // Таймер выполнения process
-            this.robotTimer = 1500;
+            this.robotTimer = 3000;
             this.subscribeDataUpdated = {};
 
             this.orders = {};
@@ -135,8 +135,8 @@ try {
                 delete this.tradingTimeInfo;
             } else {
                 // console.log(now, new Date().toISOString(), startTime, endTime, (new Date(startTime).getTime()), (new Date(endTime).getTime()), (new Date(startTime).getTime()) - now, new Date(endTime).getTime() - now);
-                // this.tradingTimeInfo = 'alarm todo!'; // Торги остановлены по времени биржи. Торги остановлены.';
-                this.tradingTime = false;
+                this.tradingTimeInfo = 'Торги проходят с проверкой на статус инструмента.'; // Торги остановлены по времени биржи. Торги остановлены.';
+                this.tradingTime = true;
             }
         }
 
@@ -446,7 +446,7 @@ try {
                     });
                 }
             } catch (e) {
-                console.log(e); // eslint-disable-line no-console
+                console.log('propcessing', e); // eslint-disable-line no-console
             }
         }
 
@@ -543,9 +543,11 @@ try {
             }
         }
 
-        async callBuy() {}
-        async callSell() {}
+        async callBuy() { }
+        async callSell() { }
 
+        // TODO: !!! проверка для каждого инструмента.
+        // Здесь ошибка, т.к. проверяется только для одного из инструментов.
         async setExchangesTradingTime() {
             try {
                 const now = new Date().getTime();
@@ -561,7 +563,8 @@ try {
                         this.tickerInfo.exchange || this.tickerInfo[0].exchange, now, now,
                     ) || {};
 
-                // console.log(this.tickerInfo[0], exchanges);
+                // console.log(this.tickerInfo.exchange, this.tickerInfo[0], exchanges);
+                // console.log(JSON.stringify(exchanges, null, 4));
                 if (exchanges && exchanges.length) {
                     const { startTime, endTime, isTradingDay } = exchanges[0] &&
                         exchanges[0].days && exchanges[0].days[0];
@@ -826,9 +829,12 @@ try {
                     return this.hasBacktestOpenPositions();
                 }
 
-                return Boolean(this.currentPositions &&
-                    this.currentPositions.filter(p =>
-                        Boolean(this.checkFigi(p.figi)) && p.instrumentType === type).length);
+                if (!this.currentPositions?.length) {
+                    return false;
+                }
+
+                return Boolean(this.currentPositions.filter(p =>
+                    Boolean(this.checkFigi(p.figi)) && p.instrumentType === type).length);
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
@@ -843,8 +849,12 @@ try {
         }
 
         async syncPos() {
-            await this.updatePortfolio();
-            await this.updatePositions();
+            try {
+                await this.updatePortfolio();
+                await this.updatePositions();
+            } catch (e) {
+                console.log('syncPos', e); // eslint-disable-line
+            }
         }
 
         /**

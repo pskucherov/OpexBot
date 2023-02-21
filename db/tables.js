@@ -19,9 +19,9 @@ const getPrice = quotation => {
 };
 
 const createTables = async db => {
-    // db.on('trace', (data) => {
-    //     console.log('trace', data);
-    // })
+    db.on('trace', data => {
+        // console.log('trace', data);
+    });
 
     await db.exec(`CREATE TABLE IF NOT EXISTS
         'analyticsParserState' (
@@ -29,11 +29,16 @@ const createTables = async db => {
             'openedDate' INTEGER,
             'closedDate' INTEGER,
             'lastParsedDateError' INTEGER DEFAULT 0,
+            'lastParsedOperationsDateError' INTEGER DEFAULT 0,
+            'operationsNextCursor' TEXT,
+            'operationsNextCursorStart' INTEGER,
+            'operationsNextCursorEnd' INTEGER,
             'reportParsed' BOOLEAN DEFAULT 0,
             'dividendParsed' BOOLEAN DEFAULT 0
         )
     `);
 
+    //             'operationsFromStartParsed' BOOLEAN DEFAULT 0,
     // type: 0 - GetBrokerReport, 1 - GetDividendsForeignIssuer
     await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParserTaskIds' (
         'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -46,11 +51,12 @@ const createTables = async db => {
         'pageNum' INTEGER DEFAULT 0,
         'itemsCount' INTEGER,
         'lastCheck' INTEGER,
+        'checkNum' INTEGER DEFAULT 0,
         'parsed' BOOLEAN,
         'answer' TEXT
     )`);
 
-    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataReport' (
+    const dataReportRow = `
         'accountId' TEXT,
         'tradeId' TEXT,
         'orderId' TEXT,
@@ -101,7 +107,12 @@ const createTables = async db => {
         'separateAgreementNumber' TEXT,
         'separateAgreementDate' TEXT,
         'deliveryType' TEXT
-    )`);
+    `;
+
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataReport' (${dataReportRow})`);
+
+    // Для записи временных данных, пока отчёт не готов.
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataReportBuffer' (${dataReportRow})`);
 
     await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataDividend' (
         'recordDate' INTEGER,
@@ -128,14 +139,85 @@ const createTables = async db => {
         'currency' TEXT
     )`);
 
+    const operationRow = `
+        'i' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        'cursor' TEXT,
+        'brokerAccountId' TEXT,
+        'id' TEXT,
+        'parentOperationId' TEXT,
+        'name' TEXT,
+        'date' INTEGER,
+        'dateRound' INTEGER,
+        'type' INTEGER,
+        'description' TEXT,
+        'state' INTEGER,
+        'instrumentUid' TEXT,
+        'figi' TEXT,
+        'instrumentType' TEXT,
+        'instrumentKind' TEXT,
+        'payment' REAL,
+        'paymentCurrency' TEXT,
+        'paymentUnits' INTEGER,
+        'paymentNano' INTEGER,
+        'price' REAL,
+        'priceCurrency' TEXT,
+        'priceUnits' INTEGER,
+        'priceNano' INTEGER,
+        'commission' REAL,
+        'commissionCurrency' TEXT,
+        'commissionUnits' INTEGER,
+        'commissionNano' INTEGER,
+        'yield' REAL,
+        'yieldCurrency' TEXT,
+        'yieldUnits' INTEGER,
+        'yieldNano' INTEGER,
+        'yieldRelative' REAL,
+        'yieldRelativeUnits' INTEGER,
+        'yieldRelativeNano' INTEGER,
+        'accruedInt' REAL,
+        'accruedIntCurrency' TEXT,
+        'accruedIntUnits' INTEGER,
+        'accruedIntNano' INTEGER,
+        'quantity' INTEGER,
+        'quantityRest' INTEGER,
+        'quantityDone' INTEGER,
+        'cancelDateTime' INTEGER,
+        'cancelReason' TEXT,
+        'assetUid' TEXT
+    `;
+
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataOperations' (${operationRow})`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataOperationsBuffer' (${operationRow})`);
+
+    //
     await db.exec('CREATE INDEX IF NOT EXISTS \'accids\' ON "analyticsParserTaskIds" ("accountId" ASC, "startDate" ASC, "endDate" ASC)');
     await db.exec('CREATE INDEX IF NOT EXISTS \'taskId\' ON "analyticsParserTaskIds" ("taskId" ASC)');
     await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'scheduleUniq' ON
         "analyticsParserTaskIds" ("accountId", "startDate", "endDate", "type", "pageNum")
     `);
 
+    // Операции, индекс по брокеру и времени
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsUniq' ON
+        "analyticsParsedDataOperations" ("brokerAccountId", "id", "parentOperationId")
+    `);
+    await db.exec(`CREATE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsDate' ON
+        "analyticsParsedDataOperationsBuffer" ("brokerAccountId", "dateRound")
+    `);
+
+    // Временные операции, индекс по брокеру и времени
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsBufferUniq' ON
+        "analyticsParsedDataOperationsBuffer" ("brokerAccountId", "id", "parentOperationId")
+    `);
+    await db.exec(`CREATE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsBufferDate' ON
+        "analyticsParsedDataOperationsBuffer" ("brokerAccountId", "dateRound")
+    `);
+
+    // Индекс по данным BrokerReport
     await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataReportUniq' ON
         "analyticsParsedDataReport" ("accountId", "tradeId", "orderId")
+    `);
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataReportBufferUniq' ON
+        "analyticsParsedDataReportBuffer" ("accountId", "tradeId", "orderId")
     `);
     await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataDividendUniq' ON
         "analyticsParsedDataDividend" ("recordDate", "paymentDate", "isin")
@@ -241,6 +323,26 @@ class AnalyticsTables {
     }
 
     /**
+     * Получает последнюю дату записи успешного парсинга.
+     *
+     * @param {String} accountId
+     * @param {0|1} type - 0 - report, 1 - foreignDividend.
+     * @returns
+     */
+    async getMaxRowDateSuccess(accountId, type) {
+        try {
+            return (await this.db.get(
+                `SELECT MAX(endDate) as maxEndTime FROM
+                        "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND answer NOTNULL`,
+                accountId,
+                type,
+            )) || {};
+        } catch (e) {
+            console.log(e); // eslint-disable-line
+        }
+    }
+
+    /**
      * Добавляет строку для
      * @param {*} accountId
      * @param {*} type
@@ -294,13 +396,21 @@ class AnalyticsTables {
      * @param {String} accountId
      * @returns
      */
-    async getNextTimeParse(accountId) {
+    async getNextTimeParse(accountId, isOperations = false) {
         try {
-            const { lastParsedDateError } = (await this.db.get(`SELECT lastParsedDateError FROM
-                "analyticsParserState" WHERE "accountId" = ?`,
-            accountId)) || { lastParsedDateError: 0 };
+            const col = isOperations ? 'lastParsedOperationsDateError' : 'lastParsedDateError';
 
-            return Math.max(lastParsedDateError + 85000, new Date().getTime());
+            const {
+                lastParsedDateError,
+                lastParsedOperationsDateError,
+            } = (await this.db.get(`SELECT ${col} FROM
+                "analyticsParserState" WHERE "accountId" = ?`,
+            accountId)) || {
+                lastParsedDateError: 0,
+                lastParsedOperationsDateError: 0,
+            };
+
+            return Math.max((lastParsedDateError || lastParsedOperationsDateError || 0) + 85000, new Date().getTime());
         } catch (e) {
             console.log(e); // eslint-disable-line
         }
@@ -312,10 +422,12 @@ class AnalyticsTables {
      * @param {String} accountId
      * @returns
      */
-    async saveErrorTime(accountId) {
+    async saveErrorTime(accountId, isOperations = false) {
         try {
+            const col = isOperations ? 'lastParsedOperationsDateError' : 'lastParsedDateError';
+
             return await this.db.run(
-                'UPDATE "analyticsParserState" SET lastParsedDateError = ? WHERE "accountId" = ?',
+                `UPDATE "analyticsParserState" SET ${col} = ? WHERE "accountId" = ?`,
                 new Date().getTime(),
                 accountId,
             );
@@ -342,7 +454,7 @@ class AnalyticsTables {
 
             if (data && data.id) {
                 await this.db.run(
-                    'UPDATE "analyticsParserTaskIds" SET lastCheck = ? WHERE "id" = ?',
+                    'UPDATE "analyticsParserTaskIds" SET lastCheck = (? + checkNum*5000), checkNum = checkNum + 1 WHERE "id" = ?',
                     new Date().getTime(),
                     data.id,
                 );
@@ -374,6 +486,122 @@ class AnalyticsTables {
         }
     }
 
+    async insertTradeData(accountId, a, type = 0, isBuffer = false) {
+        const table = isBuffer ? 'analyticsParsedDataReportBuffer' : 'analyticsParsedDataReport';
+
+        try {
+            if (!type) {
+                await this.db.run(`INSERT INTO "${table}" (
+                    "accountId",
+                    "tradeId",
+                    "orderId",
+                    "figi",
+                    "executeSign",
+                    "tradeDatetime",
+                    "exchange",
+                    "classCode",
+                    "direction",
+                    "name",
+                    "ticker",
+                    "price",
+                    "priceUnits",
+                    "priceNano",
+                    "priceCurrency",
+                    "quantity",
+                    "orderAmount",
+                    "orderAmountCurrency",
+                    "orderAmountUnits",
+                    "orderAmountNano",
+                    "aciValue",
+                    "aciValueUnits",
+                    "aciValueNano",
+                    "totalOrderAmount",
+                    "totalOrderAmountCurrency",
+                    "totalOrderUnits",
+                    "totalOrderNano",
+                    "brokerCommission",
+                    "brokerCommissionCurrency",
+                    "brokerCommissionUnits",
+                    "brokerCommissionNano",
+                    "exchangeCommission",
+                    "exchangeCommissionCurrency",
+                    "exchangeCommissionUnits",
+                    "exchangeCommissionNano",
+                    "exchangeClearingCommission",
+                    "exchangeClearingCommissionCurrency",
+                    "exchangeClearingCommissionUnits",
+                    "exchangeClearingCommissionNano",
+                    "repoRate",
+                    "repoRateUnits",
+                    "repoRateNano",
+                    "party",
+                    "clearValueDate",
+                    "secValueDate",
+                    "brokerStatus",
+                    "separateAgreementType",
+                    "separateAgreementNumber",
+                    "separateAgreementDate",
+                    "deliveryType"
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? 
+                )`,
+                accountId,
+                a.tradeId,
+                a.orderId,
+                a.figi,
+                a.executeSign,
+                a.tradeDatetime,
+                a.exchange,
+                a.classCode,
+                a.direction,
+                a.name,
+                a.ticker,
+                getPrice(a.price),
+                a.price?.units,
+                a.price?.nano,
+                a.price?.currency,
+                a.quantity,
+                getPrice(a.orderAmount),
+                a.orderAmount?.currency,
+                a.orderAmount?.units,
+                a.orderAmount?.nano,
+                getPrice(a.aciValue),
+                a.aciValue?.units,
+                a.aciValue?.nano,
+                getPrice(a.totalOrderAmount),
+                a.totalOrderAmount?.currency,
+                a.totalOrderAmount?.units,
+                a.totalOrderAmount?.nano,
+                getPrice(a.brokerCommission),
+                a.brokerCommission?.currency,
+                a.brokerCommission?.units,
+                a.brokerCommission?.nano,
+                getPrice(a.exchangeCommission),
+                a.exchangeCommission?.currency,
+                a.exchangeCommission?.units,
+                a.exchangeCommission?.nano,
+                getPrice(a.exchangeClearingCommission),
+                a.exchangeClearingCommission?.currency,
+                a.exchangeClearingCommission?.units,
+                a.exchangeClearingCommission?.nano,
+                getPrice(a.repoRate),
+                a.repoRate?.units,
+                a.repoRate?.nano,
+                a.party,
+                a.clearValueDate,
+                a.secValueDate,
+                a.brokerStatus,
+                a.separateAgreementType,
+                a.separateAgreementNumber,
+                a.separateAgreementDate,
+                a.deliveryType,
+                );
+            }
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
     /**
      * Сохраняет ответ с отчётом (или с его отсутствием).
      *
@@ -394,113 +622,7 @@ class AnalyticsTables {
             const a = answer[i];
 
             try {
-                if (!type) {
-                    await this.db.run(`INSERT INTO "analyticsParsedDataReport" (
-                        "accountId",
-                        "tradeId",
-                        "orderId",
-                        "figi",
-                        "executeSign",
-                        "tradeDatetime",
-                        "exchange",
-                        "classCode",
-                        "direction",
-                        "name",
-                        "ticker",
-                        "price",
-                        "priceUnits",
-                        "priceNano",
-                        "priceCurrency",
-                        "quantity",
-                        "orderAmount",
-                        "orderAmountCurrency",
-                        "orderAmountUnits",
-                        "orderAmountNano",
-                        "aciValue",
-                        "aciValueUnits",
-                        "aciValueNano",
-                        "totalOrderAmount",
-                        "totalOrderAmountCurrency",
-                        "totalOrderUnits",
-                        "totalOrderNano",
-                        "brokerCommission",
-                        "brokerCommissionCurrency",
-                        "brokerCommissionUnits",
-                        "brokerCommissionNano",
-                        "exchangeCommission",
-                        "exchangeCommissionCurrency",
-                        "exchangeCommissionUnits",
-                        "exchangeCommissionNano",
-                        "exchangeClearingCommission",
-                        "exchangeClearingCommissionCurrency",
-                        "exchangeClearingCommissionUnits",
-                        "exchangeClearingCommissionNano",
-                        "repoRate",
-                        "repoRateUnits",
-                        "repoRateNano",
-                        "party",
-                        "clearValueDate",
-                        "secValueDate",
-                        "brokerStatus",
-                        "separateAgreementType",
-                        "separateAgreementNumber",
-                        "separateAgreementDate",
-                        "deliveryType"
-                    ) VALUES (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? 
-                    )`,
-                    accountId,
-                    a.tradeId,
-                    a.orderId,
-                    a.figi,
-                    a.executeSign,
-                    a.tradeDatetime,
-                    a.exchange,
-                    a.classCode,
-                    a.direction,
-                    a.name,
-                    a.ticker,
-                    getPrice(a.price),
-                    a.price?.units,
-                    a.price?.nano,
-                    a.price?.currency,
-                    a.quantity,
-                    getPrice(a.orderAmount),
-                    a.orderAmount?.currency,
-                    a.orderAmount?.units,
-                    a.orderAmount?.nano,
-                    getPrice(a.aciValue),
-                    a.aciValue.units,
-                    a.aciValue.nano,
-                    getPrice(a.totalOrderAmount),
-                    a.totalOrderAmount?.currency,
-                    a.totalOrderAmount?.units,
-                    a.totalOrderAmount?.nano,
-                    getPrice(a.brokerCommission),
-                    a.brokerCommission?.currency,
-                    a.brokerCommission?.units,
-                    a.brokerCommission?.nano,
-                    getPrice(a.exchangeCommission),
-                    a.exchangeCommission?.currency,
-                    a.exchangeCommission?.units,
-                    a.exchangeCommission?.nano,
-                    getPrice(a.exchangeClearingCommission),
-                    a.exchangeClearingCommission?.currency,
-                    a.exchangeClearingCommission?.units,
-                    a.exchangeClearingCommission?.nano,
-                    getPrice(a.repoRate),
-                    a.repoRate?.units,
-                    a.repoRate?.nano,
-                    a.party,
-                    a.clearValueDate,
-                    a.secValueDate,
-                    a.brokerStatus,
-                    a.separateAgreementType,
-                    a.separateAgreementNumber,
-                    a.separateAgreementDate,
-                    a.deliveryType,
-                    );
-                }
+                await this.insertTradeData(accountId, a, type, false);
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
@@ -557,18 +679,277 @@ class AnalyticsTables {
      */
     async getTrades(accountId, ids) {
         try {
-            const idsToStr = ids.map(i => `'${i}'`).join(', ');
+            const cols = `accountId, tradeId, figi, tradeDatetime,
+                exchange, direction, name, ticker, price, priceCurrency, orderAmountCurrency, quantity,
+                brokerCommission, brokerCommissionCurrency,
+                exchangeCommission, exchangeCommissionCurrency,
+                exchangeClearingCommission, exchangeClearingCommissionCurrency`;
+            let idsToStr = ids?.map(i => `'${i}'`).join(',') || '';
 
-            return (await this.db.all(`SELECT 
-                    accountId, tradeId, figi, tradeDatetime,
-                    exchange, direction, name, ticker, price, priceCurrency, quantity,
-                    brokerCommission, brokerCommissionCurrency,
-                    exchangeCommission, exchangeCommissionCurrency,
-                    exchangeClearingCommission, exchangeClearingCommissionCurrency
+            const mainData = (await this.db.all(`SELECT 
+                    ${cols}
                 FROM
                     "analyticsParsedDataReport" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
             accountId,
-            )) || {};
+            )) || [];
+
+            mainData?.forEach(m => {
+                if (idsToStr) {
+                    idsToStr += `,'${m.tradeId}'`;
+                } else {
+                    idsToStr = `'${m.tradeId}'`;
+                }
+            });
+
+            const bufData = (await this.db.all(`SELECT 
+                    ${cols}
+                FROM
+                    "analyticsParsedDataReportBuffer" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
+            accountId,
+            )) || [];
+
+            if (mainData?.length && bufData?.length) {
+                return [].concat(mainData, bufData);
+            } else if (mainData?.length) {
+                return mainData;
+            } else if (bufData?.length) {
+                return bufData;
+            }
+
+            return [];
+        } catch (e) {
+            console.log(e); // eslint-disable-line
+        }
+    }
+
+    async cleanBufferOperations(accountId) {
+        try {
+            await this.db.all('DELETE FROM analyticsParsedDataReportBuffer');
+            await this.db.all('DELETE FROM analyticsParsedDataOperationsBuffer');
+        } catch (e) {
+            console.log(e); // eslint-disable-line
+        }
+    }
+
+    async operationsParserState(accountId) {
+        try {
+            const {
+                operationsNextCursor,
+                operationsNextCursorStart,
+                operationsNextCursorEnd,
+                openedDate,
+                closedDate,
+            } = await this.db.get(`SELECT
+                operationsNextCursor, 
+                operationsNextCursorStart,
+                operationsNextCursorEnd,
+                openedDate,
+                closedDate    
+            FROM
+                "analyticsParserState" WHERE "accountId" = ?`,
+            accountId) || {};
+
+            let from;
+            let to;
+
+            if (operationsNextCursor) {
+                from = operationsNextCursorStart;
+                to = operationsNextCursorEnd;
+            } else {
+                if (operationsNextCursorEnd) {
+                    from = operationsNextCursorEnd + 1;
+                } else {
+                    from = Math.max(operationsNextCursorStart || 0, openedDate);
+                }
+
+                to = closedDate || operationsNextCursorEnd || new Date().getTime();
+            }
+
+            if (from >= to) {
+                return;
+            }
+
+            return {
+                cursor: operationsNextCursor || '',
+                from,
+                to,
+            };
+        } catch (e) {
+            console.log(e); // eslint-disable-line
+        }
+    }
+
+    /**
+     * Сохраняет список операций и трейдов.
+     *
+     * @param {*} id
+     * @param {*} taskId
+     * @returns
+     */
+    async saveOperationsResponse(accountId, answer = [], isBuffer = false) { // eslint-disable-line
+        const table = isBuffer ?
+            'analyticsParsedDataOperationsBuffer' : 'analyticsParsedDataOperations';
+
+        for (let i = 0; i < answer.length; i++) {
+            const a = answer[i];
+
+            try {
+                const operationDate = new Date(a.date);
+
+                operationDate.setUTCMilliseconds(0);
+
+                await this.db.run(`INSERT INTO "${table}" (
+                        'brokerAccountId',
+                        'id',
+                        'parentOperationId',
+                        'name',
+                        'date',
+                        'dateRound',
+                        'type',
+                        'description',
+                        'state',
+                        'instrumentUid',
+                        'figi',
+                        'instrumentType',
+                        'instrumentKind',
+                        'payment',
+                        'paymentCurrency',
+                        'paymentUnits',
+                        'paymentNano',
+                        'price',
+                        'priceCurrency',
+                        'priceUnits',
+                        'priceNano',
+                        'commission',
+                        'commissionCurrency',
+                        'commissionUnits',
+                        'commissionNano',
+                        'yield',
+                        'yieldCurrency',
+                        'yieldUnits',
+                        'yieldNano',
+                        'yieldRelative',
+                        'yieldRelativeUnits',
+                        'yieldRelativeNano',
+                        'accruedInt',
+                        'accruedIntCurrency',
+                        'accruedIntUnits',
+                        'accruedIntNano',
+                        'quantity',
+                        'quantityRest',
+                        'quantityDone',
+                        'cancelDateTime',
+                        'cancelReason',
+                        'assetUid'
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )`,
+
+                a.brokerAccountId,
+                a.id,
+                a.parentOperationId,
+                a.name,
+                a.date,
+                operationDate.getTime(),
+                a.type,
+                a.description,
+                a.state,
+                a.instrumentUid,
+                a.figi,
+                a.instrumentType,
+                a.instrumentKind,
+                getPrice(a?.payment),
+                a?.payment.currency,
+                a?.payment.units,
+                a?.payment.nano,
+                getPrice(a?.price),
+                a?.price.currency,
+                a?.price.units,
+                a?.price.nano,
+                getPrice(a?.commission),
+                a?.commission?.currency,
+                a?.commission?.units,
+                a?.commission?.nano,
+                getPrice(a?.yield),
+                a.yield?.currency,
+                a.yield?.units,
+                a.yield?.nano,
+                getPrice(a?.yieldRelative),
+                a.yieldRelative?.units,
+                a.yieldRelative?.nano,
+                getPrice(a?.accruedInt),
+                a.accruedInt?.currency,
+                a.accruedInt?.units,
+                a.accruedInt?.nano,
+                a.quantity,
+                a.quantityRest,
+                a.quantityDone,
+                a.cancelDateTime ? new Date(a.cancelDateTime).getTime() : 0,
+                a.cancelReason,
+                a.assetUid,
+                );
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+
+            try {
+                if (a?.tradesInfo?.trades?.length) {
+                    for (let j = 0; j < a.tradesInfo.trades.length; j++) {
+                        try { // eslint-disable-line
+                            const t = a.tradesInfo.trades[j];
+
+                            const roundedDate = new Date(t.date);
+
+                            roundedDate.setUTCMilliseconds(0);
+
+                            await this.insertTradeData(accountId, {
+                                ...a,
+                                ...t,
+                                accountId: a.brokerAccountId,
+
+                                tradeId: t.num,
+                                orderId: a.id,
+
+                                tradeDatetime: roundedDate.getTime(),
+                                direction: [15, 16].includes(a.type) ? 'Покупка' : 'Продажа',
+
+                                // figi: a.figi,
+
+                                // name: t.name,
+                                // quantity: t.quantity,
+                                // price: t.price,
+                                // yield: t.yield,
+                            }, 0, true);
+                        } catch (e) {
+                            console.log(e); // eslint-disable-line no-console
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
+    }
+
+    /**
+     * Сохраняет даты последнейго парсера и курсоры.
+     *
+     * @param {String} accountId
+     * @returns
+     */
+    async saveOperationsCursor(accountId, cursor = '', from = 0, to = 0) {
+        try {
+            return await this.db.run(
+                `UPDATE "analyticsParserState" SET 
+                    operationsNextCursor = ?, 
+                    operationsNextCursorStart = ?,
+                    operationsNextCursorEnd = ?             
+                WHERE "accountId" = ?`,
+                cursor,
+                from,
+                to,
+                accountId,
+            );
         } catch (e) {
             console.log(e); // eslint-disable-line
         }
