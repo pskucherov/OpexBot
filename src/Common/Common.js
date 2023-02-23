@@ -845,7 +845,10 @@ try {
         }
 
         hasBlockedPositions() {
-            return !this.currentPositions.every(p => !p.blocked);
+            return this
+                .currentPositions
+                .some(p => Boolean(p.blocked)) ||
+                this.tickerInfo.some(t => t.tradingStatus !== 5);
         }
 
         async syncPos() {
