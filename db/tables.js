@@ -671,6 +671,27 @@ class AnalyticsTables {
     }
 
     /**
+     * Возвращает агрегированные доходы и расходы по операциям.
+     *
+     * @param {*} accountId
+     * @returns
+     */
+    async getAggregatedCommission(accountId) {
+        try {
+            return (await this.db.all(`
+                SELECT
+                    SUM("payment") as sumPayment, name, description, "paymentCurrency"
+                FROM "analyticsParsedDataOperations"
+                WHERE brokerAccountId = ?
+                GROUP BY name, description, paymentCurrency`,
+            accountId,
+            )) || [];
+        } catch (e) {
+            console.log(e); // eslint-disable-line
+        }
+    }
+
+    /**
      * Получает сделки, за исключением массива который уже был передан.
      *
      * @param {String} accountId
