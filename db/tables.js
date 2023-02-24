@@ -925,7 +925,7 @@ class AnalyticsTables {
                     }
                 }
 
-                await this.syncOperationsComissionMain(accountId);
+                await this.syncOperationsCommissionMain(accountId);
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
@@ -937,9 +937,9 @@ class AnalyticsTables {
      *
      * @param {String} accountId
      */
-    async syncOperationsComissionMain(accountId) {
+    async syncOperationsCommissionMain(accountId) {
         try {
-            const tradesWithoutComission = (await this.db.all(`SELECT 
+            const tradesWithoutCommission = (await this.db.all(`SELECT 
                     id, parentOperationId, payment, paymentCurrency, paymentUnits, paymentNano
                 FROM
                     "analyticsParsedDataOperations" 
@@ -952,12 +952,12 @@ class AnalyticsTables {
             accountId,
             )) || [];
 
-            if (tradesWithoutComission?.length) {
+            if (tradesWithoutCommission?.length) {
                 const opToSave = {};
                 const keys = [];
 
-                for (let i = 0; i < tradesWithoutComission.length; i++) {
-                    const t = tradesWithoutComission[i];
+                for (let i = 0; i < tradesWithoutCommission.length; i++) {
+                    const t = tradesWithoutCommission[i];
 
                     if (!opToSave[t.parentOperationId]) {
                         keys.push(t.parentOperationId);
