@@ -762,7 +762,7 @@ class AnalyticsTables {
                     from = Math.max(operationsNextCursorStart || 0, openedDate);
                 }
 
-                to = closedDate || operationsNextCursorEnd || new Date().getTime();
+                to = closedDate ? closedDate : new Date().getTime();
             }
 
             if (from >= to) {
@@ -914,7 +914,6 @@ class AnalyticsTables {
                                 direction: [15, 16].includes(a.type) ? 'Покупка' : 'Продажа',
 
                                 // figi: a.figi,
-
                                 // name: t.name,
                                 // quantity: t.quantity,
                                 // price: t.price,
@@ -925,9 +924,76 @@ class AnalyticsTables {
                         }
                     }
                 }
+
+                await this.syncOperationsComissionMain(accountId);
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+        }
+    }
+
+    /**
+     * Собирает комиссию с дочерних операций и сохраняет во временные трейды, для подсчёта комиссии.
+     *
+     * @param {String} accountId
+     */
+    async syncOperationsComissionMain(accountId) {
+        try {
+            const tradesWithoutComission = (await this.db.all(`SELECT 
+                    id, parentOperationId, payment, paymentCurrency, paymentUnits, paymentNano
+                FROM
+                    "analyticsParsedDataOperations" 
+                WHERE 
+                    brokerAccountId = ? AND
+                    parentOperationId IN (
+                        SELECT orderId FROM "analyticsParsedDataReportBuffer" WHERE "brokerCommission" ISNULL
+                    )
+                `,
+            accountId,
+            )) || [];
+
+            if (tradesWithoutComission?.length) {
+                const opToSave = {};
+                const keys = [];
+
+                for (let i = 0; i < tradesWithoutComission.length; i++) {
+                    const t = tradesWithoutComission[i];
+
+                    if (!opToSave[t.parentOperationId]) {
+                        keys.push(t.parentOperationId);
+
+                        opToSave[t.parentOperationId] = {
+                            payment: t.payment,
+                            paymentCurrency: t.paymentCurrency,
+                            paymentUnits: t.paymentUnits,
+                            paymentNano: t.paymentNano,
+                        };
+                    } else {
+                        opToSave[t.parentOperationId].payment += t.payment;
+                        opToSave[t.parentOperationId].paymentCurrency += t.paymentCurrency;
+                        opToSave[t.parentOperationId].paymentUnits += t.paymentUnits;
+                        opToSave[t.parentOperationId].paymentNano += t.paymentNano;
+                    }
+                }
+
+                for (let i = 0; i < keys.length; i++) {
+                    await this.db.run(
+                        `UPDATE "analyticsParsedDataReportBuffer" SET 
+                            brokerCommission = ?,
+                            brokerCommissionCurrency = ?,
+                            brokerCommissionUnits = ?,
+                            brokerCommissionNano = ?
+                        WHERE "orderId" = ?`,
+                        opToSave[keys[i]].payment,
+                        opToSave[keys[i]].paymentCurrency,
+                        opToSave[keys[i]].paymentUnits,
+                        opToSave[keys[i]].paymentNano,
+                        keys[i],
+                    );
+                }
+            }
+        } catch (e) {
+            console.log(e); // eslint-disable-line
         }
     }
 
