@@ -200,6 +200,7 @@ const createTables = async db => {
     await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsUniq' ON
         "analyticsParsedDataOperations" ("brokerAccountId", "id", "parentOperationId")
     `);
+
     await db.exec(`CREATE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsDate' ON
         "analyticsParsedDataOperationsBuffer" ("brokerAccountId", "dateRound")
     `);
@@ -677,6 +678,7 @@ class AnalyticsTables {
      * @returns
      */
     async getAggregatedCommission(accountId) {
+        //  AND type NOT IN (15, 16, 22)
         try {
             return (await this.db.all(`
                 SELECT
@@ -819,7 +821,10 @@ class AnalyticsTables {
 
                 operationDate.setUTCMilliseconds(0);
 
-                await this.db.run(`INSERT INTO "${table}" (
+                // Сохраняем всё, кроме купли-продажи ценных бумаг.
+                // Их сохраняем в трейды.
+                if (isBuffer || ![15, 16, 22].includes(a.type)) {
+                    await this.db.run(`INSERT INTO "${table}" (
                         'brokerAccountId',
                         'id',
                         'parentOperationId',
@@ -866,49 +871,50 @@ class AnalyticsTables {
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )`,
 
-                a.brokerAccountId,
-                a.id,
-                a.parentOperationId,
-                a.name,
-                a.date,
-                operationDate.getTime(),
-                a.type,
-                a.description,
-                a.state,
-                a.instrumentUid,
-                a.figi,
-                a.instrumentType,
-                a.instrumentKind,
-                getPrice(a?.payment),
-                a?.payment.currency,
-                a?.payment.units,
-                a?.payment.nano,
-                getPrice(a?.price),
-                a?.price.currency,
-                a?.price.units,
-                a?.price.nano,
-                getPrice(a?.commission),
-                a?.commission?.currency,
-                a?.commission?.units,
-                a?.commission?.nano,
-                getPrice(a?.yield),
-                a.yield?.currency,
-                a.yield?.units,
-                a.yield?.nano,
-                getPrice(a?.yieldRelative),
-                a.yieldRelative?.units,
-                a.yieldRelative?.nano,
-                getPrice(a?.accruedInt),
-                a.accruedInt?.currency,
-                a.accruedInt?.units,
-                a.accruedInt?.nano,
-                a.quantity,
-                a.quantityRest,
-                a.quantityDone,
-                a.cancelDateTime ? new Date(a.cancelDateTime).getTime() : 0,
-                a.cancelReason,
-                a.assetUid,
-                );
+                    a.brokerAccountId,
+                    a.id,
+                    a.parentOperationId,
+                    a.name,
+                    a.date,
+                    operationDate.getTime(),
+                    a.type,
+                    a.description,
+                    a.state,
+                    a.instrumentUid,
+                    a.figi,
+                    a.instrumentType,
+                    a.instrumentKind,
+                    getPrice(a?.payment),
+                    a?.payment.currency,
+                    a?.payment.units,
+                    a?.payment.nano,
+                    getPrice(a?.price),
+                    a?.price.currency,
+                    a?.price.units,
+                    a?.price.nano,
+                    getPrice(a?.commission),
+                    a?.commission?.currency,
+                    a?.commission?.units,
+                    a?.commission?.nano,
+                    getPrice(a?.yield),
+                    a.yield?.currency,
+                    a.yield?.units,
+                    a.yield?.nano,
+                    getPrice(a?.yieldRelative),
+                    a.yieldRelative?.units,
+                    a.yieldRelative?.nano,
+                    getPrice(a?.accruedInt),
+                    a.accruedInt?.currency,
+                    a.accruedInt?.units,
+                    a.accruedInt?.nano,
+                    a.quantity,
+                    a.quantityRest,
+                    a.quantityDone,
+                    a.cancelDateTime ? new Date(a.cancelDateTime).getTime() : 0,
+                    a.cancelReason,
+                    a.assetUid,
+                    );
+                }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
