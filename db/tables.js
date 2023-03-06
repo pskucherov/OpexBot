@@ -115,6 +115,7 @@ const createTables = async db => {
     await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataReportBuffer' (${dataReportRow})`);
 
     await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataDividend' (
+        'accountId' TEXT,
         'recordDate' INTEGER,
         'paymentDate' INTEGER,
         'securityName' TEXT,
@@ -271,8 +272,8 @@ class AnalyticsTables {
         try {
             this.db.run(`UPDATE analyticsParserState 
                 SET closedDate = ? WHERE accountId = ?`,
-            closeDate,
-            accountId,
+                closeDate,
+                accountId,
             );
         } catch (e) {
             console.log(e); // eslint-disable-line
@@ -294,9 +295,9 @@ class AnalyticsTables {
             await this.db.run(`INSERT INTO analyticsParserState (
                 accountId, openedDate, closedDate
             ) VALUES (?, ?, ?)`,
-            account.id,
-            new Date(account.openedDate).getTime() || 0,
-            new Date(account.closedDate).getTime() || 0,
+                account.id,
+                new Date(account.openedDate).getTime() || 0,
+                new Date(account.closedDate).getTime() || 0,
             );
         } catch (e) {
             console.log(e); // eslint-disable-line
@@ -371,15 +372,15 @@ class AnalyticsTables {
         try {
             const { allCount } = await this.db.get(`SELECT COUNT(*) as allCount FROM
                 "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ?`,
-            accountId, type);
+                accountId, type);
 
             const { withTaskId } = await this.db.get(`SELECT COUNT(*) as withTaskId FROM
                 "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND taskId NOTNULL AND answer ISNULL`,
-            accountId, type);
+                accountId, type);
 
             const { withAnswer } = await this.db.get(`SELECT COUNT(*) as withAnswer FROM
                 "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND answer NOTNULL`,
-            accountId, type);
+                accountId, type);
 
             return {
                 allCount,
@@ -406,10 +407,10 @@ class AnalyticsTables {
                 lastParsedOperationsDateError,
             } = (await this.db.get(`SELECT ${col} FROM
                 "analyticsParserState" WHERE "accountId" = ?`,
-            accountId)) || {
-                lastParsedDateError: 0,
-                lastParsedOperationsDateError: 0,
-            };
+                accountId)) || {
+                    lastParsedDateError: 0,
+                    lastParsedOperationsDateError: 0,
+                };
 
             return Math.max((lastParsedDateError || lastParsedOperationsDateError || 0) + 85000, new Date().getTime());
         } catch (e) {
@@ -448,7 +449,7 @@ class AnalyticsTables {
             const data = (await this.db.get(`SELECT id, taskId, type, startDate, endDate, pageNum  FROM
                     "analyticsParserTaskIds" WHERE "accountId" = ? AND taskId NOTNULL AND answer ISNULL 
                     ORDER BY lastCheck ASC, type ASC, id ASC LIMIT 1`,
-            accountId,
+                accountId,
 
                 // (new Date().getTime()) - 120000 lastCheck < ? AND
             )) || {};
@@ -546,56 +547,56 @@ class AnalyticsTables {
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? 
                 )`,
-                accountId,
-                a.tradeId,
-                a.orderId,
-                a.figi,
-                a.executeSign,
-                a.tradeDatetime,
-                a.exchange,
-                a.classCode,
-                a.direction,
-                a.name,
-                a.ticker,
-                getPrice(a.price),
-                a.price?.units,
-                a.price?.nano,
-                a.price?.currency,
-                a.quantity,
-                getPrice(a.orderAmount),
-                a.orderAmount?.currency,
-                a.orderAmount?.units,
-                a.orderAmount?.nano,
-                getPrice(a.aciValue),
-                a.aciValue?.units,
-                a.aciValue?.nano,
-                getPrice(a.totalOrderAmount),
-                a.totalOrderAmount?.currency,
-                a.totalOrderAmount?.units,
-                a.totalOrderAmount?.nano,
-                getPrice(a.brokerCommission),
-                a.brokerCommission?.currency,
-                a.brokerCommission?.units,
-                a.brokerCommission?.nano,
-                getPrice(a.exchangeCommission),
-                a.exchangeCommission?.currency,
-                a.exchangeCommission?.units,
-                a.exchangeCommission?.nano,
-                getPrice(a.exchangeClearingCommission),
-                a.exchangeClearingCommission?.currency,
-                a.exchangeClearingCommission?.units,
-                a.exchangeClearingCommission?.nano,
-                getPrice(a.repoRate),
-                a.repoRate?.units,
-                a.repoRate?.nano,
-                a.party,
-                a.clearValueDate,
-                a.secValueDate,
-                a.brokerStatus,
-                a.separateAgreementType,
-                a.separateAgreementNumber,
-                a.separateAgreementDate,
-                a.deliveryType,
+                    accountId,
+                    a.tradeId,
+                    a.orderId,
+                    a.figi,
+                    a.executeSign,
+                    a.tradeDatetime,
+                    a.exchange,
+                    a.classCode,
+                    a.direction,
+                    a.name,
+                    a.ticker,
+                    getPrice(a.price),
+                    a.price?.units,
+                    a.price?.nano,
+                    a.price?.currency,
+                    a.quantity,
+                    getPrice(a.orderAmount),
+                    a.orderAmount?.currency,
+                    a.orderAmount?.units,
+                    a.orderAmount?.nano,
+                    getPrice(a.aciValue),
+                    a.aciValue?.units,
+                    a.aciValue?.nano,
+                    getPrice(a.totalOrderAmount),
+                    a.totalOrderAmount?.currency,
+                    a.totalOrderAmount?.units,
+                    a.totalOrderAmount?.nano,
+                    getPrice(a.brokerCommission),
+                    a.brokerCommission?.currency,
+                    a.brokerCommission?.units,
+                    a.brokerCommission?.nano,
+                    getPrice(a.exchangeCommission),
+                    a.exchangeCommission?.currency,
+                    a.exchangeCommission?.units,
+                    a.exchangeCommission?.nano,
+                    getPrice(a.exchangeClearingCommission),
+                    a.exchangeClearingCommission?.currency,
+                    a.exchangeClearingCommission?.units,
+                    a.exchangeClearingCommission?.nano,
+                    getPrice(a.repoRate),
+                    a.repoRate?.units,
+                    a.repoRate?.nano,
+                    a.party,
+                    a.clearValueDate,
+                    a.secValueDate,
+                    a.brokerStatus,
+                    a.separateAgreementType,
+                    a.separateAgreementNumber,
+                    a.separateAgreementDate,
+                    a.deliveryType,
                 );
             }
         } catch (e) {
@@ -638,14 +639,14 @@ class AnalyticsTables {
                     parsed = ?,
                     answer = ?
                     WHERE "id" = ?`,
-            Number(pagesCount),
-            Number(pageNum),
-            Number(itemsCount),
-            new Date().getTime(),
-            !type ? (Number(pageNum) + 1) === Number(pagesCount) :
-                Number(pageNum) === Number(pagesCount),
-            JSON.stringify(answer),
-            id,
+                Number(pagesCount),
+                Number(pageNum),
+                Number(itemsCount),
+                new Date().getTime(),
+                !type ? (Number(pageNum) + 1) === Number(pagesCount) :
+                    Number(pageNum) === Number(pagesCount),
+                JSON.stringify(answer),
+                id,
             );
         } catch (e) {
             console.log(e); // eslint-disable-line
@@ -664,7 +665,7 @@ class AnalyticsTables {
             return (await this.db.get(`SELECT id, type, startDate, endDate FROM
                 "analyticsParserTaskIds" WHERE "accountId" = ? AND taskId ISNULL AND answer ISNULL 
                 ORDER BY type ASC, id ASC LIMIT 1`,
-            accountId,
+                accountId,
             )) || {};
         } catch (e) {
             console.log(e); // eslint-disable-line
@@ -686,7 +687,7 @@ class AnalyticsTables {
                 FROM "analyticsParsedDataOperations"
                 WHERE brokerAccountId = ?
                 GROUP BY name, description, paymentCurrency`,
-            accountId,
+                accountId,
             )) || [];
         } catch (e) {
             console.log(e); // eslint-disable-line
@@ -713,7 +714,7 @@ class AnalyticsTables {
                     ${cols}
                 FROM
                     "analyticsParsedDataReport" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
-            accountId,
+                accountId,
             )) || [];
 
             mainData?.forEach(m => {
@@ -728,7 +729,7 @@ class AnalyticsTables {
                     ${cols}
                 FROM
                     "analyticsParsedDataReportBuffer" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
-            accountId,
+                accountId,
             )) || [];
 
             if (mainData?.length && bufData?.length) {
@@ -740,6 +741,20 @@ class AnalyticsTables {
             }
 
             return [];
+        } catch (e) {
+            console.log(e); // eslint-disable-line
+        }
+    }
+
+    async clearAllOperations(accountId) {
+        try {
+            await this.db.all('DELETE FROM analyticsParserState WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM analyticsParserTaskIds WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM analyticsParsedDataReport WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM analyticsParsedDataReportBuffer WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM analyticsParsedDataDividend WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM analyticsParsedDataOperations WHERE brokerAccountId = ?', accountId);
+            await this.db.all('DELETE FROM analyticsParsedDataOperationsBuffer WHERE brokerAccountId = ?', accountId);
         } catch (e) {
             console.log(e); // eslint-disable-line
         }
@@ -770,7 +785,7 @@ class AnalyticsTables {
                 closedDate    
             FROM
                 "analyticsParserState" WHERE "accountId" = ?`,
-            accountId) || {};
+                accountId) || {};
 
             let from;
             let to;
@@ -871,48 +886,48 @@ class AnalyticsTables {
                         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     )`,
 
-                    a.brokerAccountId,
-                    a.id,
-                    a.parentOperationId,
-                    a.name,
-                    a.date,
-                    operationDate.getTime(),
-                    a.type,
-                    a.description,
-                    a.state,
-                    a.instrumentUid,
-                    a.figi,
-                    a.instrumentType,
-                    a.instrumentKind,
-                    getPrice(a?.payment),
-                    a?.payment.currency,
-                    a?.payment.units,
-                    a?.payment.nano,
-                    getPrice(a?.price),
-                    a?.price.currency,
-                    a?.price.units,
-                    a?.price.nano,
-                    getPrice(a?.commission),
-                    a?.commission?.currency,
-                    a?.commission?.units,
-                    a?.commission?.nano,
-                    getPrice(a?.yield),
-                    a.yield?.currency,
-                    a.yield?.units,
-                    a.yield?.nano,
-                    getPrice(a?.yieldRelative),
-                    a.yieldRelative?.units,
-                    a.yieldRelative?.nano,
-                    getPrice(a?.accruedInt),
-                    a.accruedInt?.currency,
-                    a.accruedInt?.units,
-                    a.accruedInt?.nano,
-                    a.quantity,
-                    a.quantityRest,
-                    a.quantityDone,
-                    a.cancelDateTime ? new Date(a.cancelDateTime).getTime() : 0,
-                    a.cancelReason,
-                    a.assetUid,
+                        a.brokerAccountId,
+                        a.id,
+                        a.parentOperationId,
+                        a.name,
+                        a.date,
+                        operationDate.getTime(),
+                        a.type,
+                        a.description,
+                        a.state,
+                        a.instrumentUid,
+                        a.figi,
+                        a.instrumentType,
+                        a.instrumentKind,
+                        getPrice(a?.payment),
+                        a?.payment.currency,
+                        a?.payment.units,
+                        a?.payment.nano,
+                        getPrice(a?.price),
+                        a?.price.currency,
+                        a?.price.units,
+                        a?.price.nano,
+                        getPrice(a?.commission),
+                        a?.commission?.currency,
+                        a?.commission?.units,
+                        a?.commission?.nano,
+                        getPrice(a?.yield),
+                        a.yield?.currency,
+                        a.yield?.units,
+                        a.yield?.nano,
+                        getPrice(a?.yieldRelative),
+                        a.yieldRelative?.units,
+                        a.yieldRelative?.nano,
+                        getPrice(a?.accruedInt),
+                        a.accruedInt?.currency,
+                        a.accruedInt?.units,
+                        a.accruedInt?.nano,
+                        a.quantity,
+                        a.quantityRest,
+                        a.quantityDone,
+                        a.cancelDateTime ? new Date(a.cancelDateTime).getTime() : 0,
+                        a.cancelReason,
+                        a.assetUid,
                     );
                 }
             } catch (e) {
@@ -976,7 +991,7 @@ class AnalyticsTables {
                         SELECT orderId FROM "analyticsParsedDataReportBuffer" WHERE "brokerCommission" ISNULL
                     )
                 `,
-            accountId,
+                accountId,
             )) || [];
 
             if (tradesWithoutCommission?.length) {
