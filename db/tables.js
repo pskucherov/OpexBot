@@ -24,7 +24,7 @@ const createTables = async db => {
     });
 
     await db.exec(`CREATE TABLE IF NOT EXISTS
-        'analyticsParserState' (
+        'statisticsParserState' (
             'accountId' STRING PRIMARY KEY NOT NULL,
             'openedDate' INTEGER,
             'closedDate' INTEGER,
@@ -40,7 +40,7 @@ const createTables = async db => {
 
     //             'operationsFromStartParsed' BOOLEAN DEFAULT 0,
     // type: 0 - GetBrokerReport, 1 - GetDividendsForeignIssuer
-    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParserTaskIds' (
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'statisticsParserTaskIds' (
         'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         'taskId' TEXT,
         'type' INTEGER DEFAULT 0,
@@ -109,12 +109,12 @@ const createTables = async db => {
         'deliveryType' TEXT
     `;
 
-    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataReport' (${dataReportRow})`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'statisticsParsedDataReport' (${dataReportRow})`);
 
     // Для записи временных данных, пока отчёт не готов.
-    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataReportBuffer' (${dataReportRow})`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'statisticsParsedDataReportBuffer' (${dataReportRow})`);
 
-    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataDividend' (
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'statisticsParsedDataDividend' (
         'accountId' TEXT,
         'recordDate' INTEGER,
         'paymentDate' INTEGER,
@@ -187,53 +187,53 @@ const createTables = async db => {
         'assetUid' TEXT
     `;
 
-    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataOperations' (${operationRow})`);
-    await db.exec(`CREATE TABLE IF NOT EXISTS 'analyticsParsedDataOperationsBuffer' (${operationRow})`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'statisticsParsedDataOperations' (${operationRow})`);
+    await db.exec(`CREATE TABLE IF NOT EXISTS 'statisticsParsedDataOperationsBuffer' (${operationRow})`);
 
     //
-    await db.exec('CREATE INDEX IF NOT EXISTS \'accids\' ON "analyticsParserTaskIds" ("accountId" ASC, "startDate" ASC, "endDate" ASC)');
-    await db.exec('CREATE INDEX IF NOT EXISTS \'taskId\' ON "analyticsParserTaskIds" ("taskId" ASC)');
+    await db.exec('CREATE INDEX IF NOT EXISTS \'accids\' ON "statisticsParserTaskIds" ("accountId" ASC, "startDate" ASC, "endDate" ASC)');
+    await db.exec('CREATE INDEX IF NOT EXISTS \'taskId\' ON "statisticsParserTaskIds" ("taskId" ASC)');
     await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'scheduleUniq' ON
-        "analyticsParserTaskIds" ("accountId", "startDate", "endDate", "type", "pageNum")
+        "statisticsParserTaskIds" ("accountId", "startDate", "endDate", "type", "pageNum")
     `);
 
     // Операции, индекс по брокеру и времени
-    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsUniq' ON
-        "analyticsParsedDataOperations" ("brokerAccountId", "id", "parentOperationId")
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'statisticsParsedDataOperationsUniq' ON
+        "statisticsParsedDataOperations" ("brokerAccountId", "id", "parentOperationId")
     `);
 
-    await db.exec(`CREATE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsDate' ON
-        "analyticsParsedDataOperationsBuffer" ("brokerAccountId", "dateRound")
+    await db.exec(`CREATE INDEX IF NOT EXISTS 'statisticsParsedDataOperationsDate' ON
+        "statisticsParsedDataOperationsBuffer" ("brokerAccountId", "dateRound")
     `);
 
     // Временные операции, индекс по брокеру и времени
-    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsBufferUniq' ON
-        "analyticsParsedDataOperationsBuffer" ("brokerAccountId", "id", "parentOperationId")
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'statisticsParsedDataOperationsBufferUniq' ON
+        "statisticsParsedDataOperationsBuffer" ("brokerAccountId", "id", "parentOperationId")
     `);
-    await db.exec(`CREATE INDEX IF NOT EXISTS 'analyticsParsedDataOperationsBufferDate' ON
-        "analyticsParsedDataOperationsBuffer" ("brokerAccountId", "dateRound")
+    await db.exec(`CREATE INDEX IF NOT EXISTS 'statisticsParsedDataOperationsBufferDate' ON
+        "statisticsParsedDataOperationsBuffer" ("brokerAccountId", "dateRound")
     `);
 
     // Индекс по данным BrokerReport
-    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataReportUniq' ON
-        "analyticsParsedDataReport" ("accountId", "tradeId", "orderId")
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'statisticsParsedDataReportUniq' ON
+        "statisticsParsedDataReport" ("accountId", "tradeId", "orderId")
     `);
-    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataReportBufferUniq' ON
-        "analyticsParsedDataReportBuffer" ("accountId", "tradeId", "orderId")
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'statisticsParsedDataReportBufferUniq' ON
+        "statisticsParsedDataReportBuffer" ("accountId", "tradeId", "orderId")
     `);
-    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'analyticsParsedDataDividendUniq' ON
-        "analyticsParsedDataDividend" ("recordDate", "paymentDate", "isin")
+    await db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS 'statisticsParsedDataDividendUniq' ON
+        "statisticsParsedDataDividend" ("recordDate", "paymentDate", "isin")
     `);
 };
 
-class AnalyticsTables {
+class StatisticsTables {
     constructor(db) {
         this.db = db;
     }
 
     async startDownload(accountId, data) {
         try {
-            await this.db.run(`INSERT INTO analyticsParserState
+            await this.db.run(`INSERT INTO statisticsParserState
             ("accountId","openedDate","closedDate") VALUES
             (:accountId, :openedDate, :closedDate)
         `, {
@@ -251,10 +251,10 @@ class AnalyticsTables {
      *
      * @param {*} accountId
      */
-    async isAnalyticsDownloadStarted(accountId) {
+    async isStatisticsDownloadStarted(accountId) {
         try {
             return await this.db.get(
-                'SELECT * FROM analyticsParserState WHERE accountId = ?',
+                'SELECT * FROM statisticsParserState WHERE accountId = ?',
                 accountId,
             );
         } catch (e) {
@@ -270,7 +270,7 @@ class AnalyticsTables {
      */
     async setAccountCloseDate(accountId, closeDate) {
         try {
-            this.db.run(`UPDATE analyticsParserState 
+            this.db.run(`UPDATE statisticsParserState 
                 SET closedDate = ? WHERE accountId = ?`,
             closeDate,
             accountId,
@@ -286,13 +286,13 @@ class AnalyticsTables {
      * @param {*} account
      * @returns
      */
-    async startAnalyticsParser(account) {
+    async startStatisticsParser(account) {
         if (!account || !account.id) {
             return;
         }
 
         try {
-            await this.db.run(`INSERT INTO analyticsParserState (
+            await this.db.run(`INSERT INTO statisticsParserState (
                 accountId, openedDate, closedDate
             ) VALUES (?, ?, ?)`,
             account.id,
@@ -315,7 +315,7 @@ class AnalyticsTables {
         try {
             return (await this.db.get(
                 `SELECT MAX(endDate) as maxEndTime FROM
-                    "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ?`,
+                    "statisticsParserTaskIds" WHERE "accountId" = ? AND type = ?`,
                 accountId,
                 type,
             )) || {};
@@ -335,7 +335,7 @@ class AnalyticsTables {
         try {
             return (await this.db.get(
                 `SELECT MAX(endDate) as maxEndTime FROM
-                        "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND answer NOTNULL`,
+                        "statisticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND answer NOTNULL`,
                 accountId,
                 type,
             )) || {};
@@ -356,7 +356,7 @@ class AnalyticsTables {
         try {
             return await this.db.run(
                 `INSERT INTO
-                    "analyticsParserTaskIds" (accountId, type, startDate, endDate)
+                    "statisticsParserTaskIds" (accountId, type, startDate, endDate)
                 VALUES (?, ?, ?, ?)`,
                 accountId,
                 type,
@@ -371,15 +371,15 @@ class AnalyticsTables {
     async downloadState(accountId, type) {
         try {
             const { allCount } = await this.db.get(`SELECT COUNT(*) as allCount FROM
-                "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ?`,
+                "statisticsParserTaskIds" WHERE "accountId" = ? AND type = ?`,
             accountId, type);
 
             const { withTaskId } = await this.db.get(`SELECT COUNT(*) as withTaskId FROM
-                "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND taskId NOTNULL AND answer ISNULL`,
+                "statisticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND taskId NOTNULL AND answer ISNULL`,
             accountId, type);
 
             const { withAnswer } = await this.db.get(`SELECT COUNT(*) as withAnswer FROM
-                "analyticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND answer NOTNULL`,
+                "statisticsParserTaskIds" WHERE "accountId" = ? AND type = ? AND answer NOTNULL`,
             accountId, type);
 
             return {
@@ -406,7 +406,7 @@ class AnalyticsTables {
                 lastParsedDateError,
                 lastParsedOperationsDateError,
             } = (await this.db.get(`SELECT ${col} FROM
-                "analyticsParserState" WHERE "accountId" = ?`,
+                "statisticsParserState" WHERE "accountId" = ?`,
             accountId)) || {
                 lastParsedDateError: 0,
                 lastParsedOperationsDateError: 0,
@@ -429,7 +429,7 @@ class AnalyticsTables {
             const col = isOperations ? 'lastParsedOperationsDateError' : 'lastParsedDateError';
 
             return await this.db.run(
-                `UPDATE "analyticsParserState" SET ${col} = ? WHERE "accountId" = ?`,
+                `UPDATE "statisticsParserState" SET ${col} = ? WHERE "accountId" = ?`,
                 new Date().getTime(),
                 accountId,
             );
@@ -447,7 +447,7 @@ class AnalyticsTables {
     async getParamsForGetData(accountId) {
         try {
             const data = (await this.db.get(`SELECT id, taskId, type, startDate, endDate, pageNum  FROM
-                    "analyticsParserTaskIds" WHERE "accountId" = ? AND taskId NOTNULL AND answer ISNULL 
+                    "statisticsParserTaskIds" WHERE "accountId" = ? AND taskId NOTNULL AND answer ISNULL 
                     ORDER BY lastCheck ASC, type ASC, id ASC LIMIT 1`,
             accountId,
 
@@ -456,7 +456,7 @@ class AnalyticsTables {
 
             if (data && data.id) {
                 await this.db.run(
-                    'UPDATE "analyticsParserTaskIds" SET lastCheck = (? + checkNum*5000), checkNum = checkNum + 1 WHERE "id" = ?',
+                    'UPDATE "statisticsParserTaskIds" SET lastCheck = (? + checkNum*5000), checkNum = checkNum + 1 WHERE "id" = ?',
                     new Date().getTime(),
                     data.id,
                 );
@@ -478,7 +478,7 @@ class AnalyticsTables {
     async saveTaskId(id, taskId) {
         try {
             return await this.db.run(
-                'UPDATE "analyticsParserTaskIds" SET taskId = ?, lastCheck = ? WHERE "id" = ?',
+                'UPDATE "statisticsParserTaskIds" SET taskId = ?, lastCheck = ? WHERE "id" = ?',
                 taskId,
                 new Date().getTime(),
                 id,
@@ -489,7 +489,7 @@ class AnalyticsTables {
     }
 
     async insertTradeData(accountId, a, type = 0, isBuffer = false) {
-        const table = isBuffer ? 'analyticsParsedDataReportBuffer' : 'analyticsParsedDataReport';
+        const table = isBuffer ? 'statisticsParsedDataReportBuffer' : 'statisticsParsedDataReport';
 
         try {
             if (!type) {
@@ -631,7 +631,7 @@ class AnalyticsTables {
         }
 
         try {
-            return await this.db.run(`UPDATE "analyticsParserTaskIds" SET 
+            return await this.db.run(`UPDATE "statisticsParserTaskIds" SET 
                     pagesCount = ?,
                     pageNum = ?,
                     itemsCount = ?,
@@ -663,7 +663,7 @@ class AnalyticsTables {
     async getTimeAndTypeForRequest(accountId) {
         try {
             return (await this.db.get(`SELECT id, type, startDate, endDate FROM
-                "analyticsParserTaskIds" WHERE "accountId" = ? AND taskId ISNULL AND answer ISNULL 
+                "statisticsParserTaskIds" WHERE "accountId" = ? AND taskId ISNULL AND answer ISNULL 
                 ORDER BY type ASC, id ASC LIMIT 1`,
             accountId,
             )) || {};
@@ -684,7 +684,7 @@ class AnalyticsTables {
             return (await this.db.all(`
                 SELECT
                     SUM("payment") as sumPayment, name, description, "paymentCurrency"
-                FROM "analyticsParsedDataOperations"
+                FROM "statisticsParsedDataOperations"
                 WHERE brokerAccountId = ?
                 GROUP BY name, description, paymentCurrency`,
             accountId,
@@ -713,7 +713,7 @@ class AnalyticsTables {
             const mainData = (await this.db.all(`SELECT 
                     ${cols}
                 FROM
-                    "analyticsParsedDataReport" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
+                    "statisticsParsedDataReport" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
             accountId,
             )) || [];
 
@@ -728,7 +728,7 @@ class AnalyticsTables {
             const bufData = (await this.db.all(`SELECT 
                     ${cols}
                 FROM
-                    "analyticsParsedDataReportBuffer" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
+                    "statisticsParsedDataReportBuffer" WHERE "accountId" = ? AND tradeId NOT IN (${idsToStr})`,
             accountId,
             )) || [];
 
@@ -748,13 +748,13 @@ class AnalyticsTables {
 
     async clearAllOperations(accountId) {
         try {
-            await this.db.all('DELETE FROM analyticsParserState WHERE accountId = ?', accountId);
-            await this.db.all('DELETE FROM analyticsParserTaskIds WHERE accountId = ?', accountId);
-            await this.db.all('DELETE FROM analyticsParsedDataReport WHERE accountId = ?', accountId);
-            await this.db.all('DELETE FROM analyticsParsedDataReportBuffer WHERE accountId = ?', accountId);
-            await this.db.all('DELETE FROM analyticsParsedDataDividend WHERE accountId = ?', accountId);
-            await this.db.all('DELETE FROM analyticsParsedDataOperations WHERE brokerAccountId = ?', accountId);
-            await this.db.all('DELETE FROM analyticsParsedDataOperationsBuffer WHERE brokerAccountId = ?', accountId);
+            await this.db.all('DELETE FROM statisticsParserState WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM statisticsParserTaskIds WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM statisticsParsedDataReport WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM statisticsParsedDataReportBuffer WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM statisticsParsedDataDividend WHERE accountId = ?', accountId);
+            await this.db.all('DELETE FROM statisticsParsedDataOperations WHERE brokerAccountId = ?', accountId);
+            await this.db.all('DELETE FROM statisticsParsedDataOperationsBuffer WHERE brokerAccountId = ?', accountId);
         } catch (e) {
             console.log(e); // eslint-disable-line
         }
@@ -762,8 +762,8 @@ class AnalyticsTables {
 
     async cleanBufferOperations(accountId) {
         try {
-            await this.db.all('DELETE FROM analyticsParsedDataReportBuffer');
-            await this.db.all('DELETE FROM analyticsParsedDataOperationsBuffer');
+            await this.db.all('DELETE FROM statisticsParsedDataReportBuffer');
+            await this.db.all('DELETE FROM statisticsParsedDataOperationsBuffer');
         } catch (e) {
             console.log(e); // eslint-disable-line
         }
@@ -784,7 +784,7 @@ class AnalyticsTables {
                 openedDate,
                 closedDate    
             FROM
-                "analyticsParserState" WHERE "accountId" = ?`,
+                "statisticsParserState" WHERE "accountId" = ?`,
             accountId) || {};
 
             let from;
@@ -826,7 +826,7 @@ class AnalyticsTables {
      */
     async saveOperationsResponse(accountId, answer = [], isBuffer = false) { // eslint-disable-line
         const table = isBuffer ?
-            'analyticsParsedDataOperationsBuffer' : 'analyticsParsedDataOperations';
+            'statisticsParsedDataOperationsBuffer' : 'statisticsParsedDataOperations';
 
         for (let i = 0; i < answer.length; i++) {
             const a = answer[i];
@@ -984,11 +984,11 @@ class AnalyticsTables {
             const tradesWithoutCommission = (await this.db.all(`SELECT 
                     id, parentOperationId, payment, paymentCurrency, paymentUnits, paymentNano
                 FROM
-                    "analyticsParsedDataOperations" 
+                    "statisticsParsedDataOperations" 
                 WHERE 
                     brokerAccountId = ? AND
                     parentOperationId IN (
-                        SELECT orderId FROM "analyticsParsedDataReportBuffer" WHERE "brokerCommission" ISNULL
+                        SELECT orderId FROM "statisticsParsedDataReportBuffer" WHERE "brokerCommission" ISNULL
                     )
                 `,
             accountId,
@@ -1020,7 +1020,7 @@ class AnalyticsTables {
 
                 for (let i = 0; i < keys.length; i++) {
                     await this.db.run(
-                        `UPDATE "analyticsParsedDataReportBuffer" SET 
+                        `UPDATE "statisticsParsedDataReportBuffer" SET 
                             brokerCommission = ?,
                             brokerCommissionCurrency = ?,
                             brokerCommissionUnits = ?,
@@ -1048,7 +1048,7 @@ class AnalyticsTables {
     async saveOperationsCursor(accountId, cursor = '', from = 0, to = 0) {
         try {
             return await this.db.run(
-                `UPDATE "analyticsParserState" SET 
+                `UPDATE "statisticsParserState" SET 
                     operationsNextCursor = ?, 
                     operationsNextCursorStart = ?,
                     operationsNextCursorEnd = ?             
@@ -1067,5 +1067,5 @@ class AnalyticsTables {
 module.exports = {
     getDBPath,
     createTables,
-    AnalyticsTables,
+    StatisticsTables,
 };
