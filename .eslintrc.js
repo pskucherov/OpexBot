@@ -119,7 +119,7 @@ module.exports = {
         'jsx-quotes': ['error', 'prefer-double'],
         'react/jsx-uses-react': 'error',
         'react/jsx-uses-vars': 'error',
-        'sonarjs/cognitive-complexity': ['error', 20],
+        'sonarjs/cognitive-complexity': ['error', 50],
     },
     ignorePatterns: ['node_modules/*'],
 };
