@@ -20,6 +20,28 @@ try {
             this.type = Bot.type;
             this.isPortfolio = true;
             this.name = name;
+
+            this.subscribeTgEvents();
+        }
+
+        async subscribeTgEvents() {
+            if (!this.tgBot) {
+                return;
+            }
+
+            this.tgBot.onText(/продать вс[ёе]/igm, msg => {
+                this.stopLossPosition();
+            });
+        }
+
+        async sendTgEvents(type, data) {
+            if (!this.tgBot) {
+                return;
+            }
+
+            if (type === 'sellAll') {
+                this.tgBot.sendMessage('Начата продажа портфеля.');
+            }
         }
 
         /**
@@ -142,11 +164,12 @@ try {
             }
         }
 
-        /**
-         * Обрабатывает позиции с профитом.
-         */
-        async takeProfitPosition() {
+        async closeAllPositions(type = 'TP') {
             if (this.currentPositions) {
+                this.tgBot?.sendMessage(`Начата продажа портфеля по ${
+                    type
+                }.\r\nЦена портфеля: ${this.totalNowSharesAmount}`);
+
                 // Срабатывает для любой позиции без привязки к figi
                 this.currentPositions.forEach(async p => {
                     if (p.instrumentType !== 'share') {
@@ -158,46 +181,27 @@ try {
 
                     if (positionVolume > 0) {
                         // Закрываем long.
-                        await this.sell(price, p.figi, positionVolume, 'TP');
+                        await this.sell(price, p.figi, positionVolume, type);
                     } else if (positionVolume < 0) {
                         // Закрываем short.
-                        await this.buy(price, p.figi, Math.abs(positionVolume), 'TP');
+                        await this.buy(price, p.figi, Math.abs(positionVolume), type);
                     }
                 });
             }
         }
 
         /**
+         * Обрабатывает позиции с профитом.
+         */
+        async takeProfitPosition() {
+            await this.closeAllPositions('TP');
+        }
+
+        /**
          * Обрабатывает позиции с убытком.
          */
         async stopLossPosition() {
-            // if (this.backtest) {
-            //     this.backtestPositions.filter(p => !p.closed).forEach(async p => {
-            //         if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
-            //             // await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
-            //         }
-            //     });
-            // } else
-
-            if (this.currentPositions) {
-                // Срабатывает для любой позиции без привязки к figi
-                this.currentPositions.forEach(async p => {
-                    if (p.instrumentType !== 'share') {
-                        return;
-                    }
-
-                    const { positionVolume } = this.positionsProfit[p.figi];
-                    const price = this[p.figi]?.lastPrice || p.currentPrice;
-
-                    if (positionVolume > 0) {
-                        // Закрываем long.
-                        await this.sell(price, p.figi, positionVolume, 'SL');
-                    } else if (positionVolume < 0) {
-                        // Закрываем short.
-                        await this.buy(price, p.figi, Math.abs(positionVolume), 'SL');
-                    }
-                });
-            }
+            await this.closeAllPositions('SL');
         }
 
         /**
@@ -223,35 +227,35 @@ try {
             super.stop();
         }
 
-        async callBuy() {
-            function shuffle(array) {
-                let currentIndex = array.length,
-                    randomIndex;
+        // async callBuy() {
+        //     function shuffle(array) {
+        //         let currentIndex = array.length,
+        //             randomIndex;
 
-                // While there remain elements to shuffle.
-                while (currentIndex !== 0) {
-                    // Pick a remaining element.
-                    randomIndex = Math.floor(Math.random() * currentIndex);
-                    currentIndex--;
+        //         // While there remain elements to shuffle.
+        //         while (currentIndex !== 0) {
+        //             // Pick a remaining element.
+        //             randomIndex = Math.floor(Math.random() * currentIndex);
+        //             currentIndex--;
 
-                    // And swap it with the current element.
-                    [array[currentIndex], array[randomIndex]] = [
-                        array[randomIndex], array[currentIndex]];
-                }
+        //             // And swap it with the current element.
+        //             [array[currentIndex], array[randomIndex]] = [
+        //                 array[randomIndex], array[currentIndex]];
+        //         }
 
-                return array;
-            }
+        //         return array;
+        //     }
 
-            const newChips = this.blueChipsShares.find(f => f.figi === 'BBG004PYF2N3');
+        //     const newChips = this.blueChipsShares.find(f => f.figi === 'BBG004PYF2N3');
 
-            const { lastPrices } = await this.cb.getLastPrices([newChips.figi]);
+        //     const { lastPrices } = await this.cb.getLastPrices([newChips.figi]);
 
-            // newChips.price = this.getPrice(lastPrices.find(l => l.figi === newChips.figi).price) * newChips.lot;
-            const lot = 1;
-            const { price } = lastPrices.find(l => l.figi === newChips.figi);
+        //     // newChips.price = this.getPrice(lastPrices.find(l => l.figi === newChips.figi).price) * newChips.lot;
+        //     const lot = 1;
+        //     const { price } = lastPrices.find(l => l.figi === newChips.figi);
 
-            await this.buy(price, newChips.figi, lot, 'callBuy');
-        }
+        //     await this.buy(price, newChips.figi, lot, 'callBuy');
+        // }
     }
 
     module.exports[name] = Bot;

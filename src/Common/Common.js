@@ -16,6 +16,7 @@ try {
             enums: {},
             brokerId: '',
 
+            // tgBot,
             // takeProfit: 3,
             // stopLoss: 1,
             // useTrailingStop: true,
@@ -24,6 +25,7 @@ try {
             this.backtest = Boolean(backtest);
             this.enums = options.enums;
             this.brokerId = options.brokerId;
+            this.tgBot = options.tgBot;
 
             // Методы, с помощью которых робот может общаться с внешним миром.
             this.cb = callbacks;
