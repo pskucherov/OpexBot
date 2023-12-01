@@ -1,6 +1,7 @@
 const { mkDirByPathSync } = require('../utils');
 const path = require('path');
 const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
 
 try {
     class Common {
@@ -1131,14 +1132,20 @@ try {
          * @returns
          */
         genOrderId(length = 15) {
-            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            const charactersLength = characters.length;
-            let result = '';
+            return Common.genOrderId(length);
+        }
 
-            for (let i = 0; i < length; i++) {
-                result += characters.charAt(Math.floor(Math.random() *
-                    charactersLength));
-            }
+        static genOrderId(length = 15) {
+            // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            // const charactersLength = characters.length;
+            // let result = '';
+
+            // for (let i = 0; i < length; i++) {
+            //     result += characters.charAt(Math.floor(Math.random() *
+            //         charactersLength));
+            // }
+
+            const result = uuidv4();
 
             if (!this.orderIds) {
                 this.orderIds = {};
