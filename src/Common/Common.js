@@ -11,8 +11,8 @@ try {
             subscribes: {},
 
             // TODO: порефакторить количество параметров
-            postOrder: (accountId, figi, quantity, price, direction, orderType, orderId) => { }, // eslint-disable-line max-params
-            cacheState: (figi, time, lastPrice, orderBook) => { },
+            postOrder: (accountId, instrumentId, quantity, price, direction, orderType, orderId) => { }, // eslint-disable-line max-params
+            cacheState: (instrumentId, time, lastPrice, orderBook) => { },
         }, options = {
             enums: {},
             brokerId: '',
@@ -177,7 +177,7 @@ try {
 
             this.currentPositions = ([].concat(p.securities, p.futures, p.options))
                 .reduce((prev, cur) => {
-                    const i = this.currentPortfolio?.positions?.findIndex(f => f.figi === cur.figi);
+                    const i = this.currentPortfolio?.positions?.findIndex(f => f.instrumentId === cur.instrumentId);
 
                     if (i === -1) {
                         return prev;
@@ -248,10 +248,10 @@ try {
                                     while (this.inProgress) {
                                         await this.timer(this.subscribesTimer);
 
-                                        if (this.figi) {
-                                            const figi = typeof this.figi === 'string' ? this.figi.split(',') : this.figi;
+                                        if (this.instrumentId) {
+                                            const instrumentId = typeof this.instrumentId === 'string' ? this.instrumentId.split(',') : this.instrumentId;
 
-                                            yield subscribeArr[1](figi);
+                                            yield subscribeArr[1](instrumentId);
                                         }
                                     }
 
@@ -268,8 +268,8 @@ try {
                                         const isLastPrice = name === 'lastPrice';
                                         const currentData = isLastPrice ? data[name].price : data[name];
 
-                                        this[data[name].figi] || (this[data[name].figi] = {});
-                                        this[data[name].figi][name] = currentData;
+                                        this[data[name].instrumentId] || (this[data[name].instrumentId] = {});
+                                        this[data[name].instrumentId][name] = currentData;
 
                                         if (!this.isPortfolio) {
                                             this[name] = currentData;
@@ -322,7 +322,7 @@ try {
 
                                                 data.position[name].forEach(async p => {
                                                     const currentIndex = this.currentPositions.findIndex(c => {
-                                                        return c.figi === p.figi &&
+                                                        return c.instrumentId === p.instrumentId &&
                                                             c.instrumentType === p.instrumentType;
                                                     });
 
@@ -340,7 +340,7 @@ try {
                                             }
                                         });
 
-                                        await this.updateFigi();
+                                        await this.updateInstrumentId();
                                         await this.updateOrdersInLog();
                                     }
 
@@ -365,18 +365,18 @@ try {
         }
 
         /**
-         * Обновляем figi для портфельного управления.
+         * Обновляем instrumentId для портфельного управления.
          */
-        async updateFigi() {
+        async updateInstrumentId() {
             // При портфельном управлении содержимое портфеля может меняться.
             // Это нужно учитывать в подписках на цену.
             if (this.isPortfolio) {
                 // await this.updatePortfolio();
 
                 if (this.currentPositions?.length) {
-                    this.figi = this.currentPositions.map(p => p.figi);
+                    this.instrumentId = this.currentPositions.map(p => p.instrumentId);
                 } else {
-                    this.figi = [];
+                    this.instrumentId = [];
                 }
             }
         }
@@ -406,7 +406,7 @@ try {
                         // update orderbook
                         // update price
                         // TODO: поменять на bid и ...
-                        this.testData = this.cb.getQuotationsAndOrderbook(this.figi);
+                        this.testData = this.cb.getQuotationsAndOrderbook(this.instrumentId);
                         this.lastPrice = this.testData?.quotations?.bid;
                     }
                 }
@@ -430,7 +430,7 @@ try {
                     }
 
                     // Записываем новое состояние, только если оно изминилось.
-                    if (!this.backtest && this.figi && this.cb.cacheState &&
+                    if (!this.backtest && this.instrumentId && this.cb.cacheState &&
                         (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
                         this.cb.cacheState(this.getFileName(), new Date().getTime(), this.lastPrice, this.orderbook);
                         this.subscribeDataUpdated.lastPrice = false;
@@ -507,8 +507,8 @@ try {
                     if (options.tickerInfo) {
                         this.tickerInfo = options.tickerInfo;
 
-                        // this.tickerInfo.figi && (this.figi = this.tickerInfo.figi);
-                        options.figi && (this.figi = options.figi);
+                        // this.tickerInfo.instrumentId && (this.instrumentId = this.tickerInfo.instrumentId);
+                        options.instrumentId && (this.instrumentId = options.instrumentId);
                     }
 
                     await this.setExchangesTradingTime();
@@ -531,7 +531,7 @@ try {
         }
 
         getFileName() {
-            return this.isPortfolio ? this.type : this.figi;
+            return this.isPortfolio ? this.type : this.instrumentId;
         }
 
         isEmptyTickerInfo() {
@@ -539,10 +539,10 @@ try {
         }
 
         async updateTickerInfo() {
-            await this.updateFigi();
+            await this.updateInstrumentId();
 
-            if (this.figi && this.cb.getTickerInfo) {
-                this.tickerInfo = await this.cb.getTickerInfo(this.figi);
+            if (this.instrumentId && this.cb.getTickerInfo) {
+                this.tickerInfo = await this.cb.getTickerInfo(this.instrumentId);
             }
         }
 
@@ -596,7 +596,7 @@ try {
             return {
                 name: this.name,
                 interval: this.interval,
-                figi: this.figi,
+                instrumentId: this.instrumentId,
                 date: this.date,
                 backtest: this.backtest,
                 type: this.type,
@@ -636,9 +636,9 @@ try {
             console.log('stop'); // eslint-disable-line no-console
         }
 
-        async buy(price, figi, lotsSize, type) {
+        async buy(price, instrumentId, lotsSize, type) {
             try {
-                if ((!this.figi && !figi) || !this.accountId) {
+                if ((!this.instrumentId && !instrumentId) || !this.accountId) {
                     return;
                 }
 
@@ -650,7 +650,7 @@ try {
 
                 const order = this.cb.postOrder && (await this.cb.postOrder(
                     this.accountId,
-                    figi || this.figi,
+                    instrumentId || this.instrumentId,
                     lotsSize || this.lotsSize,
                     price || this.lastPrice, // структура из units и nano
                     this.enums.OrderDirection.ORDER_DIRECTION_BUY,
@@ -667,12 +667,12 @@ try {
             }
         }
 
-        getPositionsByFigi(figi) {
-            if (!figi) {
+        getPositionsByInstrumentId(instrumentId) {
+            if (!instrumentId) {
                 return;
             }
 
-            return this.currentPositions?.find(p => p.figi === figi);
+            return this.currentPositions?.find(p => p.instrumentId === instrumentId);
         }
 
         async updateOrdersInLog() {
@@ -765,7 +765,7 @@ try {
                     }
                 }
 
-                const position = this.getPositionsByFigi(order.figi);
+                const position = this.getPositionsByInstrumentId(order.instrumentId);
 
                 if (position) {
                     order.position = position;
@@ -788,14 +788,14 @@ try {
         }
 
         async getOperations() {
-            return this.accountId && this.figi && this.cb.getOperations &&
+            return this.accountId && this.instrumentId && this.cb.getOperations &&
                 await this.cb.getOperations(this.accountId,
-                    this.isPortfolio ? undefined : this.figi, 1, this.date);
+                    this.isPortfolio ? undefined : this.instrumentId, 1, this.date);
         }
 
         async getPortfolio() {
             return this.accountId && this.cb.getPortfolio &&
-                (await this.cb.getPortfolio(this.accountId)); // , this.isPortfolio ? undefined : this.figi));
+                (await this.cb.getPortfolio(this.accountId)); // , this.isPortfolio ? undefined : this.instrumentId));
         }
 
         async getPositions() {
@@ -808,22 +808,22 @@ try {
 
             // return (this.currentPositions || [])
             //     .filter(p => {
-            //         return this.isPortfolio || this.checkFigi(p.figi); // FINAM figi
+            //         return this.isPortfolio || this.checkInstrumentId(p.instrumentId); // FINAM instrumentId
             //     });
         }
 
-        checkFigi(figi) {
+        checkInstrumentId(instrumentId) {
             if (this.isPortfolio) {
                 return true;
             }
 
-            return figi === this.figi || Boolean(this.tickerInfo && (
-                figi === this.tickerInfo.noBoardFigi ||
-                figi === this.tickerInfo.noMarketFigi));
+            return instrumentId === this.instrumentId || Boolean(this.tickerInfo && (
+                instrumentId === this.tickerInfo.noBoardInstrumentId ||
+                instrumentId === this.tickerInfo.noMarketInstrumentId));
         }
 
         async getOrders() {
-            return (this.currentOrders || []).filter(p => this.checkFigi(p.figi));
+            return (this.currentOrders || []).filter(p => this.checkInstrumentId(p.instrumentId));
         }
 
         async hasOpenPositions(type = 'share') {
@@ -837,14 +837,15 @@ try {
                 }
 
                 return Boolean(this.currentPositions.filter(p =>
-                    Boolean(this.checkFigi(p.figi)) && p.instrumentType === type).length);
+                    Boolean(this.checkInstrumentId(p.instrumentId)) && p.instrumentType === type).length);
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
         }
 
         hasOpenOrders() {
-            return Boolean(this.currentOrders && this.currentOrders.filter(o => this.checkFigi(o.figi)).length);
+            return Boolean(this.currentOrders && this.currentOrders
+                .filter(o => this.checkInstrumentId(o.instrumentId)).length);
         }
 
         hasBlockedPositions() {
@@ -887,9 +888,9 @@ try {
                     return false;
                 }
 
-                const posFigiCache = this.currentPositions.reduce((prev, cur) => {
+                const posInstrumentIdCache = this.currentPositions.reduce((prev, cur) => {
                     if (cur.instrumentType === 'share') {
-                        prev[cur.figi] = true;
+                        prev[cur.instrumentId] = true;
                     }
 
                     return prev;
@@ -903,7 +904,7 @@ try {
                     if (current.instrumentType === 'share') {
                         ++prev.sum;
 
-                        if (!posFigiCache[current.figi]) {
+                        if (!posInstrumentIdCache[current.instrumentId]) {
                             prev.allMatch = false;
                         }
                     }
@@ -920,7 +921,7 @@ try {
                     return false;
                 }
 
-                if (Object.keys(posFigiCache).length !== portfolioPos.sum) {
+                if (Object.keys(posInstrumentIdCache).length !== portfolioPos.sum) {
                     await this.syncPos();
 
                     return false;
@@ -938,9 +939,9 @@ try {
                 .forEach(async o => await this.cancelOrder(o.orderId));
         }
 
-        async sell(price, figi, lotsSize, type) {
+        async sell(price, instrumentId, lotsSize, type) {
             try {
-                if (!this.figi && !figi) {
+                if (!this.instrumentId && !instrumentId) {
                     return;
                 }
 
@@ -952,7 +953,7 @@ try {
 
                 const order = this.cb.postOrder && (await this.cb.postOrder(
                     this.accountId,
-                    figi || this.figi,
+                    instrumentId || this.instrumentId,
                     lotsSize || this.lotsSize,
                     price || this.lastPrice, // структура из units и nano
                     this.enums.OrderDirection.ORDER_DIRECTION_SELL,
@@ -1111,7 +1112,7 @@ try {
                 return;
             }
 
-            const { orders } = await this.cb.getOrders(this.accountId, this.figi);
+            const { orders } = await this.cb.getOrders(this.accountId, this.instrumentId);
 
             for (const o of orders) {
                 await this.cancelOrder(o.orderId);
@@ -1163,9 +1164,9 @@ try {
             return result;
         }
 
-        static getLogs(robotName, accountId, figi, date) {
+        static getLogs(robotName, accountId, instrumentId, date) {
             try {
-                const { dir, name } = this.getLogFileName(robotName, accountId, figi, date);
+                const { dir, name } = this.getLogFileName(robotName, accountId, instrumentId, date);
                 const logFile = path.join(dir, name);
 
                 let logs;
@@ -1180,17 +1181,17 @@ try {
             } catch (e) { console.log(e) } // eslint-disable-line no-console
         }
 
-        static getLogFileName(name, accountId, figi, date) {
+        static getLogFileName(name, accountId, instrumentId, date) {
             const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
 
             return {
-                dir: path.resolve(__dirname, '../../orders', name, accountId, figi),
+                dir: path.resolve(__dirname, '../../orders', name, accountId, instrumentId),
                 name: new Date(Number(date)).toLocaleString('ru', dateOptions) + '.json',
             };
         }
 
-        static getLogFiles(name, accountId, figi, date) {
-            const { dir } = this.getLogFileName(name, accountId, figi, date);
+        static getLogFiles(name, accountId, instrumentId, date) {
+            const { dir } = this.getLogFileName(name, accountId, instrumentId, date);
 
             return fs.readdirSync(path.resolve(dir)).reduce((prev, file) => {
                 // const p = path.resolve(dir, file);
@@ -1206,12 +1207,12 @@ try {
             }, []);
         }
 
-        static getStaticFileSettings(name, accountId, figi) {
-            if (!name || !accountId || !figi) {
+        static getStaticFileSettings(name, accountId, instrumentId) {
+            if (!name || !accountId || !instrumentId) {
                 return;
             }
 
-            const dir = path.resolve(__dirname, '../../orders', name, accountId, figi);
+            const dir = path.resolve(__dirname, '../../orders', name, accountId, instrumentId);
 
             mkDirByPathSync(dir);
 
@@ -1222,11 +1223,11 @@ try {
          * Получение настроек робота из файла или значений по умолчанию.
          *
          * @param {String} name
-         * @param {String} figi
+         * @param {String} instrumentId
          * @param {String} accountId
          * @returns
          */
-        static getSettings(name, accountId, figi) {
+        static getSettings(name, accountId, instrumentId) {
             const settings = {
                 isAdviser: false,
                 takeProfit: 0.05,
@@ -1248,8 +1249,8 @@ try {
                 resistance: { units: 0, nano: 0 },
             };
 
-            if (name && accountId && figi) {
-                const file = this.getStaticFileSettings(name, accountId, figi);
+            if (name && accountId && instrumentId) {
+                const file = this.getStaticFileSettings(name, accountId, instrumentId);
 
                 if (fs.existsSync(file)) {
                     return JSON.parse(fs.readFileSync(file).toString());
@@ -1265,10 +1266,10 @@ try {
          * @param {String} name
          * @param {Object} settings
          * @param {String} accountId
-         * @param {String} figi
+         * @param {String} instrumentId
          * @returns
          */
-        static setSettings(name, settings, accountId, figi) { // eslint-disable-line
+        static setSettings(name, settings, accountId, instrumentId) { // eslint-disable-line
             const current = this.getSettings(name);
 
             typeof settings.isAdviser !== 'undefined' && (current.isAdviser = Boolean(settings.isAdviser));
@@ -1348,8 +1349,8 @@ try {
                 current.tradingDays = settings.tradingDays;
             }
 
-            if (name && accountId && figi) {
-                const file = this.getStaticFileSettings(name, accountId, figi);
+            if (name && accountId && instrumentId) {
+                const file = this.getStaticFileSettings(name, accountId, instrumentId);
 
                 file && fs.writeFileSync(file, JSON.stringify(current));
             }
@@ -1363,7 +1364,7 @@ try {
          * @param {String} name
          * @param {Object} settings
          * @param {String} accountId
-         * @param {String} figi
+         * @param {String} instrumentId
          * @returns
          */
         setCurrentSettings(settings) {
@@ -1473,8 +1474,8 @@ try {
 
                     const expectedYield = this.getPrice(current.expectedYield);
 
-                    if (this[current.figi]?.lastPrice) {
-                        prev.totalNowSharesAmount += this.getPrice(this[current.figi]?.lastPrice) *
+                    if (this[current.instrumentId]?.lastPrice) {
+                        prev.totalNowSharesAmount += this.getPrice(this[current.instrumentId]?.lastPrice) *
                             Math.abs(this.getPrice(current.quantity));
                     } else {
                         prev.totalNowSharesAmount += avgPrice + expectedYield;
@@ -1499,14 +1500,14 @@ try {
                     const positionVolume = !p.quantityLots.units && p.quantityLots.nano ? 0 :
                         p.quantityLots.units * settings.volume;
 
-                    prev[p.figi] = {
+                    prev[p.instrumentId] = {
                         // Для неполной позиции не применяем.
                         // Берём часть позиции в соответствии с настройками, но не менее одной позиции.
                         positionVolume: positionVolume > 0 ? Math.max(positionVolume, 1) :
                             positionVolume < 0 ? Math.min(positionVolume, -1) : 0,
                     };
 
-                    if (prev[p.figi].positionVolume) {
+                    if (prev[p.instrumentId].positionVolume) {
                         // const lotSize = Math.abs(parseInt(p.quantity.units / p.quantityLots.units));
                         prev.currentTP = totalStartSharesAmount + totalStartSharesAmount * settings.takeProfit;
                         prev.currentSL = totalStartSharesAmount - totalStartSharesAmount * settings.stopLoss;

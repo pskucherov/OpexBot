@@ -46,11 +46,11 @@ try {
                 if (this.backtest) {
                     this.backtestPositions.filter(p => !p.closed).forEach(async p => {
                         if (this.getPrice(this.lastPrice) >= this.getPrice(this.getTakeProfitPrice(1, p.price))) {
-                            await this.sell(this.lastPrice, this.figi, this.lotsSize, 'TP');
+                            await this.sell(this.lastPrice, this.instrumentId, this.lotsSize, 'TP');
                         }
                     });
                 } else if (this.currentPortfolio && this.takeProfit) {
-                    // Срабатывает для любой позиции без привязки к figi
+                    // Срабатывает для любой позиции без привязки к instrumentId
                     this.currentPortfolio.positions.forEach(async p => {
                         if (p.quantityLots?.units) {
                             let lots = Number(p.quantityLots.units / 2);
@@ -61,8 +61,8 @@ try {
 
                             // console.log('this.getTakeProfitPrice(1, p.averagePositionPrice)', this.getTakeProfitPrice(1, p.averagePositionPrice));
 
-                            // p.figi => this.figi
-                            await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), this.figi, lots, 'TP');
+                            // p.instrumentId => this.instrumentId
+                            await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), this.instrumentId, lots, 'TP');
                         } else {
                             // console.log('takeProfitPosition empty quantityLots.units');
                         }
@@ -74,13 +74,13 @@ try {
         }
 
         async stopLossPosition() {
-            // Срабатывает для любой позиции без привязки к figi
+            // Срабатывает для любой позиции без привязки к instrumentId
             if (this.backtest) {
                 if (this.getPrice(this.lastPrice) < this.getPrice(this.getTakeProfitPrice(1, this.lastPrice))) {
-                    await this.sell(this.lastPrice, this.figi, this.lotsSize, 'SL');
+                    await this.sell(this.lastPrice, this.instrumentId, this.lotsSize, 'SL');
                 }
             } else if (this.currentPortfolio && this.stopLoss) {
-                // Срабатывает для любой позиции без привязки к figi
+                // Срабатывает для любой позиции без привязки к instrumentId
                 this.currentPortfolio.positions.forEach(async p => {
                     let lots = Number(p.quantityLots.units / 2);
 
@@ -88,8 +88,8 @@ try {
                         lots = 1;
                     }
 
-                    // p.figi => this.figi
-                    await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), this.figi, lots, 'SL');
+                    // p.instrumentId => this.instrumentId
+                    await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), this.instrumentId, lots, 'SL');
                 });
             }
         }

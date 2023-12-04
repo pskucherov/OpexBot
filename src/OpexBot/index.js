@@ -170,21 +170,21 @@ try {
                     type
                 }.\r\nЦена портфеля: ${this.totalNowSharesAmount}`);
 
-                // Срабатывает для любой позиции без привязки к figi
+                // Срабатывает для любой позиции без привязки к instrumentId
                 this.currentPositions.forEach(async p => {
                     if (p.instrumentType !== 'share') {
                         return;
                     }
 
-                    const { positionVolume } = this.positionsProfit[p.figi];
-                    const price = this[p.figi]?.lastPrice || p.currentPrice;
+                    const { positionVolume } = this.positionsProfit[p.instrumentId];
+                    const price = this[p.instrumentId]?.lastPrice || p.currentPrice;
 
                     if (positionVolume > 0) {
                         // Закрываем long.
-                        await this.sell(price, p.figi, positionVolume, type);
+                        await this.sell(price, p.instrumentId, positionVolume, type);
                     } else if (positionVolume < 0) {
                         // Закрываем short.
-                        await this.buy(price, p.figi, Math.abs(positionVolume), type);
+                        await this.buy(price, p.instrumentId, Math.abs(positionVolume), type);
                     }
                 });
             }
@@ -246,15 +246,15 @@ try {
         //         return array;
         //     }
 
-        //     const newChips = this.blueChipsShares.find(f => f.figi === 'BBG004PYF2N3');
+        //     const newChips = this.blueChipsShares.find(f => f.instrumentId === 'BBG004PYF2N3');
 
-        //     const { lastPrices } = await this.cb.getLastPrices([newChips.figi]);
+        //     const { lastPrices } = await this.cb.getLastPrices([newChips.instrumentId]);
 
-        //     // newChips.price = this.getPrice(lastPrices.find(l => l.figi === newChips.figi).price) * newChips.lot;
+        //     // newChips.price = this.getPrice(lastPrices.find(l => l.instrumentId === newChips.instrumentId).price) * newChips.lot;
         //     const lot = 1;
-        //     const { price } = lastPrices.find(l => l.figi === newChips.figi);
+        //     const { price } = lastPrices.find(l => l.instrumentId === newChips.instrumentId);
 
-        //     await this.buy(price, newChips.figi, lot, 'callBuy');
+        //     await this.buy(price, newChips.instrumentId, lot, 'callBuy');
         // }
     }
 

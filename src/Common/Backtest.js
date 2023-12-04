@@ -9,9 +9,9 @@ try {
             this.backtestOrders = [];
         }
 
-        setBacktestState(step, interval, figi, date, options) {
+        setBacktestState(step, interval, instrumentId, date, options) {
             interval && (this.interval = interval);
-            figi && (this.figi = figi);
+            instrumentId && (this.instrumentId = instrumentId);
             date && (this.date = date);
 
             if (step && this.step !== step) {
@@ -31,7 +31,7 @@ try {
                 name: this.name,
                 step: this.step,
                 interval: this.interval,
-                figi: this.figi,
+                instrumentId: this.instrumentId,
                 date: this.date,
             };
         }
