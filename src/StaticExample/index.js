@@ -1,6 +1,3 @@
-const { throws } = require('assert');
-const { parse } = require('path');
-
 try {
     const { Backtest } = require('../Common/Backtest');
 
@@ -31,19 +28,63 @@ try {
                     sdk?.OrderDirection.ORDER_DIRECTION_SELL :
                     sdk?.OrderDirection.ORDER_DIRECTION_BUY;
 
-                return await postOrder(
-                    {
-                        quantity: Math.abs(quantity),
-                        accountId,
-                        price,
-                        direction,
-                        orderId,
-                        instrumentId,
-                        orderType: orderType || sdk.OrderType.ORDER_TYPE_BESTPRICE,
-                    },
-                );
+                const data = {
+                    quantity: Math.abs(quantity),
+                    accountId,
+                    direction,
+                    orderId,
+                    instrumentId,
+                    orderType: orderType || sdk.OrderType.ORDER_TYPE_BESTPRICE,
+                };
+
+                if (price) {
+                    data[price] = price;
+                }
+
+                return await postOrder(data);
             } catch (e) {
                 console.log('order', e); // eslint-disable-line no-console
+            }
+        }
+
+        static async closeAllByBestPrice(sdk, props) {
+            try {
+                if (!sdk?.operations?.getPositions) {
+                    return;
+                }
+
+                const {
+                    accountId,
+                    allInstrumentsWithIdKeys,
+                } = props;
+
+                const p = await sdk?.operations?.getPositions({
+                    accountId,
+                });
+
+                const positions = ([].concat(p.securities, p.futures, p.options));
+
+                positions?.forEach(async position => {
+                    try {
+                        const id = position.instrumentUid;
+                        const info = allInstrumentsWithIdKeys?.[id];
+
+                        if (info?.lot) {
+                            await this.order(
+                                sdk,
+                                {
+                                    accountId: props.accountId,
+                                    instrumentId: id,
+                                    quantity: -1 * parseInt(position.balance / info?.lot, 10),
+                                },
+                            );
+                        }
+                    } catch (e) {
+                        console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
+                    }
+                });
+            } catch (e) {
+                console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
             }
         }
     }
