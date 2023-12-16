@@ -1,5 +1,4 @@
-import { GetCandlesResponse } from "tinkoff-sdk-grpc-js/dist/generated/marketdata";
-import { Common } from "./common";
+import { Common } from './common';
 
 interface IProps {
     instrumentId: string;
@@ -10,7 +9,6 @@ interface IProps {
 }
 
 export class Candles extends Common {
-
     async getMinutesDaily(props: IProps) {
         const {
             instrumentId,
@@ -18,7 +16,7 @@ export class Candles extends Common {
         } = props;
 
         let {
-            from, 
+            from,
             to,
         } = props;
 

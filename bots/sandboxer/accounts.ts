@@ -18,6 +18,7 @@ export class Accounts {
 
     async close(account: Account) {
         const { id } = account;
+
         await this.sdk.sandbox.closeSandboxAccount({ accountId: id });
     }
 
@@ -34,4 +35,3 @@ export class Accounts {
         await this.create();
     }
 }
-
