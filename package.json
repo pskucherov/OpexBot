@@ -34,7 +34,6 @@
     "eslint-plugin-promise": "^6.0.0",
     "eslint-plugin-react": "^7.29.4",
     "eslint-plugin-sonarjs": "^0.13.0",
-    "exe-icon-extractor": "^1.0.8",
     "pre-commit": "^1.2.2"
   },
   "dependencies": {
