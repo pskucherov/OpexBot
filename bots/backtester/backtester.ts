@@ -3,10 +3,9 @@ import { Candles } from '../../components/investAPI/candles';
 import { createSdk } from 'tinkoff-sdk-grpc-js';
 
 // @ts-ignore
-import RSI from 'node-rsi';
 import { Backtest } from '../../src/Common/Backtest';
 import { Instruments } from '../../components/investAPI/instruments';
-import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import {RSI} from "../../components/indicator/RSI";
 
 // https://www.youtube.com/shorts/hi4O4CTpd5Y
 const TINKOFFTOKEN = '';
@@ -18,7 +17,7 @@ const backtest = new Backtest(0, 0, true, undefined, {
     enums: {
         OrderDirection: {
             ...sdk.OrderDirection,
-        },
+        }
     },
     brokerId: 'TINKOFF',
 });
@@ -26,113 +25,59 @@ const backtest = new Backtest(0, 0, true, undefined, {
 const instruments = new Instruments(sdk);
 
 (async () => {
+
+    const PERIOD = 20;
+    const lots = 1;
+
     const candlesSdk = new Candles(sdk);
-    const minutesDailyCandlesArr: HistoricCandle[] = [];
     const instrumentId = '0da66728-6c30-44c4-9264-df8fac2467ee'; // НОВАТЭК
     const { instrument } = (await instruments.getInstrumentById(instrumentId)) || {};
     const testerInterval = sdk.CandleInterval.CANDLE_INTERVAL_1_MIN;
 
-    // Получить минутные свечи за две недели.
-    for (let day = 1; day <= 14; day++) {
-        const { candles } = await candlesSdk.getMinutesDaily({
-            day: new Date(`2023.12.${day}`),
-            instrumentId,
-        });
+    const minutesDailyCandlesArr = await candlesSdk.getCandles(
+        instrumentId,
+        testerInterval,
+        '2023.10.01',
+        '2023.12.16'
+    );
 
-        if (candles?.length) {
-            minutesDailyCandlesArr.push(...candles);
-        }
-    }
-
-    // Расчёт RSI
-    const PERIOD = 200;
-    const data = minutesDailyCandlesArr.map(m => Common.getPrice(m.close));
-    const rsi = new RSI(data, PERIOD);
-    let rsiData: any = await (new Promise(resolve => {
-        rsi.calculate((err: any, result: any) => {
-            if (err) {
-                return err;
-            }
-
-            resolve(result);
-        });
-    }));
-
-    const r: any = {};
-
-    rsiData = rsiData.filter((f: any) => Boolean(f.rsi));
-
-    // Сводка по рассчитанным rsi
-    rsiData.forEach((i: { rsi: string; }) => {
-        // if (i.rsi) {
-        const data = parseInt(i.rsi);
-
-        if (r[data]) {
-            r[data]++;
-        } else {
-            r[data] = 1;
-        }
-
-        // }
+    let backtestStep = 0;
+    backtest.setBacktestState(backtestStep, testerInterval, instrumentId, undefined, {
+        tickerInfo: instrument,
+        type: 'instrument',
+        instrumentId,
     });
 
-    console.log('RSI STAT');
-    console.log(r);
+    for (let candleIndex = PERIOD + 1; candleIndex < minutesDailyCandlesArr.length; candleIndex++) {
+        backtestStep++;
+        backtest.setBacktestState(backtestStep);
 
-    // console.log(rsiData[0]);
+        // Расчёт RSI
+        const currentRSI = await RSI.calculate(minutesDailyCandlesArr.slice(candleIndex - PERIOD - 1, candleIndex), PERIOD);
+        const currentCandle = minutesDailyCandlesArr[candleIndex];
+        const hasOpenedPosition = (backtest.getBacktestPositions()?.filter(position => !position.closed) || []).length > 0;
 
-    for (let i = 0; i < rsiData.length; i++) {
-        const data = rsiData[i];
-
-        // if (!data.rsi) {
-        //     continue;
-        // }
-
-        if (!i) {
-            backtest.setBacktestState(0, testerInterval, instrumentId, undefined, {
-                tickerInfo: instrument,
-                type: 'instrument',
-                instrumentId,
-            });
-        } else {
-            backtest.setBacktestState(i);
-
-            if (data.rsi >= 55) {
-                // Нужно доделать подсчёт RSI, чтобы возвращал данные исходных свечей.
-                // Тогда цена будет браться из исходных units и nano.
-                const p = data.value.toFixed(9).split('.');
-                const price = { units: Number(p[0]), nano: Number(p[1]) };
-
-                const lots = 1;
-
-                backtest.backtestBuy(price, lots);
-            } else if (data.rsi <= 45) {
-                // Нужно доделать подсчёт RSI, чтобы возвращал данные исходных свечей.
-                // Тогда цена будет браться из исходных units и nano.
-                const p = data.value.toFixed(9).split('.');
-                const price = { units: Number(p[0]), nano: Number(p[1]) };
-                const lots = 1;
-
-                backtest.backtestClosePosition(price, lots);
+        if (currentRSI < 30) {
+            if (!hasOpenedPosition) {
+                backtest.backtestBuy(currentCandle.close, lots);
+            }
+        } else if (currentRSI > 80) {
+            if (hasOpenedPosition) {
+                backtest.backtestClosePosition(currentCandle.close, lots);
             }
         }
     }
 
-    console.log(JSON.stringify(backtest, null, 4));
+    backtest.backtestClosePosition(minutesDailyCandlesArr[minutesDailyCandlesArr.length-1].close, lots);
 
-    const profit = backtest.backtestPositions?.reduce((acc, val) => {
-        if (!val.closed || !val.expectedYield) {
-            return acc;
+    let result = 0;
+    backtest.getBacktestPositions()?.forEach(position => {
+        if (position.direction == 1) {
+            result -= Common.getPrice(position.price);
+        } else if (position.direction == 2) {
+            result += Common.getPrice(position.price);
         }
+    })
 
-        acc.units += val.expectedYield.units;
-        acc.nano += val.expectedYield.nano;
-
-        return acc;
-    }, {
-        units: 0,
-        nano: 0,
-    });
-
-    console.log('PROFIT:', Common.getPrice(profit));
+    console.log(result);
 })();
