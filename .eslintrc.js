@@ -7,10 +7,8 @@ module.exports = {
         es6: true,
         commonjs: true,
     },
-    parser: '@typescript-eslint/parser',
     parserOptions: {
         ecmaVersion: 2022,
-        project: ['./tsconfig.json'],
     },
     globals: {
         console: false,
@@ -22,9 +20,8 @@ module.exports = {
         'plugin:import/warnings',
         'plugin:sonarjs/recommended',
         'plugin:promise/recommended',
-        'plugin:@typescript-eslint/recommended'
     ],
-    plugins: ['optimize-regex', 'sonarjs', 'no-loops', 'no-use-extend-native', 'promise', 'eslint-plugin-react', '@typescript-eslint'],
+    plugins: ['optimize-regex', 'sonarjs', 'no-loops', 'no-use-extend-native', 'promise', 'eslint-plugin-react'],
     rules: {
         'valid-jsdoc': 'off',
         semi: ['error', 'always', { omitLastInOneLineBlock: true }],
