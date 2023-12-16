@@ -1,3 +1,4 @@
+import { GetCandlesResponse } from "tinkoff-sdk-grpc-js/dist/generated/marketdata";
 import { Common } from "./common";
 
 interface IProps {
@@ -34,6 +35,6 @@ export class Candles extends Common {
             interval: this.sdk.CandleInterval.CANDLE_INTERVAL_1_MIN,
             from,
             to,
-        })
+        });
     }
 }

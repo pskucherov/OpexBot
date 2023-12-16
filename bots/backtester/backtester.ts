@@ -6,6 +6,7 @@ import { createSdk } from 'tinkoff-sdk-grpc-js';
 import RSI from 'node-rsi';
 import { Backtest } from '../../src/Common/Backtest';
 import { Instruments } from '../../components/investAPI/instruments';
+import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // https://www.youtube.com/shorts/hi4O4CTpd5Y
 const TINKOFFTOKEN = '';
@@ -27,7 +28,7 @@ const instruments = new Instruments(sdk);
 (async () => {
 
     const candlesSdk = new Candles(sdk);
-    const minutesDailyCandlesArr = [];
+    const minutesDailyCandlesArr: HistoricCandle[] = [];
     const instrumentId = '0da66728-6c30-44c4-9264-df8fac2467ee'; // НОВАТЭК
     const { instrument } = (await instruments.getInstrumentById(instrumentId)) || {};
     let testerInterval = sdk.CandleInterval.CANDLE_INTERVAL_1_MIN;
