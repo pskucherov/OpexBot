@@ -411,9 +411,11 @@ try {
                     }
                 }
 
-                if (this.tradingTime) {
-                    await this.updateOrders();
-                    await this.updatePositions();
+                if (this.tradingTime || this.backtest) {
+                    if (!this.backtest) {
+                        await this.updateOrders();
+                        await this.updatePositions();
+                    }
 
                     // Обрабатываем логику только после инициализации статуса.
                     if (this.ordersInited || this.backtest) {
@@ -609,7 +611,7 @@ try {
             }
 
             if (quotation.nano) {
-                return quotation.units + quotation.nano / 1e9;
+                return Number(quotation.units) + Number(quotation.nano / 1e9);
             }
 
             return quotation.units;
