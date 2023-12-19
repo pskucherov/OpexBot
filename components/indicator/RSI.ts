@@ -7,7 +7,7 @@ export class RSI
 {
     static async calculate(candles: HistoricCandle[], period: number) {
         if (candles.length <= period) {
-            throw new Error(`Недостаточно данных для расчета. Передано ${candles.length} свечей. Требуется ${period+1}`);
+            return undefined;
         }
 
         let result = '0';
