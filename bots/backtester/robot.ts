@@ -8,6 +8,7 @@ import { Common } from '../../src/Common/Common';
 // import * as fs from 'fs';
 import { Candle } from '../../components/investAPI/candles';
 import { Log } from '../../components/log';
+import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
 export class Robot {
     tradeSystem: Backtest;
@@ -15,6 +16,7 @@ export class Robot {
 
     candles: Candle[] = [];
     currentCandle?: Candle = undefined;
+    currentPriceMoneyValue: MoneyValue = { units: 0, nano: 0, currency: '' };
     currentPrice: number = 0;
     priceToClosePosition: number = 0;
     PRICE_DIFF: number = 2;
@@ -35,6 +37,7 @@ export class Robot {
     async initStep(currentCandle: Candle) {
         this.candles.push(currentCandle);
         this.currentCandle = currentCandle;
+        this.currentPriceMoneyValue = currentCandle.close;
         this.currentPrice = Common.getPrice(currentCandle.close);
 
         if (this.candles.length > this.PERIOD_RSI && this.candles.length > this.PERIOD_MA) {
@@ -52,12 +55,16 @@ export class Robot {
             let lots = 0;
 
             this.tradeSystem.getOpenedPositions().forEach(position => lots += position.lots);
-            this.tradeSystem.backtestClosePosition(this.currentPrice);
+            this.tradeSystem.backtestClosePosition(this.currentPriceMoneyValue);
             this.consolePositionMessage(this.tradeSystem.getLastPosition());
         }
     }
 
     makeBuy() {
+        if (!this.currentCandle?.time) {
+            throw 'Нет времени в this.currentCandle?.time';
+        }
+
         if (!this.tradeSystem.hasBacktestOpenPositions()) {
             this.priceToClosePosition = (this.currentPrice + this.MA) / 2;
         } else {
@@ -74,7 +81,7 @@ export class Robot {
         }
 
         this.tradeSystem.backtestBuy(
-            this.currentPrice,
+            this.currentPriceMoneyValue,
             this.calcLots(this.currentPrice, this.MONEY_LIMIT),
             this.currentCandle?.time,
         );
@@ -82,6 +89,10 @@ export class Robot {
     }
 
     makeSell() {
+        if (!this.currentCandle?.time) {
+            throw 'Нет времени в this.currentCandle?.time';
+        }
+
         if (!this.tradeSystem.hasBacktestOpenPositions()) {
             this.priceToClosePosition = (this.currentPrice + this.MA) / 2;
         } else {
@@ -98,7 +109,7 @@ export class Robot {
         }
 
         this.tradeSystem.backtestSell(
-            this.currentPrice,
+            this.currentPriceMoneyValue,
             this.calcLots(this.currentPrice, this.MONEY_LIMIT),
             this.currentCandle?.time,
         );
@@ -116,7 +127,7 @@ export class Robot {
                 this.hasTimeDiff(30) &&
                 this.calcPercentDiff(
                     this.currentPrice,
-                    Common.getPrice(this.tradeSystem.getLastOpenedPosition().price),
+                    Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price),
                 ) < -this.PRICE_DIFF
             )
         );
@@ -133,7 +144,7 @@ export class Robot {
                 this.hasTimeDiff(30) &&
                 this.calcPercentDiff(
                     this.currentPrice,
-                    Common.getPrice(this.tradeSystem.getLastOpenedPosition().price),
+                    Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price),
                 ) > this.PRICE_DIFF
             )
         );
@@ -141,7 +152,7 @@ export class Robot {
 
     needCloseBuy() {
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
-        const isOpenedBuy = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition().direction === 1;
+        const isOpenedBuy = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition()?.direction === 1;
 
         return isOpenedBuy &&
             (
@@ -152,7 +163,7 @@ export class Robot {
 
     needCloseSell() {
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
-        const isOpenedSell = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition().direction === 2;
+        const isOpenedSell = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition()?.direction === 2;
 
         return isOpenedSell &&
             (
@@ -164,6 +175,10 @@ export class Robot {
     hasTimeDiff(minutes: number) {
         try {
             const lastOpenedPositionTime = this.tradeSystem?.getLastOpenedPosition()?.time?.getTime();
+
+            if (!lastOpenedPositionTime) {
+                return false;
+            }
 
             return this.currentCandle?.time &&
                 this.currentCandle?.time?.getTime() - lastOpenedPositionTime > minutes * 60 * 1000;

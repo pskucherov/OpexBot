@@ -1,3 +1,5 @@
+import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+
 import { Common } from './common';
 import { Cache } from './../cache';
 import { Time } from '../time';
@@ -11,16 +13,11 @@ interface IProps {
     limit?: number;
 }
 
-interface Price {
-    units: number,
-    nano: number
-}
-
 export interface Candle {
-    open: Price,
-    high: Price,
-    low: Price,
-    close: Price,
+    open: MoneyValue,
+    high: MoneyValue,
+    low: MoneyValue,
+    close: MoneyValue,
     volume: number,
     time: Date,
     isComplete: boolean

@@ -14,11 +14,14 @@
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=production node src/main",
-    "lint-fix": "npx eslint --fix ."
+    "bot": "cross-env DEBUG=1 ts-node ./bots/backtester/backtester.ts",
+    "lint-fix": "npx eslint --fix .",
+    "tsc": "npx tsc"
   },
-  "precommit": {
-    "run": "lint-fix"
-  },
+  "precommit": [
+    "lint-fix",
+    "tsc"
+  ],
   "engines": {
     "node": ">=17.0.0"
   },

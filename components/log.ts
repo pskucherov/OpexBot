@@ -23,6 +23,9 @@ export class Log {
     appendArray(data: string[]) {
         data.forEach(str => {
             if (str.length > 0) {
+                if (Number(process.env.DEBUG) === 2) {
+                    console.log(str); // eslint-disable-line no-console
+                }
                 this.append(str);
             }
         });

@@ -30,6 +30,8 @@ const debugEnd = (name: string) => {
 };
 
 const sdk = createSdk(TOKEN, 'backtester', logger);
+
+// @ts-ignore
 const backtest = new Backtest(0, 0, true, undefined, {
     enums: {
         OrderDirection: {
@@ -140,6 +142,10 @@ async function testInstrument(instrumentUID: string) {
         if (process.env.DEBUG) {
             console.log('result', result); // eslint-disable-line no-console
             console.log(); // eslint-disable-line no-console
+        }
+
+        if (Number(process.env.DEBUG) === 2) {
+            console.log(backtest.getBacktestPositions()); // eslint-disable-line no-console
         }
 
         backtest.stop();
