@@ -1,4 +1,3 @@
-// @ts-ignore
 import { Backtest } from '../../src/Common/Backtest';
 
 // import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
@@ -105,10 +104,13 @@ export class Robot {
 
         return hasPriceDiff && hasLowRSI && (
             !hasOpenedPosition ||
-                (
-                    this.hasTimeDiff(30) &&
-                    this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) < -this.PRICE_DIFF
-                )
+            (
+                this.hasTimeDiff(30) &&
+                this.calcPercentDiff(
+                    this.currentPrice,
+                    Common.getPrice(this.tradeSystem.getLastOpenedPosition().price),
+                ) < -this.PRICE_DIFF
+            )
         );
     }
 
@@ -149,8 +151,14 @@ export class Robot {
     }
 
     hasTimeDiff(minutes: number) {
-        return this.currentCandle?.time &&
-            this.currentCandle?.time?.getTime() - this.tradeSystem.getLastOpenedPosition().time.getTime() > minutes * 60 * 1000;
+        try {
+            const lastOpenedPositionTime = this.tradeSystem?.getLastOpenedPosition()?.time?.getTime();
+
+            return this.currentCandle?.time &&
+                this.currentCandle?.time?.getTime() - lastOpenedPositionTime > minutes * 60 * 1000;
+        } catch (e) {
+            return false;
+        }
     }
 
     calcPercentDiff(partial: number, total: number) {
@@ -161,9 +169,9 @@ export class Robot {
         let result = 0;
 
         this.tradeSystem.getBacktestPositions()?.forEach(position => {
-            if (position.direction == 1) {
+            if (position.direction === 1) {
                 result -= Common.getPrice(position.price) * position.lots;
-            } else if (position.direction == 2) {
+            } else if (position.direction === 2) {
                 result += Common.getPrice(position.price) * position.lots;
             }
         });

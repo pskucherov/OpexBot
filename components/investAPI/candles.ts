@@ -11,6 +11,11 @@ interface IProps {
     limit?: number;
 }
 
+interface Price {
+    units: number,
+    nano: number
+}
+
 export interface Candle {
     open: Price,
     high: Price,
@@ -19,11 +24,6 @@ export interface Candle {
     volume: number,
     time: Date,
     isComplete: boolean
-}
-
-interface Price {
-    units: number,
-    nano: number
 }
 
 export class Candles extends Common {

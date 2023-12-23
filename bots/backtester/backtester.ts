@@ -2,13 +2,14 @@ import { Candles } from '../../components/investAPI/candles';
 import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { TOKEN } from '../../config';
 
-// @ts-ignore
 import { Backtest } from '../../src/Common/Backtest';
 import { Instruments } from '../../components/investAPI/instruments';
 import { Robot } from './robot';
 import { Log } from '../../components/log';
 
-const logger = (a?: any, b?: any, c?: any) => console.log(a || '', b || '', c || '');
+const logger = (a?: any, b?: any, c?: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    return console.log(a || '', b || '', c || ''); // eslint-disable-line no-console
+};
 
 const sdk = createSdk(TOKEN, 'backtester', logger);
 const backtest = new Backtest(0, 0, true, undefined, {
