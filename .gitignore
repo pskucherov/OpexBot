@@ -116,4 +116,4 @@ package-lock.json
 
 db/data
 
-token.ts
+config.ts

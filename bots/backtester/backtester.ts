@@ -1,6 +1,6 @@
 import { Candles } from '../../components/investAPI/candles';
 import { createSdk } from 'tinkoff-sdk-grpc-js';
-import { TOKEN } from '../../token';
+import { TOKEN } from '../../config';
 
 // @ts-ignore
 import { Backtest } from '../../src/Common/Backtest';
