@@ -40,8 +40,7 @@ module.exports = {
         'no-extra-semi': 'error',
         'no-func-assign': 'error',
         'no-sparse-arrays': 'error',
-
-        // 'no-undef': 'error',
+        'no-undef': 'error',
         'no-unexpected-multiline': 'error',
         'lines-around-comment': ['error', { beforeLineComment: true, allowObjectStart: true, allowBlockStart: true, beforeBlockComment: true }],
         'no-unreachable': 'error',
