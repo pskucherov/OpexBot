@@ -11,6 +11,24 @@ const logger = (a?: any, b?: any, c?: any) => { // eslint-disable-line @typescri
     return console.log(a || '', b || '', c || ''); // eslint-disable-line no-console
 };
 
+const debugStart = (name: string) => {
+    if (!process.env.DEBUG) {
+        return;
+    }
+
+    console.log(name, 'START'); // eslint-disable-line no-console
+    console.time(name); // eslint-disable-line no-console
+};
+
+const debugEnd = (name: string) => {
+    if (!process.env.DEBUG) {
+        return;
+    }
+
+    console.timeEnd(name); // eslint-disable-line no-console
+    console.log(); // eslint-disable-line no-console
+};
+
 const sdk = createSdk(TOKEN, 'backtester', logger);
 const backtest = new Backtest(0, 0, true, undefined, {
     enums: {
@@ -71,7 +89,9 @@ const instrumentsForTrade = [
     // console.log('//', found[0].uid, found[0].name);
 
     for (const uid of instrumentsForTrade) {
+        debugStart('Запуск testInstrument');
         await testInstrument(uid);
+        debugEnd('Запуск testInstrument');
     }
 })();
 
@@ -82,12 +102,15 @@ async function testInstrument(instrumentUID: string) {
     const { instrument } = await instruments.getInstrumentById(instrumentUID) || {};
 
     if (instrument) {
+        debugStart('Получение свечей (candlesSdk.getCandles)');
         const historicCandlesArr = await candlesSdk.getCandles(
             instrumentUID,
             testerInterval,
             '2023.01.01',
             '2023.12.21',
         );
+
+        debugEnd('Получение свечей (candlesSdk.getCandles)');
 
         let backtestStep = 0;
 
@@ -100,6 +123,7 @@ async function testInstrument(instrumentUID: string) {
         const logSystem = new Log(instrument.ticker);
         const robot = new Robot(backtest, logSystem);
 
+        debugStart(`Обход всех свечей (makeStep), ${instrumentUID}, len ${historicCandlesArr.length}`);
         for (let candleIndex = 0; candleIndex < historicCandlesArr.length; candleIndex++) {
             backtestStep++;
             backtest.setBacktestState(backtestStep);
@@ -107,10 +131,16 @@ async function testInstrument(instrumentUID: string) {
             await robot.initStep(historicCandlesArr[candleIndex]);
             robot.makeStep();
         }
+        debugEnd(`Обход всех свечей (makeStep), ${instrumentUID}, len ${historicCandlesArr.length}`);
 
         backtest.backtestClosePosition(historicCandlesArr[historicCandlesArr.length - 1].close);
 
-        robot.printResult();
+        const result = robot.printResult();
+
+        if (process.env.DEBUG) {
+            console.log('result', result); // eslint-disable-line no-console
+            console.log(); // eslint-disable-line no-console
+        }
 
         backtest.stop();
     }

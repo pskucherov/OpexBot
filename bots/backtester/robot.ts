@@ -190,6 +190,8 @@ export class Robot {
         const resultStr = result.toFixed(2);
 
         this.logSystem.append(resultStr);
+
+        return resultStr;
     }
 
     consolePositionMessage(position: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
