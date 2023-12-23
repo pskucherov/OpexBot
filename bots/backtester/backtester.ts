@@ -5,8 +5,8 @@ import { TOKEN } from '../../token';
 // @ts-ignore
 import { Backtest } from '../../src/Common/Backtest';
 import { Instruments } from '../../components/investAPI/instruments';
-import {Robot} from "./robot";
-import {Log} from "../../components/log";
+import { Robot } from './robot';
+import { Log } from '../../components/log';
 
 // https://www.youtube.com/shorts/hi4O4CTpd5Y
 const TINKOFFTOKEN = TOKEN;
@@ -18,7 +18,7 @@ const backtest = new Backtest(0, 0, true, undefined, {
     enums: {
         OrderDirection: {
             ...sdk.OrderDirection,
-        }
+        },
     },
     brokerId: 'TINKOFF',
 });
@@ -69,11 +69,10 @@ const instrumentsForTrade = [
 ];
 
 (async () => {
-
     // const found = await instruments.findInstrument('VTBR')
     // console.log('//', found[0].uid, found[0].name);
 
-    for(const uid of instrumentsForTrade) {
+    for (const uid of instrumentsForTrade) {
         await testInstrument(uid);
     }
 })();
@@ -82,17 +81,18 @@ const candlesSdk = new Candles(sdk);
 const testerInterval = sdk.CandleInterval.CANDLE_INTERVAL_5_MIN;
 
 async function testInstrument(instrumentUID: string) {
+    const { instrument } = await instruments.getInstrumentById(instrumentUID) || {};
 
-    const { instrument } =  await instruments.getInstrumentById(instrumentUID) || {};
     if (instrument) {
         const historicCandlesArr = await candlesSdk.getCandles(
             instrumentUID,
             testerInterval,
             '2023.01.01',
-            '2023.12.21'
+            '2023.12.21',
         );
 
         let backtestStep = 0;
+
         backtest.setBacktestState(backtestStep, testerInterval, instrumentUID, undefined, {
             tickerInfo: instrument,
             type: 'instrument',
@@ -110,7 +110,7 @@ async function testInstrument(instrumentUID: string) {
             robot.makeStep();
         }
 
-        backtest.backtestClosePosition(historicCandlesArr[historicCandlesArr.length-1].close);
+        backtest.backtestClosePosition(historicCandlesArr[historicCandlesArr.length - 1].close);
 
         robot.printResult();
 

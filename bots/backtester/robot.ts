@@ -1,15 +1,14 @@
 // @ts-ignore
 import { Backtest } from '../../src/Common/Backtest';
-import {HistoricCandle} from "tinkoff-sdk-grpc-js/src/generated/marketdata";
-import {RSI} from "../../components/indicator/RSI";
-import {MA} from "../../components/indicator/MA";
-import {Common} from '../../src/Common/Common';
-import * as fs from "fs";
-import {Candle} from "../../components/investAPI/candles";
-import {Log} from "../../components/log";
+import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
+import { RSI } from '../../components/indicator/RSI';
+import { MA } from '../../components/indicator/MA';
+import { Common } from '../../src/Common/Common';
+import * as fs from 'fs';
+import { Candle } from '../../components/investAPI/candles';
+import { Log } from '../../components/log';
 
-export class Robot
-{
+export class Robot {
     tradeSystem: Backtest;
     logSystem: Log;
 
@@ -25,7 +24,6 @@ export class Robot
 
     MA: number = 0;
     PERIOD_MA: number = 200;
-
 
     constructor(tradeSystem: Backtest, logSystem: Log) {
         this.tradeSystem = tradeSystem;
@@ -51,6 +49,7 @@ export class Robot
             this.makeSell();
         } else if (this.needCloseBuy() || this.needCloseSell()) {
             let lots = 0;
+
             this.tradeSystem.getOpenedPositions().forEach(position => lots += position.lots);
             this.tradeSystem.backtestClosePosition(this.currentPrice);
             this.consolePositionMessage(this.tradeSystem.getLastPosition());
@@ -63,11 +62,13 @@ export class Robot
         } else {
             let lots = 0;
             let sumPrice = 0;
+
             this.tradeSystem.getOpenedPositions().forEach(position => {
                 sumPrice += Common.getPrice(position.price) * position.lots;
                 lots += position.lots;
-            })
+            });
             const avgPrice = sumPrice / lots;
+
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
         }
 
@@ -81,11 +82,13 @@ export class Robot
         } else {
             let lots = 0;
             let sumPrice = 0;
+
             this.tradeSystem.getOpenedPositions().forEach(position => {
                 sumPrice += Common.getPrice(position.price) * position.lots;
                 lots += position.lots;
-            })
+            });
             const avgPrice = sumPrice / lots;
+
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
         }
 
@@ -99,12 +102,12 @@ export class Robot
         const hasLowRSI = this.RSI < 30;
 
         return hasPriceDiff && hasLowRSI && (
-                !hasOpenedPosition
-                || (
-                    this.hasTimeDiff(30)
-                    && this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) < -this.PRICE_DIFF
+            !hasOpenedPosition ||
+                (
+                    this.hasTimeDiff(30) &&
+                    this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) < -this.PRICE_DIFF
                 )
-            );
+        );
     }
 
     needSell() {
@@ -113,10 +116,10 @@ export class Robot
         const hasHighRSI = this.RSI > 70;
 
         return hasPriceDiff && hasHighRSI && (
-            !hasOpenedPosition
-            || (
-                this.hasTimeDiff(30)
-                && this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) > this.PRICE_DIFF
+            !hasOpenedPosition ||
+            (
+                this.hasTimeDiff(30) &&
+                this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) > this.PRICE_DIFF
             )
         );
     }
@@ -124,10 +127,11 @@ export class Robot
     needCloseBuy() {
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const isOpenedBuy = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition().direction === 1;
-        return isOpenedBuy
-            && (
-                this.currentPrice >= this.priceToClosePosition
-                || this.MA < this.priceToClosePosition
+
+        return isOpenedBuy &&
+            (
+                this.currentPrice >= this.priceToClosePosition ||
+                this.MA < this.priceToClosePosition
             );
     }
 
@@ -135,16 +139,16 @@ export class Robot
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const isOpenedSell = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition().direction === 2;
 
-        return isOpenedSell
-            && (
-                this.currentPrice <= this.priceToClosePosition
-                || this.MA > this.priceToClosePosition
+        return isOpenedSell &&
+            (
+                this.currentPrice <= this.priceToClosePosition ||
+                this.MA > this.priceToClosePosition
             );
     }
 
     hasTimeDiff(minutes: number) {
-        return this.currentCandle?.time
-            && this.currentCandle?.time?.getTime() - this.tradeSystem.getLastOpenedPosition().time.getTime() > minutes * 60 * 1000;
+        return this.currentCandle?.time &&
+            this.currentCandle?.time?.getTime() - this.tradeSystem.getLastOpenedPosition().time.getTime() > minutes * 60 * 1000;
     }
 
     calcPercentDiff(partial: number, total: number) {
@@ -153,15 +157,17 @@ export class Robot
 
     printResult() {
         let result = 0;
+
         this.tradeSystem.getBacktestPositions()?.forEach(position => {
             if (position.direction == 1) {
                 result -= Common.getPrice(position.price) * position.lots;
             } else if (position.direction == 2) {
                 result += Common.getPrice(position.price) * position.lots;
             }
-        })
+        });
 
         const resultStr = result.toFixed(2);
+
         this.logSystem.append(resultStr);
     }
 
@@ -182,7 +188,6 @@ export class Robot
     }
 
     calcLots(price: number, moneyLimit: number) {
-        return Math.ceil(moneyLimit/price);
+        return Math.ceil(moneyLimit / price);
     }
-
 }

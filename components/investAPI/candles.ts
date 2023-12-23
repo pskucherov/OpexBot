@@ -1,6 +1,6 @@
-import { Common } from "./common";
-import { Cache } from "./../cache";
-import {Time} from "../time";
+import { Common } from './common';
+import { Cache } from './../cache';
+import { Time } from '../time';
 
 interface IProps {
     instrumentId: string;
@@ -26,14 +26,13 @@ interface Price {
     nano: number
 }
 
-export class Candles extends Common
-{
+export class Candles extends Common {
     cache: Cache = new Cache('candles');
 
     async getCandles(instrumentId: string, interval: number, from: string, to: string) {
         const toDate = new Date(to);
-        let currentDay = new Date(from);
-        let result: Candle[] = [];
+        const currentDay = new Date(from);
+        const result: Candle[] = [];
 
         while (currentDay.getTime() <= toDate.getTime()) {
             const candles = await this.getCandlesDaily({
@@ -47,6 +46,7 @@ export class Candles extends Common
             }
             currentDay.setDate(currentDay.getDate() + 1);
         }
+
         return result;
     }
 
@@ -58,7 +58,7 @@ export class Candles extends Common
         } = props;
 
         let {
-            from, 
+            from,
             to,
         } = props;
 
@@ -67,7 +67,8 @@ export class Candles extends Common
 
         if (cachedData) {
             return cachedData.map((candle: Candle) => {
-                candle.time = new Date(candle.time)
+                candle.time = new Date(candle.time);
+
                 return candle;
             });
         }

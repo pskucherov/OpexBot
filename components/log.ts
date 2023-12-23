@@ -1,9 +1,8 @@
-import fs from "fs";
-import path from "path";
+import fs from 'fs';
+import path from 'path';
 
-export class Log
-{
-    logsDir = __dirname+'/../logs';
+export class Log {
+    logsDir = __dirname + '/../logs';
     logFile: string;
     logGroup: string;
 
@@ -14,11 +13,11 @@ export class Log
     }
 
     refresh() {
-        fs.writeFileSync(this.logFile, '',{flag: 'w'});
+        fs.writeFileSync(this.logFile, '', { flag: 'w' });
     }
 
     append(data: string) {
-        fs.writeFileSync(this.logFile, data+`\n`,{flag: 'a+'});
+        fs.writeFileSync(this.logFile, data + '\n', { flag: 'a+' });
     }
 
     appendArray(data: string[]) {
@@ -26,11 +25,12 @@ export class Log
             if (str.length > 0) {
                 this.append(str);
             }
-        })
+        });
     }
 
     check_dir(file: string) {
         const dirName = path.dirname(file);
+
         if (!fs.existsSync(dirName)) {
             fs.mkdirSync(dirName, { recursive: true });
         }

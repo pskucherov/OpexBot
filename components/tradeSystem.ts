@@ -1,4 +1,3 @@
-export class TradeSystem
-{
+export class TradeSystem {
 
 }
