@@ -117,6 +117,14 @@ module.exports = {
         }],
         'no-var': 'error',
         'no-unused-vars': 'off',
+        "@typescript-eslint/no-unused-vars": [
+            "error",
+            {
+                "argsIgnorePattern": "^_",
+                "varsIgnorePattern": "^_",
+                "caughtErrorsIgnorePattern": "^_"
+            }
+        ],
         'comma-dangle': ['error', 'always-multiline'],
         'arrow-parens': ['error', 'as-needed'],
         'prefer-const': 'error',

@@ -1,3 +1,4 @@
+/* eslint-disable  @typescript-eslint/no-explicit-any */
 import { Common } from '../../src/Common/Common';
 import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
 

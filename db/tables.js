@@ -7,7 +7,7 @@ const getDBPath = () => {
 };
 
 const createTables = async db => {
-    db.on('trace', data => {
+    db.on('trace', _data => {
         // console.log('trace', data);
     });
 

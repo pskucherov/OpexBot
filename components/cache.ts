@@ -19,7 +19,7 @@ export class Cache {
         }
     }
 
-    set(key: string, data: any) {
+    set(key: string, data: any) { // eslint-disable-line
         const cacheFile = `${this.cacheDir}/${this.cacheGroup}/${key}.txt`;
         const cacheDirName = path.dirname(cacheFile);
 

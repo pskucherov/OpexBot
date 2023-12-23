@@ -14,7 +14,7 @@ function createTgBot(token, userid) {
     try {
         bot = new TelegramBot(token, { polling: true });
 
-        bot.on('polling_error', async error => {
+        bot.on('polling_error', async _error => {
             // await bot.close();
             bot = undefined;
         });

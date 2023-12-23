@@ -73,7 +73,11 @@ export class Robot {
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
         }
 
-        this.tradeSystem.backtestBuy(this.currentPrice, this.calcLots(this.currentPrice, this.MONEY_LIMIT), this.currentCandle?.time);
+        this.tradeSystem.backtestBuy(
+            this.currentPrice,
+            this.calcLots(this.currentPrice, this.MONEY_LIMIT),
+            this.currentCandle?.time,
+        );
         this.consolePositionMessage(this.tradeSystem.getLastOpenedPosition());
     }
 
@@ -93,7 +97,11 @@ export class Robot {
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
         }
 
-        this.tradeSystem.backtestSell(this.currentPrice, this.calcLots(this.currentPrice, this.MONEY_LIMIT), this.currentCandle?.time);
+        this.tradeSystem.backtestSell(
+            this.currentPrice,
+            this.calcLots(this.currentPrice, this.MONEY_LIMIT),
+            this.currentCandle?.time,
+        );
         this.consolePositionMessage(this.tradeSystem.getLastOpenedPosition());
     }
 
@@ -123,7 +131,10 @@ export class Robot {
             !hasOpenedPosition ||
             (
                 this.hasTimeDiff(30) &&
-                this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) > this.PRICE_DIFF
+                this.calcPercentDiff(
+                    this.currentPrice,
+                    Common.getPrice(this.tradeSystem.getLastOpenedPosition().price),
+                ) > this.PRICE_DIFF
             )
         );
     }
@@ -181,7 +192,7 @@ export class Robot {
         this.logSystem.append(resultStr);
     }
 
-    consolePositionMessage(position: any) {
+    consolePositionMessage(position: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
         const positionType = position.direction === 1 ? 'Покупка' : 'Продажа';
         const date = this.currentCandle?.time;
         const rsiStr = this.RSI ? `RSI: ${this.RSI}` : '';

@@ -55,15 +55,15 @@ try {
                 });
             } else if (this.currentPortfolio && this.takeProfit) {
                 // Срабатывает для любой позиции без привязки к instrumentId
-                this.currentPortfolio.positions.forEach(async p => {
-                    // let lots = Number(p.quantityLots.units / 2);
+                // this.currentPortfolio.positions.forEach(async p => {
+                // let lots = Number(p.quantityLots.units / 2);
 
-                    // if (lots < 1) {
-                    //     lots = 1;
-                    // }
+                // if (lots < 1) {
+                //     lots = 1;
+                // }
 
-                    //  await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.instrumentId, lots, 'TP');
-                });
+                //  await this.sell(this.getTakeProfitPrice(1, p.averagePositionPrice), p.instrumentId, lots, 'TP');
+                // });
             }
         }
 
@@ -78,15 +78,15 @@ try {
                 }
             } else if (this.currentPortfolio && this.stopLoss) {
                 // Срабатывает для любой позиции без привязки к instrumentId
-                this.currentPortfolio.positions.forEach(async p => {
-                    // let lots = Number(p.quantityLots.units / 2);
+                // this.currentPortfolio.positions.forEach(async p => {
+                // let lots = Number(p.quantityLots.units / 2);
 
-                    // if (lots < 1) {
-                    //     lots = 1;
-                    // }
+                // if (lots < 1) {
+                //     lots = 1;
+                // }
 
-                    // await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), p.instrumentId, lots, 'SL');
-                });
+                // await this.sell(this.getStopLossPrice(1, p.averagePositionPrice), p.instrumentId, lots, 'SL');
+                // });
             }
         }
 
