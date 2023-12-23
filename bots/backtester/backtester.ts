@@ -8,12 +8,9 @@ import { Instruments } from '../../components/investAPI/instruments';
 import { Robot } from './robot';
 import { Log } from '../../components/log';
 
-// https://www.youtube.com/shorts/hi4O4CTpd5Y
-const TINKOFFTOKEN = TOKEN;
-
 const logger = (a?: any, b?: any, c?: any) => console.log(a || '', b || '', c || '');
 
-const sdk = createSdk(TINKOFFTOKEN, 'backtester', logger);
+const sdk = createSdk(TOKEN, 'backtester', logger);
 const backtest = new Backtest(0, 0, true, undefined, {
     enums: {
         OrderDirection: {

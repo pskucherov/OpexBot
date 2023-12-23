@@ -1,10 +1,12 @@
 // @ts-ignore
 import { Backtest } from '../../src/Common/Backtest';
-import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
+
+// import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
 import { RSI } from '../../components/indicator/RSI';
 import { MA } from '../../components/indicator/MA';
 import { Common } from '../../src/Common/Common';
-import * as fs from 'fs';
+
+// import * as fs from 'fs';
 import { Candle } from '../../components/investAPI/candles';
 import { Log } from '../../components/log';
 
