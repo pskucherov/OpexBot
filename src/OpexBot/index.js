@@ -1,5 +1,5 @@
-const { throws } = require('assert');
-const { parse } = require('path');
+// const { throws } = require('assert');
+// const { parse } = require('path');
 
 try {
     const { Backtest } = require('../Common/Backtest');
@@ -29,12 +29,12 @@ try {
                 return;
             }
 
-            this.tgBot.onText(/продать вс[ёе]/igm, msg => {
+            this.tgBot.onText(/продать вс[ёе]/igm, () => {
                 this.stopLossPosition();
             });
         }
 
-        async sendTgEvents(type, data) {
+        async sendTgEvents(type) {
             if (!this.tgBot) {
                 return;
             }

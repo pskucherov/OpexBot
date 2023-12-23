@@ -7,8 +7,10 @@ module.exports = {
         es6: true,
         commonjs: true,
     },
+    parser: '@typescript-eslint/parser',
     parserOptions: {
         ecmaVersion: 2022,
+        project: ['./tsconfig.json'],
     },
     globals: {
         console: false,
@@ -20,8 +22,10 @@ module.exports = {
         'plugin:import/warnings',
         'plugin:sonarjs/recommended',
         'plugin:promise/recommended',
+        'plugin:@typescript-eslint/recommended',
+        "plugin:import/typescript",
     ],
-    plugins: ['optimize-regex', 'sonarjs', 'no-loops', 'no-use-extend-native', 'promise', 'eslint-plugin-react'],
+    plugins: ['optimize-regex', 'sonarjs', 'no-loops', 'no-use-extend-native', 'promise', 'eslint-plugin-react', '@typescript-eslint'],
     rules: {
         'valid-jsdoc': 'off',
         semi: ['error', 'always', { omitLastInOneLineBlock: true }],
@@ -113,6 +117,14 @@ module.exports = {
         }],
         'no-var': 'error',
         'no-unused-vars': 'off',
+        "@typescript-eslint/no-unused-vars": [
+            "error",
+            {
+                "argsIgnorePattern": "^_",
+                "varsIgnorePattern": "^_",
+                "caughtErrorsIgnorePattern": "^_"
+            }
+        ],
         'comma-dangle': ['error', 'always-multiline'],
         'arrow-parens': ['error', 'as-needed'],
         'prefer-const': 'error',
@@ -120,6 +132,11 @@ module.exports = {
         'react/jsx-uses-react': 'error',
         'react/jsx-uses-vars': 'error',
         'sonarjs/cognitive-complexity': ['error', 50],
+        '@typescript-eslint/no-var-requires': 0,
+        '@typescript-eslint/ban-ts-comment': 'off',
     },
-    ignorePatterns: ['node_modules/*'],
+    ignorePatterns: [
+        'node_modules/*',
+        '.eslintrc.js',
+    ],
 };

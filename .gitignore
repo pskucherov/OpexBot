@@ -1,5 +1,6 @@
 # Logs
 logs
+cache
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -100,6 +101,8 @@ dist
 # DynamoDB Local files
 .dynamodb/
 
+.idea
+
 # TernJS port file
 .tern-port
 
@@ -112,3 +115,5 @@ orders/*
 package-lock.json
 
 db/data
+
+config.ts

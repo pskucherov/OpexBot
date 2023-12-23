@@ -84,6 +84,6 @@ import { DeepPartial, MarketDataRequest, SubscriptionAction } from 'tinkoff-sdk-
     const response = marketDataStream.marketDataStream(createLastPriceRequest());
 
     for await (const num of response) {
-        console.log(JSON.stringify(num, null, 4));
+        console.log(JSON.stringify(num, null, 4)); // eslint-disable-line no-console
     }
 })();

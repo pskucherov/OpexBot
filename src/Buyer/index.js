@@ -58,9 +58,9 @@ try {
         }
 
         async buy() {
-            function getRandomInt(max) {
-                return Math.floor(Math.random() * max);
-            }
+            // function getRandomInt(max) {
+            //     return Math.floor(Math.random() * max);
+            // }
 
             function shuffle(array) {
                 let currentIndex = array.length,
@@ -86,7 +86,8 @@ try {
 
             newChips.price = this.getPrice(
                 lastPrices.find(l => l.instrumentId === newChips.instrumentId).price) * newChips.lot;
-            const lot = getRandomInt(4) + 1;
+
+            // const lot = getRandomInt(4) + 1;
         }
 
         async sell() {
@@ -114,7 +115,7 @@ try {
                 });
             } else if (this.currentPortfolio && this.takeProfit) {
                 // Срабатывает для любой позиции без привязки к instrumentId
-                this.currentPortfolio.positions.forEach(async p => {
+                this.currentPortfolio.positions.forEach(async _p => {
                     // let lots = Number(p.quantityLots.units / 2);
 
                     // if (lots < 1) {
@@ -137,7 +138,7 @@ try {
                 }
             } else if (this.currentPortfolio && this.stopLoss) {
                 // Срабатывает для любой позиции без привязки к instrumentId
-                this.currentPortfolio.positions.forEach(async p => {
+                this.currentPortfolio.positions.forEach(async _p => {
                     // let lots = Number(p.quantityLots.units / 2);
 
                     // if (lots < 1) {

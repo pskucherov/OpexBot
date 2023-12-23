@@ -36,7 +36,7 @@ try {
             };
         }
 
-        backtestBuy(price, lots) {
+        backtestBuy(price, lots, time) {
             this.backtestPositions.push({
                 id: this.genOrderId(),
                 parentId: '',
@@ -44,6 +44,7 @@ try {
                 price: price,
                 averagePositionPrice: price,
                 lots: lots || this.lotsSize,
+                time: time,
                 direction: this.enums.OrderDirection.ORDER_DIRECTION_BUY,
                 quantity: {
                     units: this.tickerInfo.lot,
@@ -52,8 +53,25 @@ try {
             });
         }
 
-        backtestClosePosition(price, lots) {
-            for (const p of this.backtestPositions) {
+        backtestSell(price, lots, time) {
+            this.backtestPositions.push({
+                id: this.genOrderId(),
+                parentId: '',
+                step: this.step,
+                price: price,
+                averagePositionPrice: price,
+                lots: lots || this.lotsSize,
+                time: time,
+                direction: this.enums.OrderDirection.ORDER_DIRECTION_SELL,
+                quantity: {
+                    units: this.tickerInfo.lot,
+                },
+                closed: false,
+            });
+        }
+
+        backtestClosePosition(price) {
+            for (const p of this.getOpenedPositions()) {
                 if (!p.closed) {
                     p.closed = true;
 
@@ -63,20 +81,19 @@ try {
                         step: this.step,
                         price: price,
                         averagePositionPrice: price,
-                        lots: lots || this.lotsSize,
+                        lots: p.lots || this.lotsSize,
                         quantity: {
                             units: this.tickerInfo.lot,
                         },
-                        direction: this.enums.OrderDirection.ORDER_DIRECTION_SELL,
+                        direction: p.direction === this.enums.OrderDirection.ORDER_DIRECTION_BUY ?
+                            this.enums.OrderDirection.ORDER_DIRECTION_SELL :
+                            this.enums.OrderDirection.ORDER_DIRECTION_BUY,
                         expectedYield: {
                             units: price.units - p.price.units,
                             nano: price.nano - p.price.nano,
                         },
                         closed: true,
                     });
-
-                    // Считаем, что может быть только одна открытая сделка, поэтому выходим.
-                    return;
                 }
             }
         }
@@ -97,6 +114,32 @@ try {
             }
 
             return false;
+        }
+
+        getOpenedPositions() {
+            if (!this.hasBacktestOpenPositions()) {
+                return [];
+            }
+
+            return this.backtestPositions.filter(position => !position.closed);
+        }
+
+        getLastOpenedPosition() {
+            if (!this.hasBacktestOpenPositions()) {
+                return undefined;
+            }
+
+            const openedPositions = this.getOpenedPositions();
+
+            return openedPositions[openedPositions.length - 1];
+        }
+
+        getLastPosition() {
+            if (!this.backtestPositions.length) {
+                return undefined;
+            }
+
+            return this.backtestPositions[this.backtestPositions.length - 1];
         }
 
         stop() {

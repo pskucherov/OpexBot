@@ -7,12 +7,16 @@ try {
     class Common {
         static settingsFileName = 'settings.json';
 
-        constructor(accountId, adviser, backtest, callbacks = {
+        constructor(accountId, _adviser, backtest, callbacks = {
             subscribes: {},
 
             // TODO: порефакторить количество параметров
-            postOrder: (accountId, instrumentId, quantity, price, direction, orderType, orderId) => { }, // eslint-disable-line max-params
-            cacheState: (instrumentId, time, lastPrice, orderBook) => { },
+            postOrder: (
+                // accountId, instrumentId, quantity, price, direction, orderType, orderId
+            ) => { }, // eslint-disable-line max-params
+            cacheState: (
+                // instrumentId, time, lastPrice, orderBook
+            ) => { },
         }, options = {
             enums: {},
             brokerId: '',
@@ -218,7 +222,7 @@ try {
         }
 
         getSubscribeOptions() {
-            const abortSubscribe = (type, abort) => {
+            const abortSubscribe = (_type, abort) => {
                 if (!this.inProgress) {
                     abort();
                 }
@@ -1370,7 +1374,8 @@ try {
          * @returns
          */
         setCurrentSettings(settings) {
-            const current = Common.setSettings(this.name, settings, this.accountId, this.getFileName());
+            // const current =
+            Common.setSettings(this.name, settings, this.accountId, this.getFileName());
 
             this.getCurrentSettings();
         }
