@@ -22,7 +22,7 @@
     "noImplicitThis": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
     "jsx": "preserve",
     "incremental": true,
     "outDir": "./build",

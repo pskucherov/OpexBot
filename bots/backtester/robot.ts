@@ -4,17 +4,21 @@ import {HistoricCandle} from "tinkoff-sdk-grpc-js/src/generated/marketdata";
 import {RSI} from "../../components/indicator/RSI";
 import {MA} from "../../components/indicator/MA";
 import {Common} from '../../src/Common/Common';
+import * as fs from "fs";
+import {Candle} from "../../components/investAPI/candles";
+import {Log} from "../../components/log";
 
 export class Robot
 {
-    backtest: Backtest;
+    tradeSystem: Backtest;
+    logSystem: Log;
 
-    candles: HistoricCandle[] = [];
-    currentCandle?: HistoricCandle = undefined;
+    candles: Candle[] = [];
+    currentCandle?: Candle = undefined;
     currentPrice: number = 0;
     priceToClosePosition: number = 0;
     PRICE_DIFF: number = 2;
-    LOTS: number = 1;
+    MONEY_LIMIT: number = 100000;
 
     RSI: number = 0;
     PERIOD_RSI: number = 30;
@@ -23,11 +27,13 @@ export class Robot
     PERIOD_MA: number = 200;
 
 
-    constructor(backtest: Backtest) {
-        this.backtest = backtest;
+    constructor(tradeSystem: Backtest, logSystem: Log) {
+        this.tradeSystem = tradeSystem;
+        this.logSystem = logSystem;
+        this.logSystem.refresh();
     }
 
-    async initStep(currentCandle: HistoricCandle) {
+    async initStep(currentCandle: Candle) {
         this.candles.push(currentCandle);
         this.currentCandle = currentCandle;
         this.currentPrice = Common.getPrice(currentCandle.close);
@@ -45,19 +51,19 @@ export class Robot
             this.makeSell();
         } else if (this.needCloseBuy() || this.needCloseSell()) {
             let lots = 0;
-            this.backtest.getOpenedPositions().forEach(position => lots += position.lots);
-            this.backtest.backtestClosePosition(this.currentPrice);
-            this.consolePositionMessage(this.backtest.getLastPosition());
+            this.tradeSystem.getOpenedPositions().forEach(position => lots += position.lots);
+            this.tradeSystem.backtestClosePosition(this.currentPrice);
+            this.consolePositionMessage(this.tradeSystem.getLastPosition());
         }
     }
 
     makeBuy() {
-        if (!this.backtest.hasBacktestOpenPositions()) {
+        if (!this.tradeSystem.hasBacktestOpenPositions()) {
             this.priceToClosePosition = (this.currentPrice + this.MA) / 2;
         } else {
             let lots = 0;
             let sumPrice = 0;
-            this.backtest.getOpenedPositions().forEach(position => {
+            this.tradeSystem.getOpenedPositions().forEach(position => {
                 sumPrice += Common.getPrice(position.price) * position.lots;
                 lots += position.lots;
             })
@@ -65,17 +71,17 @@ export class Robot
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
         }
 
-        this.backtest.backtestBuy(this.currentPrice, this.LOTS, this.currentCandle?.time);
-        this.consolePositionMessage(this.backtest.getLastOpenedPosition());
+        this.tradeSystem.backtestBuy(this.currentPrice, this.calcLots(this.currentPrice, this.MONEY_LIMIT), this.currentCandle?.time);
+        this.consolePositionMessage(this.tradeSystem.getLastOpenedPosition());
     }
 
     makeSell() {
-        if (!this.backtest.hasBacktestOpenPositions()) {
+        if (!this.tradeSystem.hasBacktestOpenPositions()) {
             this.priceToClosePosition = (this.currentPrice + this.MA) / 2;
         } else {
             let lots = 0;
             let sumPrice = 0;
-            this.backtest.getOpenedPositions().forEach(position => {
+            this.tradeSystem.getOpenedPositions().forEach(position => {
                 sumPrice += Common.getPrice(position.price) * position.lots;
                 lots += position.lots;
             })
@@ -83,12 +89,12 @@ export class Robot
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
         }
 
-        this.backtest.backtestSell(this.currentPrice, this.LOTS, this.currentCandle?.time);
-        this.consolePositionMessage(this.backtest.getLastOpenedPosition());
+        this.tradeSystem.backtestSell(this.currentPrice, this.calcLots(this.currentPrice, this.MONEY_LIMIT), this.currentCandle?.time);
+        this.consolePositionMessage(this.tradeSystem.getLastOpenedPosition());
     }
 
     needBuy() {
-        const hasOpenedPosition = this.backtest.hasBacktestOpenPositions();
+        const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const hasPriceDiff = this.calcPercentDiff(this.currentPrice, this.MA) < -this.PRICE_DIFF;
         const hasLowRSI = this.RSI < 30;
 
@@ -96,13 +102,13 @@ export class Robot
                 !hasOpenedPosition
                 || (
                     this.hasTimeDiff(30)
-                    && this.calcPercentDiff(this.currentPrice, Common.getPrice(this.backtest.getLastOpenedPosition().price)) < -this.PRICE_DIFF
+                    && this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) < -this.PRICE_DIFF
                 )
             );
     }
 
     needSell() {
-        const hasOpenedPosition = this.backtest.hasBacktestOpenPositions();
+        const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const hasPriceDiff = this.calcPercentDiff(this.currentPrice, this.MA) > this.PRICE_DIFF;
         const hasHighRSI = this.RSI > 70;
 
@@ -110,14 +116,14 @@ export class Robot
             !hasOpenedPosition
             || (
                 this.hasTimeDiff(30)
-                && this.calcPercentDiff(this.currentPrice, Common.getPrice(this.backtest.getLastOpenedPosition().price)) > this.PRICE_DIFF
+                && this.calcPercentDiff(this.currentPrice, Common.getPrice(this.tradeSystem.getLastOpenedPosition().price)) > this.PRICE_DIFF
             )
         );
     }
 
     needCloseBuy() {
-        const hasOpenedPosition = this.backtest.hasBacktestOpenPositions();
-        const isOpenedBuy = hasOpenedPosition && this.backtest.getLastOpenedPosition().direction === 1;
+        const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
+        const isOpenedBuy = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition().direction === 1;
         return isOpenedBuy
             && (
                 this.currentPrice >= this.priceToClosePosition
@@ -126,8 +132,8 @@ export class Robot
     }
 
     needCloseSell() {
-        const hasOpenedPosition = this.backtest.hasBacktestOpenPositions();
-        const isOpenedSell = hasOpenedPosition && this.backtest.getLastOpenedPosition().direction === 2;
+        const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
+        const isOpenedSell = hasOpenedPosition && this.tradeSystem.getLastOpenedPosition().direction === 2;
 
         return isOpenedSell
             && (
@@ -138,7 +144,7 @@ export class Robot
 
     hasTimeDiff(minutes: number) {
         return this.currentCandle?.time
-            && this.currentCandle?.time?.getTime() - this.backtest.getLastOpenedPosition().time.getTime() > minutes * 60 * 1000;
+            && this.currentCandle?.time?.getTime() - this.tradeSystem.getLastOpenedPosition().time.getTime() > minutes * 60 * 1000;
     }
 
     calcPercentDiff(partial: number, total: number) {
@@ -147,7 +153,7 @@ export class Robot
 
     printResult() {
         let result = 0;
-        this.backtest.getBacktestPositions()?.forEach(position => {
+        this.tradeSystem.getBacktestPositions()?.forEach(position => {
             if (position.direction == 1) {
                 result -= Common.getPrice(position.price) * position.lots;
             } else if (position.direction == 2) {
@@ -155,20 +161,28 @@ export class Robot
             }
         })
 
-        console.log(result.toFixed(2));
+        const resultStr = result.toFixed(2);
+        this.logSystem.append(resultStr);
     }
 
     consolePositionMessage(position: any) {
         const positionType = position.direction === 1 ? 'Покупка' : 'Продажа';
         const date = this.currentCandle?.time;
-        const rsiStr = this.RSI ? `
-RSI: ${this.RSI}` : '';
-        const priceToCloseStr = this.priceToClosePosition ? `
-Цена закрытия: ${this.priceToClosePosition}` : '';
-        console.log(`${positionType}
-Цена: ${position.price}
-Дата: ${date}${rsiStr}${priceToCloseStr}
-`);
+        const rsiStr = this.RSI ? `RSI: ${this.RSI}` : '';
+        const priceToCloseStr = this.priceToClosePosition ? `Цена закрытия: ${this.priceToClosePosition}` : '';
+
+        this.logSystem.appendArray([
+            positionType,
+            `Цена: ${position.price}`,
+            `Дата: ${date}`,
+            rsiStr,
+            priceToCloseStr,
+            ' ',
+        ]);
+    }
+
+    calcLots(price: number, moneyLimit: number) {
+        return Math.ceil(moneyLimit/price);
     }
 
 }

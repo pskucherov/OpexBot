@@ -14,6 +14,9 @@ export class Instruments extends Common {
         return await this.sdk.instruments.findInstrument({
             query: query,
             instrumentKind: InstrumentType.INSTRUMENT_TYPE_SHARE,
+        }).then(found => {
+            return found.instruments
+                .filter(instrument => instrument.first1minCandleDate && instrument.apiTradeAvailableFlag)
         });
     }
 }

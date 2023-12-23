@@ -1,5 +1,6 @@
 # Logs
 logs
+cache
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -114,3 +115,5 @@ orders/*
 package-lock.json
 
 db/data
+
+token.ts
