@@ -2,7 +2,7 @@ import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 import { PortfolioPosition } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
 import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 
-const { Common } = require('./Common');
+const Common = require('./Common');
 
 interface IBacktestPositions extends PortfolioPosition {
     id: string;

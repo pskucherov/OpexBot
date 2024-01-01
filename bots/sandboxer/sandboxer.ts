@@ -9,7 +9,7 @@ import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tin
 // const TGBOTTOKEN = '';
 // const TGUSERID = '';
 
-let keepCalling = true;
+const keepCalling = true;
 
 // setTimeout(function() {
 //     keepCalling = false;
@@ -81,7 +81,8 @@ interface IAccountsIds {
 
 (async () => {
     const account = new Accounts(sdk);
-    await account.closeAll()
+
+    await account.closeAll();
 
     // Создаём для каждого инструмента отдельный счёт в песочнице и пополняем на payInAmount.
     // const accountsIds =
@@ -106,7 +107,6 @@ interface IAccountsIds {
 
     // console.log('accountsIds', accountsIds);
     // console.log(await account.list());
-
 
     //генератор подписки на свечи
     async function* createSubscriptionCandleRequest(): AsyncIterable<DeepPartial<MarketDataRequest>> {
@@ -136,5 +136,4 @@ interface IAccountsIds {
             console.log(JSON.stringify(num, null, 4)); // eslint-disable-line no-console
         }
     }
-
 })();
