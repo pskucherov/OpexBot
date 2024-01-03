@@ -1,6 +1,6 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { Common } from '../../src/Common/Common';
-import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
+import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // @ts-ignore
 import NodeRSI from 'node-rsi';
@@ -13,7 +13,12 @@ export class RSI {
 
         let result = '0';
 
-        const data = candles.map(m => Common.getPrice(m.close)).slice(-period - 1).reverse();
+        const data = candles
+            .filter(m => typeof m.close !== 'undefined')
+            .map(m => Common.getPrice(m.close))
+            .slice(-period - 1)
+            .reverse();
+
         const rsi: NodeRSI = new NodeRSI(data, period);
 
         let rsiData: any = await (new Promise(resolve => {

@@ -139,5 +139,6 @@ module.exports = {
         'node_modules/*',
         '.eslintrc.js',
         "src/Common/Backtest.js",
+        "src/Common/Common.js",
     ],
 };

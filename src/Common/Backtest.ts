@@ -1,14 +1,14 @@
-import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 import { PortfolioPosition } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
 import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 
 const Common = require('./Common');
 
-interface IBacktestPositions extends PortfolioPosition {
+export interface IBacktestPositions extends PortfolioPosition {
     id: string;
     parentId: string;
     step: number;
-    price: MoneyValue;
+    price: MoneyValue | Quotation;
     lots: number;
     time?: Date;
     closed: boolean;
@@ -57,7 +57,11 @@ export class Backtest extends Common {
         };
     }
 
-    backtestBuy(price: MoneyValue, lots: number, time: Date) {
+    backtestBuy(price: MoneyValue | Quotation | undefined, lots: number, time: Date) {
+        if (typeof price === 'undefined') {
+            throw 'backtestBuy undefined price';
+        }
+
         this.backtestPositions.push({
             id: this.genOrderId(),
             parentId: '',
@@ -90,7 +94,11 @@ export class Backtest extends Common {
         });
     }
 
-    backtestSell(price: MoneyValue, lots: number, time: Date) {
+    backtestSell(price: MoneyValue | Quotation | undefined, lots: number, time: Date) {
+        if (typeof price === 'undefined') {
+            throw 'backtestBuy undefined price';
+        }
+
         this.backtestPositions.push({
             id: this.genOrderId(),
             parentId: '',
@@ -123,7 +131,11 @@ export class Backtest extends Common {
         });
     }
 
-    backtestClosePosition(price: MoneyValue) {
+    backtestClosePosition(price?: MoneyValue | Quotation) {
+        if (!price) {
+            return;
+        }
+
         for (const p of this.getOpenedPositions()) {
             if (!p.closed) {
                 p.closed = true;

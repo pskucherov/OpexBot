@@ -1,22 +1,20 @@
-import { Backtest } from '../../src/Common/Backtest';
+import { Backtest, IBacktestPositions } from '../../src/Common/Backtest';
 
-// import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
 import { RSI } from '../../components/indicator/RSI';
 import { MA } from '../../components/indicator/MA';
 import { Common } from '../../src/Common/Common';
 
-// import * as fs from 'fs';
-import { Candle } from '../../components/investAPI/candles';
 import { Log } from '../../components/log';
-import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 export class Robot {
     tradeSystem: Backtest;
     logSystem: Log;
 
-    candles: Candle[] = [];
-    currentCandle?: Candle = undefined;
-    currentPriceMoneyValue: MoneyValue = { units: 0, nano: 0, currency: '' };
+    candles: HistoricCandle[] = [];
+    currentCandle?: HistoricCandle = undefined;
+    currentPriceMoneyValue: MoneyValue | Quotation | undefined = { units: 0, nano: 0, currency: '' };
     currentPrice: number = 0;
     priceToClosePosition: number = 0;
     PRICE_DIFF: number = 2;
@@ -34,11 +32,15 @@ export class Robot {
         this.logSystem.refresh();
     }
 
-    async initStep(currentCandle: Candle) {
+    async initStep(currentCandle: HistoricCandle) {
+        if (!currentCandle) {
+            return;
+        }
+
         this.candles.push(currentCandle);
         this.currentCandle = currentCandle;
         this.currentPriceMoneyValue = currentCandle.close;
-        this.currentPrice = Common.getPrice(currentCandle.close);
+        this.currentPrice = Common.getPrice(currentCandle.close) || 0;
 
         if (this.candles.length > this.PERIOD_RSI && this.candles.length > this.PERIOD_MA) {
             this.RSI = await RSI.calculate(this.candles.slice(-this.PERIOD_RSI - 1), this.PERIOD_RSI) || 0;
@@ -60,6 +62,29 @@ export class Robot {
         }
     }
 
+    calcSumPriceAndLots(positions: IBacktestPositions[]) {
+        const defaultVals = {
+            lots: 0,
+            sumPrice: 0,
+        };
+
+        return positions?.reduce<{
+            lots: number;
+            sumPrice: number;
+        }>((acc, position) => {
+            const price = Common.getPrice(position.price);
+
+            if (typeof price === 'undefined') {
+                return acc;
+            }
+
+            acc.sumPrice += price * position.lots;
+            acc.lots += position.lots;
+
+            return acc;
+        }, defaultVals) || defaultVals;
+    }
+
     makeBuy() {
         if (!this.currentCandle?.time) {
             throw 'Нет времени в this.currentCandle?.time';
@@ -68,13 +93,7 @@ export class Robot {
         if (!this.tradeSystem.hasBacktestOpenPositions()) {
             this.priceToClosePosition = (this.currentPrice + this.MA) / 2;
         } else {
-            let lots = 0;
-            let sumPrice = 0;
-
-            this.tradeSystem.getOpenedPositions().forEach(position => {
-                sumPrice += Common.getPrice(position.price) * position.lots;
-                lots += position.lots;
-            });
+            const { lots, sumPrice } = this.calcSumPriceAndLots(this.tradeSystem.getOpenedPositions());
             const avgPrice = sumPrice / lots;
 
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
@@ -96,13 +115,8 @@ export class Robot {
         if (!this.tradeSystem.hasBacktestOpenPositions()) {
             this.priceToClosePosition = (this.currentPrice + this.MA) / 2;
         } else {
-            let lots = 0;
-            let sumPrice = 0;
+            const { lots, sumPrice } = this.calcSumPriceAndLots(this.tradeSystem.getOpenedPositions());
 
-            this.tradeSystem.getOpenedPositions().forEach(position => {
-                sumPrice += Common.getPrice(position.price) * position.lots;
-                lots += position.lots;
-            });
             const avgPrice = sumPrice / lots;
 
             this.priceToClosePosition = (avgPrice + this.MA) / 2;
@@ -120,14 +134,15 @@ export class Robot {
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const hasPriceDiff = this.calcPercentDiff(this.currentPrice, this.MA) < -this.PRICE_DIFF;
         const hasLowRSI = this.RSI < 30;
+        const price = Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price);
 
-        return hasPriceDiff && hasLowRSI && (
+        return hasPriceDiff && hasLowRSI && typeof price !== 'undefined' && (
             !hasOpenedPosition ||
             (
                 this.hasTimeDiff(30) &&
                 this.calcPercentDiff(
                     this.currentPrice,
-                    Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price),
+                    price,
                 ) < -this.PRICE_DIFF
             )
         );
@@ -137,14 +152,15 @@ export class Robot {
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const hasPriceDiff = this.calcPercentDiff(this.currentPrice, this.MA) > this.PRICE_DIFF;
         const hasHighRSI = this.RSI > 70;
+        const price = Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price);
 
-        return hasPriceDiff && hasHighRSI && (
+        return hasPriceDiff && hasHighRSI && typeof price !== 'undefined' && (
             !hasOpenedPosition ||
             (
                 this.hasTimeDiff(30) &&
                 this.calcPercentDiff(
                     this.currentPrice,
-                    Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price),
+                    price,
                 ) > this.PRICE_DIFF
             )
         );
@@ -195,10 +211,16 @@ export class Robot {
         let result = 0;
 
         this.tradeSystem.getBacktestPositions()?.forEach(position => {
+            const price = Common.getPrice(position.price);
+
+            if (typeof price === 'undefined') {
+                return;
+            }
+
             if (position.direction === 1) {
-                result -= Common.getPrice(position.price) * position.lots;
+                result -= price * position.lots;
             } else if (position.direction === 2) {
-                result += Common.getPrice(position.price) * position.lots;
+                result += price * position.lots;
             }
         });
 

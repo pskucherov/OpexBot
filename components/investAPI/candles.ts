@@ -1,8 +1,7 @@
-import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
-
 import { Common } from './common';
 import { Cache } from './../cache';
 import { Time } from '../time';
+import { Candle, HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 interface IProps {
     instrumentId: string;
@@ -13,23 +12,13 @@ interface IProps {
     limit?: number;
 }
 
-export interface Candle {
-    open: MoneyValue,
-    high: MoneyValue,
-    low: MoneyValue,
-    close: MoneyValue,
-    volume: number,
-    time: Date,
-    isComplete: boolean
-}
-
 export class Candles extends Common {
     cache: Cache = new Cache('candles');
 
     async getCandles(instrumentId: string, interval: number, from: string, to: string) {
         const toDate = new Date(to);
         const currentDay = new Date(from);
-        const result: Candle[] = [];
+        const result: HistoricCandle[] = [];
 
         while (currentDay.getTime() <= toDate.getTime()) {
             const candles = await this.getCandlesDaily({
@@ -63,8 +52,8 @@ export class Candles extends Common {
         const cachedData = this.cache.get(cacheKey);
 
         if (cachedData) {
-            return cachedData.map((candle: Candle) => {
-                candle.time = new Date(candle.time);
+            return cachedData.map((candle: Candle | HistoricCandle) => {
+                candle.time = candle.time && new Date(candle.time);
 
                 return candle;
             });

@@ -1,5 +1,11 @@
 // @ts-nocheck
-import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+/* eslint @typescript-eslint/no-explicit-any: 0 */
+/* eslint @typescript-eslint/no-unused-vars: 0 */
+/* eslint @typescript-eslint/ban-types: 0 */
+/* eslint max-len: 0 */
+/* eslint sonarjs/no-duplicate-string: 0 */
+
+import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
 const { mkDirByPathSync } = require('../utils');
 const path = require('path');
@@ -687,7 +693,7 @@ export class Common {
         };
     }
 
-    static getPrice(quotation: { nano: number; units: any; }) {
+    static getPrice(quotation?: MoneyValue | Quotation) {
         if (!quotation || typeof quotation !== 'object') {
             return quotation;
         }
@@ -699,7 +705,7 @@ export class Common {
         return quotation.units;
     }
 
-    getPrice(quotation: any) {
+    getPrice(quotation?: MoneyValue | Quotation) {
         return Common.getPrice(quotation);
     }
 
@@ -1562,60 +1568,71 @@ export class Common {
             const { totalStartSharesAmount,
                 expectedYield,
                 totalNowSharesAmount,
-            } = positions.reduce((prev: { totalNowSharesAmount: number; totalStartSharesAmount: number; expectedYield: any; }, current: { instrumentType: string; averagePositionPrice: any; quantity: any; expectedYield: any; instrumentId: string | number; }) => {
-                if (current?.instrumentType !== type) {
-                    return prev;
-                }
+            } = positions.reduce(
+                (
+                    prev: {
+                        totalNowSharesAmount: number; totalStartSharesAmount: number; expectedYield: any;
+                    },
+                    current: {
+                        instrumentType: string; averagePositionPrice: any; quantity: any; expectedYield: any; instrumentId: string | number;
+                    },
+                ) => {
+                    if (current?.instrumentType !== type) {
+                        return prev;
+                    }
 
-                const avgPrice = this.getPrice(current.averagePositionPrice) *
-                    Math.abs(this.getPrice(current.quantity));
-
-                const expectedYield = this.getPrice(current.expectedYield);
-
-                if (this[current.instrumentId]?.lastPrice) {
-                    prev.totalNowSharesAmount += this.getPrice(this[current.instrumentId]?.lastPrice) *
+                    const avgPrice = this.getPrice(current.averagePositionPrice) *
                         Math.abs(this.getPrice(current.quantity));
-                } else {
-                    prev.totalNowSharesAmount += avgPrice + expectedYield;
-                }
 
-                prev.totalStartSharesAmount += avgPrice;
-                prev.expectedYield += expectedYield;
+                    const expectedYield = this.getPrice(current.expectedYield);
 
-                return prev;
-            }, {
-                totalStartSharesAmount: 0,
-                totalNowSharesAmount: 0,
-                expectedYield: 0,
-            }) || {};
+                    if (this[current.instrumentId]?.lastPrice) {
+                        prev.totalNowSharesAmount += this.getPrice(this[current.instrumentId]?.lastPrice) *
+                            Math.abs(this.getPrice(current.quantity));
+                    } else {
+                        prev.totalNowSharesAmount += avgPrice + expectedYield;
+                    }
+
+                    prev.totalStartSharesAmount += avgPrice;
+                    prev.expectedYield += expectedYield;
+
+                    return prev;
+                }, {
+                    totalStartSharesAmount: 0,
+                    totalNowSharesAmount: 0,
+                    expectedYield: 0,
+                }) || {};
 
             // setSharesPrice((expectedYield < 0 ? '-' : '') + getYield(totalStartSharesAmount, expectedYield));
-            const positionsProfit = positions?.reduce((prev: { [x: string]: { positionVolume: any; }; currentTP: any; currentSL: number; }, p: { instrumentType: string; quantityLots: { units: number; nano: any; }; instrumentId: string | number; }) => {
-                if (p?.instrumentType !== type) {
+            const positionsProfit = positions?.reduce(
+                (prev: { [x: string]: { positionVolume: any; }; currentTP: any; currentSL: number; },
+                    p: { instrumentType: string; quantityLots: { units: number; nano: any; }; instrumentId: string | number; },
+                ) => {
+                    if (p?.instrumentType !== type) {
+                        return prev;
+                    }
+
+                    const positionVolume = !p.quantityLots.units && p.quantityLots.nano ? 0 :
+                        p.quantityLots.units * settings.volume;
+
+                    prev[p.instrumentId] = {
+                        // Для неполной позиции не применяем.
+                        // Берём часть позиции в соответствии с настройками, но не менее одной позиции.
+                        positionVolume: positionVolume > 0 ? Math.max(positionVolume, 1) :
+                            positionVolume < 0 ? Math.min(positionVolume, -1) : 0,
+                    };
+
+                    if (prev[p.instrumentId].positionVolume) {
+                        // const lotSize = Math.abs(parseInt(p.quantity.units / p.quantityLots.units));
+                        prev.currentTP = totalStartSharesAmount + totalStartSharesAmount * settings.takeProfit;
+                        prev.currentSL = totalStartSharesAmount - totalStartSharesAmount * settings.stopLoss;
+                    }
+
                     return prev;
-                }
-
-                const positionVolume = !p.quantityLots.units && p.quantityLots.nano ? 0 :
-                    p.quantityLots.units * settings.volume;
-
-                prev[p.instrumentId] = {
-                    // Для неполной позиции не применяем.
-                    // Берём часть позиции в соответствии с настройками, но не менее одной позиции.
-                    positionVolume: positionVolume > 0 ? Math.max(positionVolume, 1) :
-                        positionVolume < 0 ? Math.min(positionVolume, -1) : 0,
-                };
-
-                if (prev[p.instrumentId].positionVolume) {
-                    // const lotSize = Math.abs(parseInt(p.quantity.units / p.quantityLots.units));
-                    prev.currentTP = totalStartSharesAmount + totalStartSharesAmount * settings.takeProfit;
-                    prev.currentSL = totalStartSharesAmount - totalStartSharesAmount * settings.stopLoss;
-                }
-
-                return prev;
-            }, {
-                currentTP: 0,
-                currentSL: 0,
-            }) || {};
+                }, {
+                    currentTP: 0,
+                    currentSL: 0,
+                }) || {};
 
             return {
                 ...positionsProfit,

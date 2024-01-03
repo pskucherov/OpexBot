@@ -1,10 +1,10 @@
 import { Common } from '../../src/Common/Common';
-import { HistoricCandle } from 'tinkoff-sdk-grpc-js/src/generated/marketdata';
+import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // @ts-ignore
 import { ma, dma, ema, sma, wma } from 'moving-averages';
 
-type maType = 'MA'|'DMA'|'EMA'|'SMA'|'WMA';
+type maType = 'MA' | 'DMA' | 'EMA' | 'SMA' | 'WMA';
 
 export class MA {
     static async calculate(candles: HistoricCandle[], period: number, type: maType) {
@@ -14,7 +14,10 @@ export class MA {
 
         let result = 0;
 
-        const data = candles.map(m => Common.getPrice(m.close)).slice(-period - 1);
+        const data = candles
+            .filter(m => typeof m.close !== 'undefined')
+            .map(m => Common.getPrice(m.close))
+            .slice(-period - 1);
 
         switch (type) {
             case 'MA':
