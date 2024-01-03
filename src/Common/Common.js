@@ -804,12 +804,30 @@ try {
                 (await this.cb.getPortfolio(this.accountId)); // , this.isPortfolio ? undefined : this.instrumentId));
         }
 
+        async getCurrentPositions() {
+            if (this.backtest) {
+                return this.getBacktestPositions();
+            }
+
+            return this.currentPositions;
+        }
+
         async getPositions() {
             if (this.backtest) {
                 return this.getBacktestPositions();
             }
 
-            return this.accountId && this.cb.getPositions &&
+            if (!this.accountId) {
+                throw 'Укажите accountId';
+            }
+
+            if (this.sdk) {
+                return await this.sdk.getPositions({
+                    accountId: this.accountId,
+                });
+            }
+
+            return this.cb.getPositions &&
                 (await this.cb.getPositions(this.accountId));
 
             // return (this.currentPositions || [])

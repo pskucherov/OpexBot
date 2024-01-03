@@ -117,3 +117,4 @@ package-lock.json
 db/data
 
 config.ts
+idsConfig.json

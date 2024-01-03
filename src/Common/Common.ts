@@ -5,6 +5,7 @@
 /* eslint max-len: 0 */
 /* eslint sonarjs/no-duplicate-string: 0 */
 
+import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
 const { mkDirByPathSync } = require('../utils');
@@ -103,12 +104,13 @@ export class Common {
         // takeProfit: 3,
         // stopLoss: 1,
         // useTrailingStop: true,
-    }) {
+    }, sdk?: ReturnType<typeof createSdk>) {
         this.accountId = accountId;
         this.backtest = Boolean(backtest);
         this.enums = options.enums;
         this.brokerId = options.brokerId;
         this.tgBot = options.tgBot;
+        this.sdk = sdk;
 
         // Методы, с помощью которых робот может общаться с внешним миром.
         this.cb = callbacks;
@@ -897,19 +899,33 @@ export class Common {
             (await this.cb.getPortfolio(this.accountId)); // , this.isPortfolio ? undefined : this.instrumentId));
     }
 
+    async getCurrentPositions() {
+        if (this.backtest) {
+            return this.getBacktestPositions();
+        }
+
+        return this.currentPositions;
+    }
+
     async getPositions() {
         if (this.backtest) {
             return this.getBacktestPositions();
         }
 
-        return this.accountId && this.cb.getPositions &&
-            (await this.cb.getPositions(this.accountId));
+        if (!this.accountId) {
+            throw 'Укажите accountId';
+        }
 
-        // return (this.currentPositions || [])
-        //     .filter(p => {
-        //         return this.isPortfolio || this.checkInstrumentId(p.instrumentId); // FINAM instrumentId
-        //     });
+        if (this.sdk) {
+            return await this.sdk.getPositions({
+                accountId: this.accountId,
+            });
+        }
+
+        return this.cb.getPositions &&
+            (await this.cb.getPositions(this.accountId));
     }
+
     getBacktestPositions() {
         throw new Error('Method not implemented.');
     }

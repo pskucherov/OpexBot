@@ -15,9 +15,9 @@ interface IProps {
 export class Candles extends Common {
     cache: Cache = new Cache('candles');
 
-    async getCandles(instrumentId: string, interval: number, from: string, to: string) {
-        const toDate = new Date(to);
-        const currentDay = new Date(from);
+    async getCandles(instrumentId: string, interval: number, from: string | Date, to: string | Date) {
+        const toDate = to instanceof Date ? to : new Date(to);
+        const currentDay = from instanceof Date ? from : new Date(from);
         const result: HistoricCandle[] = [];
 
         while (currentDay.getTime() <= toDate.getTime()) {

@@ -1,3 +1,4 @@
+import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 import { PortfolioPosition } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
 import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
@@ -17,6 +18,12 @@ export interface IBacktestPositions extends PortfolioPosition {
 
 export class Backtest extends Common {
     backtestPositions: IBacktestPositions[] = [];
+
+    constructor(accountId: string, _adviser?: boolean,
+        backtest?: boolean, callbacks?: any,
+        options?: any, sdk?: ReturnType<typeof createSdk>) {
+        super(accountId, _adviser, backtest, callbacks, options, sdk);
+    }
 
     init() {
         super.init();
