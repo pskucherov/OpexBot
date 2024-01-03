@@ -6,27 +6,10 @@ import { Backtest } from '../../src/Common/Backtest';
 import { Instruments } from '../../components/investAPI/instruments';
 import { Robot } from './robot';
 import { Log } from '../../components/log';
+import { debugEnd, debugStart } from '../../components/utils';
 
 const logger = (a?: any, b?: any, c?: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     return console.log(a || '', b || '', c || ''); // eslint-disable-line no-console
-};
-
-const debugStart = (name: string) => {
-    if (!process.env.DEBUG) {
-        return;
-    }
-
-    console.log(name, 'START'); // eslint-disable-line no-console
-    console.time(name); // eslint-disable-line no-console
-};
-
-const debugEnd = (name: string) => {
-    if (!process.env.DEBUG) {
-        return;
-    }
-
-    console.timeEnd(name); // eslint-disable-line no-console
-    console.log(); // eslint-disable-line no-console
 };
 
 const sdk = createSdk(TOKEN, 'backtester', logger);

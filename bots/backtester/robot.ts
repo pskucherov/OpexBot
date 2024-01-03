@@ -134,7 +134,7 @@ export class Robot {
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const hasPriceDiff = this.calcPercentDiff(this.currentPrice, this.MA) < -this.PRICE_DIFF;
         const hasLowRSI = this.RSI < 30;
-        const price = Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price);
+        const price = Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price) || 0;
 
         return hasPriceDiff && hasLowRSI && typeof price !== 'undefined' && (
             !hasOpenedPosition ||
@@ -152,7 +152,7 @@ export class Robot {
         const hasOpenedPosition = this.tradeSystem.hasBacktestOpenPositions();
         const hasPriceDiff = this.calcPercentDiff(this.currentPrice, this.MA) > this.PRICE_DIFF;
         const hasHighRSI = this.RSI > 70;
-        const price = Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price);
+        const price = Common.getPrice(this.tradeSystem.getLastOpenedPosition()?.price) || 0;
 
         return hasPriceDiff && hasHighRSI && typeof price !== 'undefined' && (
             !hasOpenedPosition ||

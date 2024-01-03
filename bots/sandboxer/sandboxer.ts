@@ -1,21 +1,26 @@
-import { DeepPartial, MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 import { Accounts } from './accounts';
 import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { TOKEN } from '../../config';
-import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+
+// import { debugEnd, debugStart } from '../../components/utils';
+// import { Candles } from '../../components/investAPI/candles';
+// import { Instruments } from '../../components/investAPI/instruments';
+
+// import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // import TelegramBot from 'node-telegram-bot-api';
 
 // const TGBOTTOKEN = '';
 // const TGUSERID = '';
 
-const keepCalling = true;
+// const keepCalling = true;
 
 // setTimeout(function() {
 //     keepCalling = false;
 // }, 50000);
 
-const timer = (time: number) => new Promise(resolve => setTimeout(resolve, time));
+// const timer = (time: number) => new Promise(resolve => setTimeout(resolve, time));
 
 const sdk = createSdk(TOKEN, 'sandboxer');
 
@@ -27,7 +32,7 @@ const payInAmount: MoneyValue = {
 };
 
 // const tgbot = new TelegramBot(TGBOTTOKEN, { polling: true });
-
+// const instruments = new Instruments(sdk);
 const instrumentsForTrade = [
     '53b67587-96eb-4b41-8e0c-d2e3c0bdd234', // АФК система
     '1c69e020-f3b1-455c-affa-45f8b8049234', // AFLT
@@ -105,35 +110,102 @@ interface IAccountsIds {
         };
     }, Promise.resolve(<IAccountsIds>{}));
 
+    // (async () => {
+    //     // const found = await instruments.findInstrument('VTBR')
+    //     // console.log('//', found[0].uid, found[0].name);
+
+    //     for (const uid of instrumentsForTrade) {
+    //         debugStart('Запуск testInstrument');
+    //         await testInstrument(uid);
+    //         debugEnd('Запуск testInstrument');
+    //     }
+    // })();
+
+    // const candlesSdk = new Candles(sdk);
+    // const testerInterval = sdk.CandleInterval.CANDLE_INTERVAL_5_MIN;
+
+    // async function testInstrument(instrumentUID: string) {
+    //     return;
+    //     const { instrument } = await instruments.getInstrumentById(instrumentUID) || {};
+
+    //     if (instrument) {
+    //         debugStart('Получение свечей (candlesSdk.getCandles)');
+    //         const historicCandlesArr = await candlesSdk.getCandles(
+    //             instrumentUID,
+    //             testerInterval,
+    //             '2023.01.01',
+    //             '2023.12.21',
+    //         );
+
+    //         debugEnd('Получение свечей (candlesSdk.getCandles)');
+
+    //         let backtestStep = 0;
+
+    //         backtest.setBacktestState(backtestStep, testerInterval, instrumentUID, undefined, {
+    //             tickerInfo: instrument,
+    //             type: 'instrument',
+    //             instrumentUID,
+    //         });
+
+    //         const logSystem = new Log(instrument.ticker);
+    //         const robot = new Robot(backtest, logSystem);
+
+    //         debugStart(`Обход всех свечей (makeStep), ${instrumentUID}, len ${historicCandlesArr.length}`);
+    //         for (let candleIndex = 0; candleIndex < historicCandlesArr.length; candleIndex++) {
+    //             backtestStep++;
+    //             backtest.setBacktestState(backtestStep);
+
+    //             await robot.initStep(historicCandlesArr[candleIndex]);
+    //             robot.makeStep();
+    //         }
+    //         debugEnd(`Обход всех свечей (makeStep), ${instrumentUID}, len ${historicCandlesArr.length}`);
+
+    //         backtest.backtestClosePosition(historicCandlesArr[historicCandlesArr.length - 1].close);
+
+    //         const result = robot.printResult();
+
+    //         if (process.env.DEBUG) {
+    //             console.log('result', result); // eslint-disable-line no-console
+    //             console.log(); // eslint-disable-line no-console
+    //         }
+
+    //         if (Number(process.env.DEBUG) === 2) {
+    //             console.log(backtest.getBacktestPositions()); // eslint-disable-line no-console
+    //         }
+
+    //         backtest.stop();
+    //     }
+    // }
+
     // console.log('accountsIds', accountsIds);
     // console.log(await account.list());
 
     //генератор подписки на свечи
-    async function* createSubscriptionCandleRequest(): AsyncIterable<DeepPartial<MarketDataRequest>> {
-        while (keepCalling) {
-            await timer(1000);
-            yield MarketDataRequest.fromPartial({
-                subscribeCandlesRequest: {
-                    subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                    instruments: instrumentsForTrade.map(i => {
-                        return {
-                            instrumentId: i,
-                            interval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
-                        };
-                    }),
-                    waitingClose: true,
-                },
-            });
-        }
-    }
+    // async function* createSubscriptionCandleRequest(): AsyncIterable<DeepPartial<MarketDataRequest>> {
+    //     while (keepCalling) {
+    //         await timer(1000);
+    //         yield MarketDataRequest.fromPartial({
+    //             subscribeCandlesRequest: {
+    //                 subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+    //                 instruments: instrumentsForTrade.map(i => {
+    //                     return {
+    //                         instrumentId: i,
+    //                         interval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
+    //                     };
+    //                 }),
+    //                 waitingClose: true,
+    //             },
+    //         });
+    //     }
+    // }
 
-    const response = sdk.marketDataStream.marketDataStream(createSubscriptionCandleRequest());
+    // const response = sdk.marketDataStream.marketDataStream(createSubscriptionCandleRequest());
 
-    for await (const num of response) {
-        const { candle } = num || {};
+    // for await (const num of response) {
+    //     const { candle } = num || {};
 
-        if (candle) {
-            console.log(JSON.stringify(num, null, 4)); // eslint-disable-line no-console
-        }
-    }
+    //     if (candle) {
+    //         console.log(JSON.stringify(num, null, 4)); // eslint-disable-line no-console
+    //     }
+    // }
 })();
