@@ -8,16 +8,22 @@
 import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
-const { mkDirByPathSync } = require('../utils');
-const path = require('path');
-const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
+import { mkDirByPathSync } from '../utils';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
+import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 
 export class Common {
     static settingsFileName = 'settings.json';
     accountId: any;
     backtest: boolean;
-    enums: {};
+    enums: {
+        OrderDirection: {
+            ORDER_DIRECTION_BUY: OrderDirection.ORDER_DIRECTION_BUY,
+            ORDER_DIRECTION_SELL: OrderDirection.ORDER_DIRECTION_SELL,
+        }
+    };
     brokerId: string;
     tgBot: any;
     cb: {
@@ -122,14 +128,15 @@ export class Common {
 
         (async () => {
             this.init();
-            this.initAsync();
-            this.processing();
+
+            // this.initAsync();
+            // this.processing();
         })();
     }
 
     init() {
         // Таймер подписки на события.
-        this.subscribesTimer = 100;
+        this.subscribesTimer = 1000;
 
         // Таймер выполнения process
         this.robotTimer = 3000;
@@ -322,8 +329,12 @@ export class Common {
             }
             const { subscribes } = this.cb;
 
-            ['lastPrice', 'orderbook'].forEach(name => {
-                if (subscribes[name] && !this.isSandbox) {
+            [
+                'lastPrice',
+                'orderbook',
+                'candle',
+            ].forEach(name => {
+                if (subscribes[name]) {
                     setImmediate(async () => {
                         const subscribeArr = subscribes[name]();
 
@@ -376,7 +387,7 @@ export class Common {
             });
 
             ['orders', 'positions'].forEach(name => {
-                if (subscribes[name] && !this.isSandbox) {
+                if (subscribes[name]) {
                     setImmediate(async () => {
                         try {
                             let gen = subscribes[name]({
@@ -538,7 +549,7 @@ export class Common {
             console.log('propcessing', e); // eslint-disable-line no-console
         }
     }
-    orderbook(arg0: any, arg1: number, lastPrice: any, orderbook: any) {
+    orderbook(_arg0: any, _arg1: number, _lastPrice: any, _orderbook: any) {
         throw new Error('Method not implemented.');
     }
 
@@ -615,10 +626,14 @@ export class Common {
         const { dir, name } = Common.getLogFileName(this.name, this.accountId,
             this.getFileName(), new Date());
 
+        if (!dir) {
+            return;
+        }
+
         mkDirByPathSync(dir);
         this.logOrdersFile = path.join(dir, name);
     }
-    name(name: any, accountId: any, arg2: any, arg3: Date): { dir: any; name: any; } {
+    name(_name: any, _accountId: any, _arg2: any, _arg3: Date): { dir: any; name: any; } {
         throw new Error('Method not implemented.');
     }
 
@@ -711,15 +726,19 @@ export class Common {
         return Common.getPrice(quotation);
     }
 
-    start() {
+    start(instrumentId?: string | string[]) {
         if (this.inProgress) {
             return;
+        }
+
+        if (instrumentId) {
+            this.instrumentId = instrumentId;
         }
 
         this.inProgress = true;
         this.subscribes();
 
-        console.log('start'); // eslint-disable-line no-console
+        console.log('start 123'); // eslint-disable-line no-console
     }
 
     stop() {
@@ -727,7 +746,7 @@ export class Common {
         clearInterval(this.intervalId);
         console.log('stop'); // eslint-disable-line no-console
     }
-    intervalId(intervalId: any) {
+    intervalId(_intervalId: any) {
         throw new Error('Method not implemented.');
     }
 
@@ -761,7 +780,7 @@ export class Common {
             console.log('buy', e); // eslint-disable-line no-console
         }
     }
-    backtestBuy(arg0: any, arg1: any) {
+    backtestBuy(_price: MoneyValue | Quotation | undefined, _lots: number, _time: Date) {
         throw new Error('Method not implemented.');
     }
 
@@ -884,7 +903,7 @@ export class Common {
             return this.backtestClosePosition(price);
         }
     }
-    backtestClosePosition(price: any) {
+    backtestClosePosition(_price: any) {
         throw new Error('Method not implemented.');
     }
 
@@ -917,7 +936,7 @@ export class Common {
         }
 
         if (this.sdk) {
-            return await this.sdk.getPositions({
+            return await this.sdk.operations.getPositions({
                 accountId: this.accountId,
             });
         }
@@ -1303,6 +1322,10 @@ export class Common {
     static getLogFileName(name: (name: any, accountId: any, arg2: any, arg3: Date) => { dir: any; name: any; }, accountId: any, instrumentId: any, date: Date) {
         const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
 
+        if (!name || !accountId || !instrumentId || !date) {
+            return {};
+        }
+
         return {
             dir: path.resolve(__dirname, '../../orders', name, accountId, instrumentId),
             name: new Date(Number(date)).toLocaleString('ru', dateOptions) + '.json',
@@ -1310,6 +1333,10 @@ export class Common {
     }
 
     static getLogFiles(name: any, accountId: any, instrumentId: any, date: any) {
+        if (!name || !accountId || !instrumentId || !date) {
+            return;
+        }
+
         const { dir } = this.getLogFileName(name, accountId, instrumentId, date);
 
         return fs.readdirSync(path.resolve(dir)).reduce((prev: number[], file: string) => {

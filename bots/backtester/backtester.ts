@@ -2,7 +2,7 @@ import { Candles } from '../../components/investAPI/candles';
 import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { TOKEN } from '../../config';
 
-import { Backtest } from '../../src/Common/Backtest';
+import { Backtest } from '../../src/Common/TsBacktest';
 import { Instruments } from '../../components/investAPI/instruments';
 import { Robot } from './robot';
 import { Log } from '../../components/log';

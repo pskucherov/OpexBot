@@ -2,8 +2,7 @@ import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 import { PortfolioPosition } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
 import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
-
-const Common = require('./Common');
+import { Common } from './TsCommon';
 
 export interface IBacktestPositions extends PortfolioPosition {
     id: string;
@@ -18,10 +17,12 @@ export interface IBacktestPositions extends PortfolioPosition {
 
 export class Backtest extends Common {
     backtestPositions: IBacktestPositions[] = [];
+    backtestOrders!: never[];
+    step!: number;
 
     constructor(accountId: string, _adviser?: boolean,
-        backtest?: boolean, callbacks?: any,
-        options?: any, sdk?: ReturnType<typeof createSdk>) {
+        backtest?: boolean, callbacks?: any, // eslint-disable-line
+        options?: any, sdk?: ReturnType<typeof createSdk>) { // eslint-disable-line
         super(accountId, _adviser, backtest, callbacks, options, sdk);
     }
 

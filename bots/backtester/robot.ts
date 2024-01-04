@@ -1,4 +1,4 @@
-import { Backtest, IBacktestPositions } from '../../src/Common/Backtest';
+import { Backtest, IBacktestPositions } from '../../src/Common/TsBacktest';
 
 import { RSI } from '../../components/indicator/RSI';
 import { MA } from '../../components/indicator/MA';

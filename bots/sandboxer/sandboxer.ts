@@ -10,9 +10,6 @@ import { Instruments } from '../../components/investAPI/instruments';
 import fs from 'fs';
 import path from 'path';
 
-// import { Common } from '../../src/Common/Common';
-
-// import { Robot } from './robot';
 import { Log } from '../../components/log';
 import { Robot } from './robot';
 
@@ -61,8 +58,6 @@ let accountsIds: IAccountsIds;
 (async () => {
     const account = new Accounts(sdk);
 
-    await account.closeAll();
-
     let accountNum = 0;
     let lastAccountId: string;
 
@@ -72,15 +67,18 @@ let accountsIds: IAccountsIds;
         instrumentsForTrade = data.instrumentsForTrade;
         accountsIds = data.accountsIds;
     } catch (e) {
-        const instrumentsForTrade = [
+        console.log(e); // eslint-disable-line
+        await account.closeAll();
+
+        instrumentsForTrade = [
             '53b67587-96eb-4b41-8e0c-d2e3c0bdd234', // АФК система
             '1c69e020-f3b1-455c-affa-45f8b8049234', // AFLT
             '46ae47ee-f409-4776-bf20-43a040b9e7fb', // РусАгро
             '30817fea-20e6-4fee-ab1f-d20fc1a1bb72', // АЛРОСА
             'ebfda284-4291-4337-9dfb-f55610d0a907', // МКБ
             'fa6aae10-b8d5-48c8-bbfd-d320d925d096', // Северсталь
-            'e2bd2eba-75de-4127-b39c-2f2dbe3866c3', // Эн+
-            '88e130e8-5b68-4b05-b9ae-baf32f5a3f21', // ФСК Россети
+            // 'e2bd2eba-75de-4127-b39c-2f2dbe3866c3', // Эн+
+            // '88e130e8-5b68-4b05-b9ae-baf32f5a3f21', // ФСК Россети
             // 'aa183ebe-3dae-4f4b-b7a2-c03539375417', // Пятерочка
             // '962e2a95-02a9-4171-abd7-aa198dbe643a', // Газпром
             // '38be8280-96ef-45e9-b0ed-da76bc77fe7c', // Globaltrans Investment PLC
@@ -104,7 +102,7 @@ let accountsIds: IAccountsIds;
             // 'fd417230-19cf-4e7b-9623-f7c9ca18ec6b', // Роснефть
             // '02eda274-10c4-4815-8e02-a8ee7eaf485b', // Ростелеком
             // 'f866872b-8f68-4b6e-930f-749fe9aa79c0', // РУСАЛ
-            // 'e6123145-9665-43e0-8413-cd61b8aa9b13', // Сбер Банк
+            'e6123145-9665-43e0-8413-cd61b8aa9b13', // Сбер Банк
             // '0d28c01b-f841-4e89-9c92-0ee23d12883a', // Селигдар
             // '7bedd86b-478d-4742-a28c-29d27f8dbc7d', // Сегежа
             // 'a797f14a-8513-4b84-b15e-a3b98dc4cc00', // Сургутнефтегаз - привилегированные акции
@@ -117,7 +115,7 @@ let accountsIds: IAccountsIds;
         ];
 
         // Создаём для каждого инструмента отдельный счёт в песочнице и пополняем на payInAmount.
-        accountsIds = (await instrumentsForTrade.reduce(async (acc: Promise<IAccountsIds>, val) => {
+        accountsIds = (await instrumentsForTrade.reduce(async (acc: Promise<IAccountsIds>, val: string) => {
             const data = await acc;
 
             try {
@@ -161,14 +159,23 @@ let accountsIds: IAccountsIds;
         }
     }
 
+    interface IInstrumentIds {
+        [key: string]: string[];
+    }
+    const instrumentIds: IInstrumentIds = {};
+
     Object.keys(accountsIds).forEach(instrumentId => {
         const { accountId } = accountsIds[instrumentId];
 
-        if (tradingSystems[accountId]) {
-            return;
+        if (!instrumentIds[accountId]) {
+            instrumentIds[accountId] = [instrumentId];
+        } else {
+            instrumentIds[accountId].push(instrumentId);
         }
+    });
 
-        tradingSystems[accountId] = new Robot(accountId, 0, false, undefined, {
+    Object.keys(instrumentIds).forEach(accountId => {
+        tradingSystems[accountId] = new Robot(accountId, undefined, false, undefined, {
             enums: {
                 OrderDirection: {
                     ...sdk.OrderDirection,
@@ -176,12 +183,11 @@ let accountsIds: IAccountsIds;
             },
             brokerId: 'TINKOFF',
         }, sdk);
+
+        tradingSystems[accountId].start(instrumentIds[accountId]);
     });
 
     (async () => {
-        // const found = await instruments.findInstrument('VTBR')
-        // console.log('//', found[0].uid, found[0].name);
-
         for (const uid of instrumentsForTrade) {
             debugStart('Запуск testInstrument');
             await testInstrument(uid);
@@ -212,68 +218,9 @@ let accountsIds: IAccountsIds;
 
             const logSystem = new Log(instrument.ticker);
 
-            console.log(historicCandlesArr, logSystem);
-            console.log(tradingSystems);
-
-            // const robot = new Robot(common, logSystem);
-
-            // console.log(historicCandlesArr, robot);
-            //     debugStart(`Обход всех свечей (makeStep), ${instrumentUID}, len ${historicCandlesArr.length}`);
-            //     for (let candleIndex = 0; candleIndex < historicCandlesArr.length; candleIndex++) {
-            //         backtestStep++;
-            //         backtest.setBacktestState(backtestStep);
-
-            //         await robot.initStep(historicCandlesArr[candleIndex]);
-            //         robot.makeStep();
-            //     }
-            //     debugEnd(`Обход всех свечей (makeStep), ${instrumentUID}, len ${historicCandlesArr.length}`);
-
-            //     backtest.backtestClosePosition(historicCandlesArr[historicCandlesArr.length - 1].close);
-
-            //     const result = robot.printResult();
-
-            //     if (process.env.DEBUG) {
-            //         console.log('result', result); // eslint-disable-line no-console
-            //         console.log(); // eslint-disable-line no-console
-            //     }
-
-            //     if (Number(process.env.DEBUG) === 2) {
-            //         console.log(backtest.getBacktestPositions()); // eslint-disable-line no-console
-            //     }
-
-            //     backtest.stop();
+            if (historicCandlesArr && logSystem && tradingSystems) {
+                console.log(1); // eslint-disable-line
+            }
         }
     }
-
-    // console.log('accountsIds', accountsIds);
-    // console.log(await account.list());
-
-    //генератор подписки на свечи
-    // async function* createSubscriptionCandleRequest(): AsyncIterable<DeepPartial<MarketDataRequest>> {
-    //     while (keepCalling) {
-    //         await timer(1000);
-    //         yield MarketDataRequest.fromPartial({
-    //             subscribeCandlesRequest: {
-    //                 subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-    //                 instruments: instrumentsForTrade.map(i => {
-    //                     return {
-    //                         instrumentId: i,
-    //                         interval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
-    //                     };
-    //                 }),
-    //                 waitingClose: true,
-    //             },
-    //         });
-    //     }
-    // }
-
-    // const response = sdk.marketDataStream.marketDataStream(createSubscriptionCandleRequest());
-
-    // for await (const num of response) {
-    //     const { candle } = num || {};
-
-    //     if (candle) {
-    //         console.log(JSON.stringify(num, null, 4)); // eslint-disable-line no-console
-    //     }
-    // }
 })();

@@ -242,6 +242,8 @@ try {
                 }
                 const { subscribes } = this.cb;
 
+                console.log('subscribes', subscribes);
+
                 ['lastPrice', 'orderbook'].forEach(name => {
                     if (subscribes[name] && !this.isSandbox) {
                         setImmediate(async () => {
@@ -529,11 +531,20 @@ try {
         }
 
         updateLogOrdersFile() {
-            const { dir, name } = Common.getLogFileName(this.name, this.accountId,
-                this.getFileName(), new Date());
+            try {
+                const fileName = this.getFileName();
+                if (!fileName) {
+                    return;
+                }
 
-            mkDirByPathSync(dir);
-            this.logOrdersFile = path.join(dir, name);
+                const { dir, name } = Common.getLogFileName(this.name, this.accountId,
+                    fileName, new Date());
+
+                mkDirByPathSync(dir);
+                this.logOrdersFile = path.join(dir, name);
+            } catch (e) {
+                console.log(e);
+            }
         }
 
         getFileName() {
@@ -633,7 +644,7 @@ try {
             this.inProgress = true;
             this.subscribes();
 
-            console.log('start'); // eslint-disable-line no-console
+            console.log('start 321'); // eslint-disable-line no-console
         }
 
         stop() {

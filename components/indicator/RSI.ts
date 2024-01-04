@@ -1,5 +1,5 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
-import { Common } from '../../src/Common/Common';
+import { Common } from '../../src/Common/TsCommon';
 import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // @ts-ignore
