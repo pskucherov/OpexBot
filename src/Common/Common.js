@@ -644,7 +644,7 @@ try {
             this.inProgress = true;
             this.subscribes();
 
-            console.log('start 321'); // eslint-disable-line no-console
+            console.log('start'); // eslint-disable-line no-console
         }
 
         stop() {

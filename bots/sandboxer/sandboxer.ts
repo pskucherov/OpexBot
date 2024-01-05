@@ -30,7 +30,7 @@ import { Robot } from './robot';
 
 const sdk = createSdk(TOKEN, 'sandboxer');
 
-const instrumentCountForOneAccount = 3; // Если указать 1, то на один счёт будет один инструмент.
+const instrumentCountForOneAccount = 10; // Если указать 1, то на один счёт будет один инструмент.
 
 // Сумма пополнения демо счёта.
 const payInAmount: MoneyValue = {
@@ -189,16 +189,16 @@ let accountsIds: IAccountsIds;
 
     (async () => {
         for (const uid of instrumentsForTrade) {
-            debugStart('Запуск testInstrument');
-            await testInstrument(uid);
-            debugEnd('Запуск testInstrument');
+            debugStart('Запуск tradeInstrument');
+            await tradeInstrument(uid);
+            debugEnd('Запуск tradeInstrument');
         }
     })();
 
     const candlesSdk = new Candles(sdk);
     const testerInterval = sdk.CandleInterval.CANDLE_INTERVAL_5_MIN;
 
-    async function testInstrument(instrumentUID: string) {
+    async function tradeInstrument(instrumentUID: string) {
         const { instrument } = await instruments.getInstrumentById(instrumentUID) || {};
 
         if (instrument) {

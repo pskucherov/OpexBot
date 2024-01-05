@@ -128,9 +128,8 @@ export class Common {
 
         (async () => {
             this.init();
-
-            // this.initAsync();
-            // this.processing();
+            this.initAsync();
+            this.processing();
         })();
     }
 
@@ -236,9 +235,10 @@ export class Common {
 
     async initAsync() {
         await this.updateOrders();
-        await this.updatePortfolio();
-        await this.updatePositions();
-        await this.updateOrdersInLog();
+
+        // await this.updatePortfolio();
+        // await this.updatePositions();
+        // await this.updateOrdersInLog();
     }
 
     async updateOrders() {
@@ -735,10 +735,8 @@ export class Common {
             this.instrumentId = instrumentId;
         }
 
-        this.inProgress = true;
-        this.subscribes();
-
-        console.log('start 123'); // eslint-disable-line no-console
+        // this.inProgress = true;
+        // this.subscribes();
     }
 
     stop() {
@@ -780,6 +778,7 @@ export class Common {
             console.log('buy', e); // eslint-disable-line no-console
         }
     }
+
     backtestBuy(_price: MoneyValue | Quotation | undefined, _lots: number, _time: Date) {
         throw new Error('Method not implemented.');
     }
