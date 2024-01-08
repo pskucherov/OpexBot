@@ -21,7 +21,8 @@ function createTgBot(token, userid) {
 
         if (userid) {
             bot.sendMessage = bot?.sendMessage.bind(bot, userid);
-            bot?.sendMessage('OpexBot подключен к tg');
+
+            // bot?.sendMessage('OpexBot подключен к tg');
         }
 
         // bot?.on('message', msg => {

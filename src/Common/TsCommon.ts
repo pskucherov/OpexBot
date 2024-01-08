@@ -1128,7 +1128,7 @@ export class Common {
      * @param {Object[units, nano]} price — цена, от которой расчитывать цену заявки.
      * @returns
      */
-    getTakeProfitPrice(isForShort: boolean, price: MoneyValue): MoneyValue | undefined {
+    getTakeProfitPrice(isForShort: boolean, price: MoneyValue): MoneyValue | Quotation | undefined {
         try {
             if (typeof isForShort === 'undefined') {
                 return;

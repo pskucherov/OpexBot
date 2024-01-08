@@ -9,6 +9,7 @@ export interface IBacktestPositions extends PortfolioPosition {
     parentId: string;
     step: number;
     price: MoneyValue | Quotation;
+    // averagePositionPrice: MoneyValue | Quotation | undefined;
     lots: number;
     time?: Date;
     closed: boolean;
