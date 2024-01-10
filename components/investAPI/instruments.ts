@@ -1,6 +1,6 @@
-import { InstrumentIdType } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
+import { InstrumentIdType } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/instruments';
 import { Common } from './common';
-import { InstrumentType } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { InstrumentType } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
 
 export class Instruments extends Common {
     async getInstrumentById(id: string, idType?: InstrumentIdType) {

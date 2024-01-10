@@ -5,8 +5,8 @@ import { MA } from '../../components/indicator/MA';
 import { Common } from '../../src/Common/Common';
 
 import { Log } from '../../components/log';
-import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
-import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import { MoneyValue, Quotation } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
+import { HistoricCandle } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 export class Robot {
     tradeSystem: Backtest;

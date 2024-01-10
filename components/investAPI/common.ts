@@ -1,4 +1,4 @@
-import { createSdk } from 'tinkoff-sdk-grpc-js';
+import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
 
 export class Common {
     sdk: ReturnType<typeof createSdk>;

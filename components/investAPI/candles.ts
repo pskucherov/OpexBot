@@ -1,7 +1,7 @@
 import { Common } from './common';
 import { Cache } from './../cache';
 import { Time } from '../time';
-import { Candle, HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import { Candle, HistoricCandle } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 interface IProps {
     instrumentId: string;

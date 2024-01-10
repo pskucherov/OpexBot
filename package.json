@@ -13,7 +13,7 @@
     "opexbot": "opexbot.js"
   },
   "scripts": {
-    "dev": "cross-env NODE_ENV=production node src/main",
+    "dev": "cross-env NODE_ENV=production ts-node src/main",
     "bot": "cross-env DEBUG=1 ts-node ./bots/backtester/backtester.ts",
     "lint-fix": "npx eslint --fix .",
     "tsc": "npx tsc"
@@ -51,7 +51,7 @@
     "opexviewer": "^0.4.5",
     "sqlite": "^4.1.2",
     "sqlite3": "^5.1.4",
-    "tinkofftradingbotconnector": "^0.4.4",
+    "tinkofftradingbotconnector": "^0.4.8",
     "ts-node": "^10.9.2",
     "uuid": "^9.0.1"
   }

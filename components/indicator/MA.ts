@@ -1,5 +1,5 @@
 import { Common } from '../../src/Common/TsCommon';
-import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import { HistoricCandle } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // @ts-ignore
 import { ma, dma, ema, sma, wma } from 'moving-averages';
