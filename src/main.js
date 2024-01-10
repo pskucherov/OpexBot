@@ -39,10 +39,7 @@ const { createTgBot } = require('../components/tgbot/tgbot');
 
             if (fs.lstatSync(p).isDirectory() && file !== 'Common' &&
                 file !== 'Example' && file !== 'Buyer') {
-                console.log(p);
                 const module = require(p);
-
-                console.log('file', file);
 
                 if (module[file]) {
                     bots[file] = module[file];

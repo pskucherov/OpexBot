@@ -9,7 +9,6 @@ export interface IBacktestPositions extends PortfolioPosition {
     parentId: string;
     step: number;
     price: MoneyValue | Quotation;
-    // averagePositionPrice: MoneyValue | Quotation | undefined;
     lots: number;
     time?: Date;
     closed: boolean;
@@ -76,7 +75,10 @@ export class Backtest extends Common {
             parentId: '',
             step: this.step,
             price: price,
-            averagePositionPrice: price,
+            averagePositionPrice: {
+                currency: '',
+                ...price,
+            },
             lots: lots || this.lotsSize,
             time: time,
             direction: this.enums.OrderDirection.ORDER_DIRECTION_BUY,
@@ -113,7 +115,10 @@ export class Backtest extends Common {
             parentId: '',
             step: this.step,
             price: price,
-            averagePositionPrice: price,
+            averagePositionPrice: {
+                currency: '',
+                ...price,
+            },
             lots: lots || this.lotsSize,
             time: time,
             direction: this.enums.OrderDirection.ORDER_DIRECTION_SELL,
@@ -154,7 +159,10 @@ export class Backtest extends Common {
                     parentId: p.id,
                     step: this.step,
                     price: price,
-                    averagePositionPrice: price,
+                    averagePositionPrice: {
+                        currency: '',
+                        ...price,
+                    },
                     lots: p.lots || this.lotsSize,
                     quantity: {
                         units: this.tickerInfo.lot,

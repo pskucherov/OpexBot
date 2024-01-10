@@ -11,12 +11,17 @@ try {
         // instrument — торгует одним инструментом. portfolio — всем портфелем.
         static type = 'instrument';
 
-        constructor(...args: any) {
+        constructor(...args: any) { // eslint-disable-line
             super(...args);
 
             this.type = Bot.type;
             this.isPortfolio = true;
             this.name = name;
+
+            (async () => {
+                this.init();
+                this.initAsync();
+            })();
 
             this.subscribeTgEvents();
         }
@@ -27,7 +32,7 @@ try {
             }
 
             this.tgBot.onText(/счёт|счет/igm, () => {
-                console.log('счет или счёт');
+                console.log('счет или счёт'); // eslint-disable-line
             });
         }
 
@@ -35,6 +40,12 @@ try {
             if (type === 'sellAll') {
                 this.tgBot.sendMessage('Начата продажа портфеля.');
             }
+        }
+
+        start() {
+            this.tgBot.sendMessage('TgSupport запущен.');
+
+            // Переопределяем start, чтобы не выполнялась подписка и прочее получение информации.
         }
     }
 

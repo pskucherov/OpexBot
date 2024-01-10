@@ -235,10 +235,9 @@ export class Common {
 
     async initAsync() {
         await this.updateOrders();
-
-        // await this.updatePortfolio();
-        // await this.updatePositions();
-        // await this.updateOrdersInLog();
+        await this.updatePortfolio();
+        await this.updatePositions();
+        await this.updateOrdersInLog();
     }
 
     async updateOrders() {
@@ -1325,8 +1324,10 @@ export class Common {
             return {};
         }
 
+        const instruments = Array.isArray(instrumentId) ? instrumentId.join(',') : instrumentId;
+
         return {
-            dir: path.resolve(__dirname, '../../orders', name, accountId, instrumentId),
+            dir: path.resolve(__dirname, '../../orders', name, accountId, instruments),
             name: new Date(Number(date)).toLocaleString('ru', dateOptions) + '.json',
         };
     }
