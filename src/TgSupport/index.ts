@@ -1,3 +1,5 @@
+import { MoneyValue } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
+
 try {
     const { Backtest } = require('../Common/TsBacktest');
 
@@ -26,26 +28,98 @@ try {
             this.subscribeTgEvents();
         }
 
+        async sendBalanceMessage() {
+            try {
+                if (!this.allInstrumentsInfo || !this.currentPortfolio) {
+                    this.balanceMessageTimeout = setTimeout(() => this.sendBalanceMessage(), 200);
+
+                    return;
+                }
+
+                if (this.balanceMessageTimeout) {
+                    clearTimeout(this.balanceMessageTimeout);
+                }
+
+                const {
+                    expectedYield,
+                    totalAmountPortfolio,
+                } = this.currentPortfolio;
+
+                const positions = this.currentPortfolio?.positions.map((p: { instrumentUid: string | number; }) => {
+                    return {
+                        ...p,
+                        ...(this.allInstrumentsInfo?.[p.instrumentUid] || {}),
+                    };
+                });
+
+                const textPositions: string[] = [];
+
+                textPositions.push(`**Доходность: ${this.getPrice(expectedYield)}%**`);
+                textPositions.push('');
+                textPositions.push('Портфель: ' +
+                    `${this.toMoneyString(this.getPrice(totalAmountPortfolio))} ${totalAmountPortfolio?.currency} `,
+                );
+                textPositions.push('');
+
+                const names: { [key: string]: string; } = {
+                    totalAmountShares: 'Акции',
+                    totalAmountBonds: 'Облигации',
+                    totalAmountEtf: 'ETF',
+                    totalAmountCurrencies: 'Валюты',
+                    totalAmountFutures: 'Фьючерсы',
+                    totalAmountOptions: 'Опционы',
+                    totalAmountSp: 'Структурные ноты',
+                };
+
+                Object.keys(names).map((p: string) => {
+                    const price = this.getPrice(this.currentPortfolio[p]);
+
+                    if (price) {
+                        textPositions.push(`${names[p]}: ` +
+                            `${this.toMoneyString(price)} ${this.currentPortfolio[p].currency}`,
+                        );
+                    }
+                });
+                textPositions.push('');
+                positions
+                    .filter((f: { name?: string; }) => Boolean(f.name))
+                    .map((p: { name: string; ticker: string; expectedYield: MoneyValue; currency: string; }) => {
+                        textPositions.push(p.name + ` (${p.ticker}) ` + this.toMoneyString(this.getPrice(p.expectedYield)) + ' ' + p.currency);
+                    });
+
+                this.tgBot.sendMessage(textPositions.join('\r\n'));
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+        }
+
         async subscribeTgEvents() {
             if (!this.tgBot) {
                 return;
             }
 
-            this.tgBot.onText(/счёт|счет/igm, () => {
-                console.log('счет или счёт'); // eslint-disable-line
+            this.tgBot.onText(/счёт|счет/igm, async () => {
+                try {
+                    await this.sendBalanceMessage();
+                } catch (e) {
+                    console.log(e); // eslint-disable-line
+                }
             });
         }
 
-        async sendTgEvents(type: string) {
-            if (type === 'sellAll') {
-                this.tgBot.sendMessage('Начата продажа портфеля.');
-            }
+        start() {
+            // Переопределяем start, чтобы не выполнялась подписка и прочее получение информации.
+            this.sendBalanceMessage();
+
+            this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage, 3600000);
         }
 
-        start() {
-            this.tgBot.sendMessage('TgSupport запущен.');
+        stop() {
+            super.stop();
 
-            // Переопределяем start, чтобы не выполнялась подписка и прочее получение информации.
+            if (this.sendBalanceMessageInterval) {
+                clearInterval(this.sendBalanceMessageInterval);
+            }
         }
     }
 

@@ -4,6 +4,7 @@
 /* eslint @typescript-eslint/ban-types: 0 */
 /* eslint max-len: 0 */
 /* eslint sonarjs/no-duplicate-string: 0 */
+import { PortfolioResponse } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/operations';
 
 import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
 import { MoneyValue, Quotation } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
@@ -60,7 +61,7 @@ export class Common {
     tradingDays!: boolean;
     currentOrders: any;
     ordersInited!: boolean;
-    currentPortfolio: any;
+    currentPortfolio: PortfolioResponse | undefined;
     currentPositions!: never[];
     inProgress: any;
     isPortfolio: any;
@@ -91,6 +92,7 @@ export class Common {
     orderTimeout: any;
     expectedYield: any;
     positionsProfit: any;
+    sdk?: ReturnType<typeof createSdk>;
 
     constructor(accountId: any, _adviser: any, backtest: any, callbacks = {
         subscribes: {},
@@ -238,6 +240,37 @@ export class Common {
         await this.updatePortfolio();
         await this.updatePositions();
         await this.updateOrdersInLog();
+        await this.getAllInstruments();
+    }
+
+    async getAllInstruments() {
+        if (!this.sdk) {
+            return;
+        }
+
+        const req = {
+            instrumentStatus: this.sdk.InstrumentStatus.INSTRUMENT_STATUS_BASE,
+        };
+
+        this.allInstrumentsInfo = await [
+            'bonds', 'shares', 'futures',
+            'etfs', 'options', 'currencies',
+        ].reduce(async (acc: Promise<any>, name) => {
+            try {
+                const data = await acc;
+                const { instruments } = await this.sdk.instruments[name](req);
+
+                if (instruments?.length) {
+                    instruments.forEach(instrument => {
+                        data[instrument.uid] = instrument;
+                    });
+                }
+
+                return data;
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+        }, Promise.resolve(<any>{}));
     }
 
     async updateOrders() {
@@ -265,9 +298,11 @@ export class Common {
             return [];
         }
 
-        this.currentPositions = ([].concat(p.securities, p.futures, p.options))
+        this.currentPositions = ([].concat(p.securities, p.futures, p.options, p.bonds))
+            .filter(f => Boolean(f))
             .reduce((prev, cur) => {
-                const i = this.currentPortfolio?.positions?.findIndex((f: { instrumentId: any; }) => f.instrumentId === cur.instrumentId);
+                const i = this.currentPortfolio?.positions?.findIndex((f: { instrumentId: any; }) => (f.instrumentId ? f.instrumentId === cur.instrumentId :
+                    f.instrumentUid === cur.instrumentUid));
 
                 if (i === -1) {
                     return prev;
@@ -1600,6 +1635,32 @@ export class Common {
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
+    }
+
+    toMoneyString(d: number) {
+        if (isNaN(Number(d))) {
+            return d;
+        }
+
+        const sp = Number(d).toFixed(2).split('.');
+
+        const first = sp[0].split('').reverse();
+
+        const nextText = first.reduce((acc, num, key) => {
+            return (key && !(key % 3)) ? `${acc} ${num}` : `${acc}${num}`;
+        }, '').split('').reverse().join('');
+
+        const money = nextText + (sp[1] && ('.' + sp[1]) || '');
+
+        if (money[0] === '-' && money[1] === ' ') {
+            const next = money.split('');
+
+            next[1] = '';
+
+            return next.join('');
+        }
+
+        return money;
     }
 
     static calcPortfolio(positions: any[], settings: { volume: number; takeProfit: number; stopLoss: number; }, type = 'share') { // eslint-disable-line

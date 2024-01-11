@@ -62,7 +62,7 @@ try {
                     accountId,
                 });
 
-                const positions = ([].concat(p.securities, p.futures, p.options));
+                const positions = ([].concat(p.securities, p.futures, p.options, p.bonds));
 
                 positions?.forEach(async position => {
                     try {
