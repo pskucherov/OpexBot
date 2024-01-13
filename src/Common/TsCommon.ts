@@ -1642,7 +1642,7 @@ export class Common {
             return d;
         }
 
-        const sp = Number(d).toFixed(2).split('.');
+        const sp = Number(d) < 1 ? Number(d).toFixed(2).split('.') : String(d).split('.');
 
         const first = sp[0].split('').reverse();
 

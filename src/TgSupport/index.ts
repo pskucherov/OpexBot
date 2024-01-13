@@ -1,4 +1,4 @@
-import { MoneyValue } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
+import { MoneyValue, Quotation } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
 
 try {
     const { Backtest } = require('../Common/TsBacktest');
@@ -30,8 +30,11 @@ try {
 
         async sendBalanceMessage() {
             try {
-                if (!this.allInstrumentsInfo || !this.currentPortfolio) {
-                    this.balanceMessageTimeout = setTimeout(() => this.sendBalanceMessage(), 200);
+                if (!this.allInstrumentsInfo || !this.currentPortfolio?.totalAmountPortfolio) {
+                    if (!this.sendBalanceMessage) {
+                        return;
+                    }
+                    this.balanceMessageTimeout = setTimeout(this.sendBalanceMessage.bind(this), 200);
 
                     return;
                 }
@@ -54,11 +57,10 @@ try {
 
                 const textPositions: string[] = [];
 
-                textPositions.push(`**Доходность: ${this.getPrice(expectedYield)}%**`);
-                textPositions.push('');
                 textPositions.push('Портфель: ' +
                     `${this.toMoneyString(this.getPrice(totalAmountPortfolio))} ${totalAmountPortfolio?.currency} `,
                 );
+                textPositions.push(`Доходность: ${this.getPrice(expectedYield)}%`);
                 textPositions.push('');
 
                 const names: { [key: string]: string; } = {
@@ -83,8 +85,26 @@ try {
                 textPositions.push('');
                 positions
                     .filter((f: { name?: string; }) => Boolean(f.name))
-                    .map((p: { name: string; ticker: string; expectedYield: MoneyValue; currency: string; }) => {
-                        textPositions.push(p.name + ` (${p.ticker}) ` + this.toMoneyString(this.getPrice(p.expectedYield)) + ' ' + p.currency);
+                    .map((p: {
+                        name: string; ticker: string; expectedYield: MoneyValue; currency: string;
+                        averagePositionPrice: MoneyValue; currentPrice: MoneyValue; quantity: Quotation;
+                    }) => {
+                        // console.log(p);
+                        textPositions.push(p.name + ` (${p.ticker})`);
+
+                        // let lots = this.getPrice(p.quantity) / this.getPrice(p.lot);
+                        // lots = lots < 1 ? lots : (Math.floor(lots * 1000) / 1000);
+
+                        textPositions.push(
+                            this.toMoneyString(this.getPrice(p.averagePositionPrice)) +
+                            ' → ' + this.toMoneyString(this.getPrice(p.currentPrice)) + ` (x ${this.getPrice(p.quantity)} шт.)`,
+                        );
+
+                        if (p.expectedYield) {
+                            textPositions.push('Доходность: ' + this.toMoneyString(this.getPrice(p.expectedYield)) + ' ' + p.currency);
+                        }
+
+                        textPositions.push('');
                     });
 
                 this.tgBot.sendMessage(textPositions.join('\r\n'));
