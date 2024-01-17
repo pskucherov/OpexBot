@@ -1,12 +1,12 @@
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { Backtest } from './TsBacktest';
 import {
     candlesSubscribe, lastPriceSubscribe,
     orderBookSubscribe,
 } from '../../components/investAPI/subscribeTemplates';
-import { OperationState } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/operations';
-import { Quotation } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
-import { OrderDirection, OrderType } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/orders';
+import { OperationState } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
+import { Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { OrderDirection, OrderType } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 
 export class Sandbox extends Backtest {
     constructor(accountId: string, _adviser?: boolean,

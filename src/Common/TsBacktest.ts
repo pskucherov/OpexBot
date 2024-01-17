@@ -1,7 +1,7 @@
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
-import { MoneyValue, Quotation } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
-import { PortfolioPosition } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/operations';
-import { OrderDirection } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/orders';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
+import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { PortfolioPosition } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
+import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 import { Common } from './TsCommon';
 
 export interface IBacktestPositions extends PortfolioPosition {

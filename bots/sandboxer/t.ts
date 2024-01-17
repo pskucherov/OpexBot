@@ -1,7 +1,7 @@
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
 
-// import { DeepPartial } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
-import { DeepPartial, MarketDataRequest, SubscriptionAction } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/marketdata';
+// import { DeepPartial } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { DeepPartial, MarketDataRequest, SubscriptionAction } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // import { DeepPartial, MarketDataRequest, SubscriptionAction, SubscriptionInterval } from '../generated/marketdata';
 

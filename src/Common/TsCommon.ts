@@ -4,16 +4,16 @@
 /* eslint @typescript-eslint/ban-types: 0 */
 /* eslint max-len: 0 */
 /* eslint sonarjs/no-duplicate-string: 0 */
-import { PortfolioResponse } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/operations';
+import { PortfolioResponse } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
 
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
-import { MoneyValue, Quotation } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
+import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
 import { mkDirByPathSync } from '../utils';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { OrderDirection } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/orders';
+import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 
 export class Common {
     static settingsFileName = 'settings.json';

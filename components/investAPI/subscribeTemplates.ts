@@ -1,5 +1,5 @@
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
-import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
+import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 function createSubscriptionCandleRequest(instrumentId: string | string[]): MarketDataRequest {
     return MarketDataRequest.fromPartial({

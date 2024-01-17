@@ -1,7 +1,7 @@
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
-import { MoneyValue } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
-import { OpenSandboxAccountResponse } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/sandbox';
-import { Account, GetAccountsResponse } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/users';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
+import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { OpenSandboxAccountResponse } from 'tinkoff-sdk-grpc-js/dist/generated/sandbox';
+import { Account, GetAccountsResponse } from 'tinkoff-sdk-grpc-js/dist/generated/users';
 
 export class Accounts {
     sdk: ReturnType<typeof createSdk>;

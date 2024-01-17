@@ -5,9 +5,9 @@ try {
 
     // const kill = require('kill-port');
     // const { app, BrowserWindow, shell } = require('electron');
-    const log = require('electron-log');
+    // const log = require('electron-log');
 
-    Object.assign(console, log.functions);
+    // Object.assign(console, log.functions);
 
     (async () => {
         try {

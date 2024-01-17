@@ -1,6 +1,6 @@
 /* eslint-disable  @typescript-eslint/no-explicit-any */
 import { Common } from '../../src/Common/TsCommon';
-import { HistoricCandle } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // @ts-ignore
 import NodeRSI from 'node-rsi';

@@ -1,4 +1,4 @@
-import { MoneyValue, Quotation } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
+import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
 try {
     const { Backtest } = require('../Common/TsBacktest');

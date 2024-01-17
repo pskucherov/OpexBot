@@ -1,5 +1,5 @@
 import { Candles } from '../../components/investAPI/candles';
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { TOKEN } from '../../config';
 
 import { Backtest } from '../../src/Common/TsBacktest';

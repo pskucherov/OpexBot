@@ -1,6 +1,6 @@
-import { MoneyValue } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/common';
+import { MoneyValue } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 import { Accounts } from './accounts';
-import { createSdk } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js';
+import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { TOKEN } from '../../config';
 
 import { debugEnd, debugStart } from '../../components/utils';
@@ -13,7 +13,7 @@ import path from 'path';
 import { Log } from '../../components/log';
 import { Robot } from './robot';
 
-// import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tinkofftradingbotconnector/node_modules/tinkoff-sdk-grpc-js/dist/generated/marketdata';
+// import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // import TelegramBot from 'node-telegram-bot-api';
 
