@@ -16,7 +16,7 @@ npm i
 ## Запуск
 ### UI
 ```
-npx ts-node opexbot.js
+npm run dev
 ```
 
 После старта откройте http://localhost:3056/settings
