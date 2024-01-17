@@ -31,9 +31,6 @@ try {
         async sendBalanceMessage() {
             try {
                 if (!this.allInstrumentsInfo || !this.currentPortfolio?.totalAmountPortfolio) {
-                    if (!this.sendBalanceMessage) {
-                        return;
-                    }
                     this.balanceMessageTimeout = setTimeout(this.sendBalanceMessage.bind(this), 200);
 
                     return;
@@ -85,6 +82,12 @@ try {
                 textPositions.push('');
                 positions
                     .filter((f: { name?: string; }) => Boolean(f.name))
+                    .sort((a: { expectedYield: Quotation; }, b: { expectedYield: Quotation; }) => {
+                        const yieldA = this.getPrice(a.expectedYield);
+                        const yieldB = this.getPrice(b.expectedYield);
+
+                        return yieldB - yieldA;
+                    })
                     .map((p: {
                         name: string; ticker: string; expectedYield: MoneyValue; currency: string;
                         averagePositionPrice: MoneyValue; currentPrice: MoneyValue; quantity: Quotation;
@@ -120,6 +123,8 @@ try {
 
             this.tgBot.onText(/счёт|счет/igm, async () => {
                 try {
+                    await this.updatePortfolio();
+                    await this.updatePositions();
                     await this.sendBalanceMessage();
                 } catch (e) {
                     console.log(e); // eslint-disable-line
@@ -131,7 +136,7 @@ try {
             // Переопределяем start, чтобы не выполнялась подписка и прочее получение информации.
             this.sendBalanceMessage();
 
-            this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage, 3600000);
+            this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage.bind(this), 3600000);
         }
 
         stop() {

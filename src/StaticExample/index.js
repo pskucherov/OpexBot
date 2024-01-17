@@ -64,25 +64,26 @@ try {
 
                 const positions = ([].concat(p.securities, p.futures, p.options, p.bonds));
 
-                positions?.forEach(async position => {
-                    try {
-                        const id = position.instrumentUid;
-                        const info = allInstrumentsWithIdKeys?.[id];
+                positions?.filter(p => Boolean(p))
+                    .forEach(async position => {
+                        try {
+                            const id = position.instrumentUid;
+                            const info = allInstrumentsWithIdKeys?.[id];
 
-                        if (info?.lot) {
-                            await this.order(
-                                sdk,
-                                {
-                                    accountId: props.accountId,
-                                    instrumentId: id,
-                                    quantity: -1 * parseInt(position.balance / info?.lot, 10),
-                                },
-                            );
+                            if (info?.lot && id && props.accountId) {
+                                await this.order(
+                                    sdk,
+                                    {
+                                        accountId: props.accountId,
+                                        instrumentId: id,
+                                        quantity: -1 * parseInt(position.balance / info?.lot, 10),
+                                    },
+                                );
+                            }
+                        } catch (e) {
+                            console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
                         }
-                    } catch (e) {
-                        console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
-                    }
-                });
+                    });
             } catch (e) {
                 console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
             }
