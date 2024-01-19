@@ -14,7 +14,7 @@ npm i
 ```
 
 ## Запуск
-### UI
+### UI (для непрограммистов)
 ```
 npx ts-node opexbot.js
 ```
@@ -24,7 +24,7 @@ Pin: 0000
 
 [Обзор UI версии](https://opexflow.com/kit)
 
-### Консольная версия
+### Консольная версия (для программистов)
 ```
 npx ts-node ./bots/backtester/backtester.ts
 ```
@@ -33,3 +33,7 @@ npx ts-node ./bots/backtester/backtester.ts
 ```
 npx cross-env DEBUG=1 ts-node ./bots/backtester/backtester.ts
 ```
+
+## Для вопросов и предложений
+[Личка](https://t.me/opexbotru)
+[Чат](https://t.me/opexflowchat)
