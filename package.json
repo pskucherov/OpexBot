@@ -3,14 +3,14 @@
   "author": "pskucherov",
   "description": "Trading bot.",
   "license": "Apache-2.0",
-  "version": "0.5.2",
+  "version": "0.5.6",
   "main": "./build/opexbot.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/pskucherov/OpexBot.git"
   },
   "bin": {
-    "opexbot": "opexbot.js"
+    "opexbot": "./build/opexbot.js"
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=production ts-node src/main",

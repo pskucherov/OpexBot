@@ -10,13 +10,16 @@
 const fs = require('fs');
 const path = require('path');
 
+const moduleBuildDist = path.join('../', '../', 'opexviewer');
+
 // Когда opexviewer лежит рядом с opexbot
 const moduleDist = path.join('../', 'opexviewer');
 
 // Когда opexviewer лежит внутри node_modules
 const packageDist = path.join('./', 'node_modules', 'opexviewer');
 
-const PROJECT_ROOT = fs.existsSync(moduleDist) ? moduleDist : packageDist;
+const PROJECT_ROOT = fs.existsSync(path.resolve(__dirname, moduleBuildDist)) ?
+    moduleBuildDist : fs.existsSync(path.resolve(__dirname, moduleDist)) ? moduleDist : packageDist;
 
 const nextConfig = {
     reactStrictMode: true,
