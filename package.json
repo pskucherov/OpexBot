@@ -3,7 +3,7 @@
   "author": "pskucherov",
   "description": "Trading bot.",
   "license": "Apache-2.0",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "main": "./build/opexbot.js",
   "repository": {
     "type": "git",

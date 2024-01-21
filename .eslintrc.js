@@ -134,6 +134,7 @@ module.exports = {
         'sonarjs/cognitive-complexity': ['error', 50],
         '@typescript-eslint/no-var-requires': 0,
         '@typescript-eslint/ban-ts-comment': 'off',
+        'linebreak-style': ['error', 'windows'],
     },
     ignorePatterns: [
         'node_modules/*',
