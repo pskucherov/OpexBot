@@ -14,6 +14,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
+import TelegramBot from 'node-telegram-bot-api';
 
 export class Common {
     static settingsFileName = 'settings.json';
@@ -26,7 +27,7 @@ export class Common {
         }
     };
     brokerId: string;
-    tgBot: any;
+    tgBot: TelegramBot;
     cb: {
         getQuotationsAndOrderbook(instrumentId: any): any;
         getTickerInfo: any;
@@ -117,7 +118,7 @@ export class Common {
         this.backtest = Boolean(backtest);
         this.enums = options.enums;
         this.brokerId = options.brokerId;
-        this.tgBot = options.tgBot;
+        this.tgBot = options.tgBot as TelegramBot;
         this.sdk = sdk;
 
         // Методы, с помощью которых робот может общаться с внешним миром.
@@ -667,9 +668,6 @@ export class Common {
         mkDirByPathSync(dir);
         this.logOrdersFile = path.join(dir, name);
     }
-    name(_name: any, _accountId: any, _arg2: any, _arg3: Date): { dir: any; name: any; } {
-        throw new Error('Method not implemented.');
-    }
 
     getFileName() {
         return this.isPortfolio ? this.type : this.instrumentId;
@@ -769,14 +767,20 @@ export class Common {
             this.instrumentId = instrumentId;
         }
 
-        // this.inProgress = true;
-        // this.subscribes();
+        this.inProgress = true;
+        this.subscribes();
+
+        console.log(this.name, this.accountId, 'start'); // eslint-disable-line no-console
     }
 
     stop() {
+        if (this.inProgress) {
+            console.log(this.name, this.accountId, 'stop'); // eslint-disable-line no-console
+        }
+
         this.inProgress = false;
+
         clearInterval(this.intervalId);
-        console.log('stop'); // eslint-disable-line no-console
     }
     intervalId(_intervalId: any) {
         throw new Error('Method not implemented.');
@@ -968,7 +972,7 @@ export class Common {
             throw 'Укажите accountId';
         }
 
-        if (this.sdk) {
+        if (this.sdk && !this.isSandbox) {
             return await this.sdk.operations.getPositions({
                 accountId: this.accountId,
             });
@@ -1360,9 +1364,10 @@ export class Common {
         }
 
         const instruments = Array.isArray(instrumentId) ? instrumentId.join(',') : instrumentId;
+        const accIds = Array.isArray(accountId) ? accountId.join(',') : accountId;
 
         return {
-            dir: path.resolve(__dirname, '../../orders', name, accountId, instruments),
+            dir: path.resolve(__dirname, '../../orders', name, accIds, instruments),
             name: new Date(Number(date)).toLocaleString('ru', dateOptions) + '.json',
         };
     }
@@ -1393,7 +1398,7 @@ export class Common {
             return;
         }
 
-        const dir = path.resolve(__dirname, '../../orders', name, accountId, instrumentId);
+        const dir = path.resolve(__dirname, '../../orders', name.toString(), accountId.toString(), instrumentId.toString());
 
         mkDirByPathSync(dir);
 

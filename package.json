@@ -4,7 +4,7 @@
   "description": "Trading bot.",
   "license": "Apache-2.0",
   "version": "0.5.1",
-  "main": "./opexbot.js",
+  "main": "./build/opexbot.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/pskucherov/OpexBot.git"
@@ -15,17 +15,18 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=production ts-node src/main",
     "bot": "cross-env DEBUG=1 ts-node ./bots/backtester/backtester.ts",
-    "lint-fix": "npx eslint --fix .",
-    "tsc": "npx tsc"
+    "build": "cross-env NODE_ENV=production tsc",
+    "lint-fix": "npx eslint --fix ."
   },
   "precommit": [
     "lint-fix",
-    "tsc"
+    "build"
   ],
   "engines": {
     "node": ">=17.0.0"
   },
   "devDependencies": {
+    "@types/node-telegram-bot-api": "^0.64.2",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "concurrently": "^7.2.0",
     "eslint": "^8.14.0",
@@ -38,10 +39,10 @@
     "eslint-plugin-promise": "^6.0.0",
     "eslint-plugin-react": "^7.29.4",
     "eslint-plugin-sonarjs": "^0.13.0",
-    "pre-commit": "^1.2.2"
+    "pre-commit": "^1.2.2",
+    "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "@types/node-telegram-bot-api": "^0.64.0",
     "cross-env": "^7.0.3",
     "kill-port": "^2.0.1",
     "moving-averages": "^4.0.6",
@@ -51,8 +52,10 @@
     "opexviewer": "^0.5.0",
     "sqlite": "^4.1.2",
     "sqlite3": "^5.1.4",
-    "tinkofftradingbotconnector": "^0.5.0",
+    "tinkoff-sdk-grpc-js": "^1.8.2",
+    "tinkofftradingbotconnector": "^0.5.1",
     "ts-node": "^10.9.2",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "webpack-node-externals": "^3.0.0"
   }
 }

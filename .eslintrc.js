@@ -138,6 +138,7 @@ module.exports = {
     ignorePatterns: [
         'node_modules/*',
         '.eslintrc.js',
+        'build',
         "src/Common/Backtest.js",
         "src/Common/Common.js",
     ],

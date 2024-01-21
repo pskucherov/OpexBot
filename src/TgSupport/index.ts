@@ -24,8 +24,6 @@ try {
                 this.init();
                 this.initAsync();
             })();
-
-            this.subscribeTgEvents();
         }
 
         async sendBalanceMessage() {
@@ -135,6 +133,7 @@ try {
         start() {
             // Переопределяем start, чтобы не выполнялась подписка и прочее получение информации.
             this.sendBalanceMessage();
+            this.subscribeTgEvents();
 
             this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage.bind(this), 3600000);
         }
@@ -142,9 +141,13 @@ try {
         stop() {
             super.stop();
 
+            this.tgBot.removeTextListener(/счёт|счет/igm);
+
             if (this.sendBalanceMessageInterval) {
                 clearInterval(this.sendBalanceMessageInterval);
             }
+
+            // this.tgBot.
         }
     }
 

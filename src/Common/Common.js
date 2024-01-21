@@ -832,7 +832,7 @@ try {
                 throw 'Укажите accountId';
             }
 
-            if (this.sdk) {
+            if (this.sdk && !this.isSandbox) {
                 return await this.sdk.getPositions({
                     accountId: this.accountId,
                 });

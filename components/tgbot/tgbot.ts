@@ -1,8 +1,8 @@
-const TelegramBot = require('node-telegram-bot-api');
+import TelegramBot from 'node-telegram-bot-api';
 
-let bot;
+let bot: TelegramBot | undefined;
 
-function createTgBot(token, userid) {
+function createTgBot(token: string, userid: TelegramBot.ChatId) {
     if (!token) {
         return;
     }
@@ -20,6 +20,7 @@ function createTgBot(token, userid) {
         });
 
         if (userid) {
+            // @ts-ignore
             bot.sendMessage = bot?.sendMessage.bind(bot, userid);
 
             // bot?.sendMessage('OpexBot подключен к tg');
@@ -35,6 +36,8 @@ function createTgBot(token, userid) {
     } catch (e) {
         console.log(e); // eslint-disable-line no-console
     }
+
+    return undefined;
 }
 
 module.exports = {

@@ -49,7 +49,12 @@ const mkDirByPathSync = (targetDir, { isRelativeToScript = false } = {}) => {
 
 const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
 
+const logger = (a, b, c) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    return console.log(a || '', b || '', c || ''); // eslint-disable-line no-console
+};
+
 module.exports = {
-    mkDirByPathSync,
     todayDate: new Date().toLocaleString('ru', dateOptions),
+    mkDirByPathSync,
+    logger,
 };

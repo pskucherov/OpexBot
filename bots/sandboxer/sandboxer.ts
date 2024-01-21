@@ -12,6 +12,7 @@ import path from 'path';
 
 import { Log } from '../../components/log';
 import { Robot } from './robot';
+import { logger } from '../../src/utils';
 
 // import { MarketDataRequest, SubscriptionAction, SubscriptionInterval } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
@@ -28,7 +29,9 @@ import { Robot } from './robot';
 
 // const timer = (time: number) => new Promise(resolve => setTimeout(resolve, time));
 
-const sdk = createSdk(TOKEN, 'sandboxer');
+const sdk = createSdk(TOKEN, 'sandboxer', logger, {
+    isSandbox: true,
+});
 
 const instrumentCountForOneAccount = 10; // Если указать 1, то на один счёт будет один инструмент.
 

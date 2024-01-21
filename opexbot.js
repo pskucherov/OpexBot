@@ -29,6 +29,7 @@ try {
             process.argv[4] = '-p';
             process.argv[5] = '3056';
 
+            // require('./src/main');
             require('./src/main');
             require('next/dist/bin/next');
 

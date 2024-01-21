@@ -19,6 +19,7 @@ export class Backtest extends Common {
     backtestPositions: IBacktestPositions[] = [];
     backtestOrders!: never[];
     step!: number;
+    name?: string;
 
     constructor(accountId: string, _adviser?: boolean,
         backtest?: boolean, callbacks?: any, // eslint-disable-line

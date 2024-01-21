@@ -13,11 +13,9 @@
     "skipLibCheck": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
+    // "noEmit": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    // "resolveJsonModule": true,
-    // "isolatedModules": true,
     "noImplicitReturns": true,
     "noImplicitThis": true,
     "noImplicitAny": true,
@@ -52,5 +50,7 @@
   "exclude": [
     "node_modules",
     ".eslintrc.js",
+    "build",
+    "**/dist/**/*.d.ts",
   ]
 }
