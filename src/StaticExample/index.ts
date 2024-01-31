@@ -1,3 +1,13 @@
+// @ts-nocheck
+/* eslint @typescript-eslint/no-explicit-any: 0 */
+/* eslint @typescript-eslint/no-unused-vars: 0 */
+/* eslint @typescript-eslint/ban-types: 0 */
+/* eslint max-len: 0 */
+/* eslint sonarjs/no-duplicate-string: 0 */
+
+import { createSdk } from 'tinkoff-sdk-grpc-js';
+import { OrderType } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
+
 try {
     const { Backtest } = require('../Common/Backtest');
 
@@ -8,7 +18,15 @@ try {
      * Заготовка торгового робота.
      */
     class Bot extends Backtest {
-        static async order(sdk, props) {
+        static async order(sdk: ReturnType<typeof createSdk>,
+            props: {
+                accountId: string;
+                instrumentId: string;
+                quantity: number;
+                price?: string;
+                orderType?: OrderType;
+            },
+        ) {
             const {
                 accountId,
                 price,
@@ -22,7 +40,6 @@ try {
                     return;
                 }
 
-                const postOrder = sdk?.orders?.postOrder;
                 const orderId = this.genOrderId();
                 const direction = quantity < 0 ?
                     sdk?.OrderDirection.ORDER_DIRECTION_SELL :
@@ -41,13 +58,13 @@ try {
                     data[price] = price;
                 }
 
-                return await postOrder(data);
+                return await sdk?.orders?.postOrder(data);
             } catch (e) {
                 console.log('order', e); // eslint-disable-line no-console
             }
         }
 
-        static async closeAllByBestPrice(sdk, props) {
+        static async closeAllByBestPrice(sdk: ReturnType<typeof createSdk>, props: { accountId: string; allInstrumentsWithIdKeys?: any; }) {
             try {
                 if (!sdk?.operations?.getPositions) {
                     return;
@@ -64,33 +81,41 @@ try {
 
                 const positions = ([].concat(p.securities, p.futures, p.options, p.bonds));
 
-                positions?.filter(p => Boolean(p))
-                    .forEach(async position => {
-                        try {
-                            const id = position.instrumentUid;
-                            const info = allInstrumentsWithIdKeys?.[id];
+                for (let i = 0; i < positions.length; i++) {
+                    const position = positions[i];
 
-                            if (info?.lot && id && props.accountId) {
-                                await this.order(
-                                    sdk,
-                                    {
-                                        accountId: props.accountId,
-                                        instrumentId: id,
-                                        quantity: -1 * parseInt(position.balance / info?.lot, 10),
-                                    },
-                                );
-                            }
-                        } catch (e) {
-                            console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
+                    if (!position) {
+                        continue;
+                    }
+
+                    try {
+                        const id = position.instrumentUid;
+
+                        const info = allInstrumentsWithIdKeys?.[id];
+
+                        if (info?.lot && id && props.accountId) {
+                            await this.order(
+                                sdk,
+                                {
+                                    accountId: props.accountId,
+                                    instrumentId: id,
+                                    quantity: -1 * parseInt(position.balance / info?.lot, 10),
+                                },
+                            );
                         }
-                    });
+                    } catch (e) {
+                        console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
+                    }
+                }
             } catch (e) {
                 console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
             }
         }
     }
 
-    module.exports[name] = Bot;
+    if (name) {
+        module.exports[name] = Bot;
+    }
 } catch (e) {
     console.log(e); // eslint-disable-line no-console
 }

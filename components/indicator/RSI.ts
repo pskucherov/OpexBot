@@ -3,7 +3,7 @@ import { Common } from '../../src/Common/TsCommon';
 import { HistoricCandle } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 // @ts-ignore
-import NodeRSI from 'node-rsi';
+import NodeRSI from 'calc-rsi';
 
 export class RSI {
     static async calculate(candles: HistoricCandle[], period: number) {

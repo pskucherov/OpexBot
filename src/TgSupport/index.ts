@@ -52,10 +52,15 @@ try {
 
                 const textPositions: string[] = [];
 
+                const totalPortfolio = this.getPrice(totalAmountPortfolio);
+
                 textPositions.push('Портфель: ' +
-                    `${this.toMoneyString(this.getPrice(totalAmountPortfolio))} ${totalAmountPortfolio?.currency} `,
+                    `${this.toMoneyString(totalPortfolio)} ${totalAmountPortfolio?.currency} `,
                 );
-                textPositions.push(`Доходность: ${this.getPrice(expectedYield)}%`);
+
+                const yld = totalPortfolio * this.getPrice(expectedYield) / 100;
+
+                textPositions.push(`Доходность: ${this.toMoneyString(yld && yld.toFixed(2))} (${this.getPrice(expectedYield)}%)`);
                 textPositions.push('');
 
                 const names: { [key: string]: string; } = {
@@ -90,22 +95,28 @@ try {
                         name: string; ticker: string; expectedYield: MoneyValue; currency: string;
                         averagePositionPrice: MoneyValue; currentPrice: MoneyValue; quantity: Quotation;
                     }) => {
-                        // console.log(p);
-                        textPositions.push(p.name + ` (${p.ticker})`);
+                        try {
+                            // console.log(p);
+                            textPositions.push(p.name + ` (${p.ticker})`);
 
-                        // let lots = this.getPrice(p.quantity) / this.getPrice(p.lot);
-                        // lots = lots < 1 ? lots : (Math.floor(lots * 1000) / 1000);
+                            // let lots = this.getPrice(p.quantity) / this.getPrice(p.lot);
+                            // lots = lots < 1 ? lots : (Math.floor(lots * 1000) / 1000);
 
-                        textPositions.push(
-                            this.toMoneyString(this.getPrice(p.averagePositionPrice)) +
-                            ' → ' + this.toMoneyString(this.getPrice(p.currentPrice)) + ` (x ${this.getPrice(p.quantity)} шт.)`,
-                        );
+                            textPositions.push(
+                                this.toMoneyString(this.getPrice(p.averagePositionPrice)) +
+                                ' → ' + this.toMoneyString(this.getPrice(p.currentPrice)) + ` (x ${this.getPrice(p.quantity)} шт.)`,
+                            );
 
-                        if (p.expectedYield) {
-                            textPositions.push('Доходность: ' + this.toMoneyString(this.getPrice(p.expectedYield)) + ' ' + p.currency);
+                            if (p.expectedYield) {
+                                const yld = this.getPrice(p.expectedYield);
+
+                                textPositions.push('Доходность: ' + this.toMoneyString(yld) + ' ' + p.currency);
+                            }
+
+                            textPositions.push('');
+                        } catch (e) {
+                            console.log(e); // eslint-disable-line
                         }
-
-                        textPositions.push('');
                     });
 
                 this.tgBot.sendMessage(textPositions.join('\r\n'));
@@ -115,39 +126,53 @@ try {
         }
 
         async subscribeTgEvents() {
-            if (!this.tgBot) {
-                return;
-            }
-
-            this.tgBot.onText(/счёт|счет/igm, async () => {
-                try {
-                    await this.updatePortfolio();
-                    await this.updatePositions();
-                    await this.sendBalanceMessage();
-                } catch (e) {
-                    console.log(e); // eslint-disable-line
+            try {
+                if (!this.tgBot) {
+                    return;
                 }
-            });
+
+                this.tgBot.onText(/счёт|счет/igm, async () => {
+                    try {
+                        await this.updatePortfolio();
+                        await this.updatePositions();
+                        await this.sendBalanceMessage();
+                    } catch (e) {
+                        console.log(e); // eslint-disable-line
+                    }
+                });
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         start() {
-            // Переопределяем start, чтобы не выполнялась подписка и прочее получение информации.
-            this.sendBalanceMessage();
-            this.subscribeTgEvents();
+            try {
+                // Костыль, чтобы вотчер не триггерил несколько событий отправки.
+                if (!this.startTimer || this.startTimer - Date.now() > 10000) {
+                    this.sendBalanceMessage();
+                }
+                this.startTimer = Date.now();
 
-            this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage.bind(this), 3600000);
+                this.subscribeTgEvents();
+
+                this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage.bind(this), 3600000);
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
         }
 
         stop() {
-            super.stop();
+            try {
+                super.stop();
 
-            this.tgBot.removeTextListener(/счёт|счет/igm);
+                this.tgBot.removeTextListener(/счёт|счет/igm);
 
-            if (this.sendBalanceMessageInterval) {
-                clearInterval(this.sendBalanceMessageInterval);
+                if (this.sendBalanceMessageInterval) {
+                    clearInterval(this.sendBalanceMessageInterval);
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line
             }
-
-            // this.tgBot.
         }
     }
 

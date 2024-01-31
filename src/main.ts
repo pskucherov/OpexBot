@@ -36,40 +36,40 @@ import { createTgBot } from '../components/tgbot/tgbot';
      * При изменении в файлах перезагружает роботов,
      * чтобы не перезапускать сервис при правках.
      */
-    hmr(() => {
-        console.log('hmr started'); // eslint-disable-line no-console
+    // hmr(() => {
+    //     console.log('hmr started'); // eslint-disable-line no-console
+    const bots = {};
 
-        const bots = {};
+    fs.readdirSync(path.resolve(__dirname)).forEach(file => {
+        const p = path.resolve(__dirname, file);
 
-        fs.readdirSync(path.resolve(__dirname)).forEach(file => {
-            const p = path.resolve(__dirname, file);
+        if (fs.lstatSync(p).isDirectory() && file !== 'Common' &&
+            file !== 'Example' && file !== 'Buyer') {
+            const module = require(p);
 
-            if (fs.lstatSync(p).isDirectory() && file !== 'Common' &&
-                file !== 'Example' && file !== 'Buyer') {
-                const module = require(p);
-
-                if (module[file]) {
-                    bots[file] = module[file];
-                }
+            if (module[file]) {
+                bots[file] = module[file];
             }
-        });
-
-        const { tradingbotconnector } = require('tinkofftradingbotconnector');
-
-        tradingbotconnector({
-            bots,
-            robotsStarted: [],
-        }, {
-            db,
-            DemoTables: new DemoTables(db),
-            createTgBot,
-        });
-
-        exports.bots = bots;
-    }, {
-        watchDir: './',
-        watchFilePatterns: ['**/*.js'],
+        }
     });
+
+    const { tradingbotconnector } = require('tinkofftradingbotconnector');
+
+    tradingbotconnector({
+        bots,
+        robotsStarted: [],
+    }, {
+        db,
+        DemoTables: new DemoTables(db),
+        createTgBot,
+    });
+
+    exports.bots = bots;
+
+    // }, {
+    //     watchDir: './',
+    //     watchFilePatterns: ['**/*.js'],
+    // });
 })();
 
 setInterval(() => { }, 3600000);

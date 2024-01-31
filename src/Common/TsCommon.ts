@@ -1374,7 +1374,7 @@ export class Common {
 
     static getLogFiles(name: any, accountId: any, instrumentId: any, date: any) {
         if (!name || !accountId || !instrumentId || !date) {
-            return;
+            return [];
         }
 
         const { dir } = this.getLogFileName(name, accountId, instrumentId, date);
