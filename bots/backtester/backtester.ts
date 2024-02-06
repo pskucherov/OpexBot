@@ -85,7 +85,7 @@ async function testInstrument(instrumentUID: string) {
 
     if (instrument) {
         debugStart('Получение свечей (candlesSdk.getCandles)');
-        const historicCandlesArr = await candlesSdk.getCandles(
+        const historicCandlesArr = await candlesSdk.getCandlesDayByDay(
             instrumentUID,
             testerInterval,
             '2023.01.01',

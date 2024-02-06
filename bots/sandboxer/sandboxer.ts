@@ -210,7 +210,7 @@ let accountsIds: IAccountsIds;
 
             from.setUTCDate(-70);
 
-            const historicCandlesArr = await candlesSdk.getCandles(
+            const historicCandlesArr = await candlesSdk.getCandlesDayByDay(
                 instrumentUID,
                 testerInterval,
                 from,
