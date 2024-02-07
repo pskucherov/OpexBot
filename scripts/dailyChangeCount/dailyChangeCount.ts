@@ -14,7 +14,7 @@ const sdk = createSdk(TOKEN, 'backtester', logger);
 const candlesSdk = new Candles(sdk);
 const instruments = new Instruments(sdk);
 
-(async () => {
+(async () => { // eslint-disable-line
     const allBaseShares = (await instruments.getAllShares()).filter(f => f.currency === 'rub');
 
     const to = new Date();
@@ -45,7 +45,7 @@ const instruments = new Instruments(sdk);
             },
         );
 
-        console.log(i, uid, ticker, name, historicCandlesArr.length); // eslint-disable-line no-console
+        console.log(i, ticker, name, historicCandlesArr.length); // eslint-disable-line no-console
 
         const stat: {
             [key: number]: any;
@@ -152,57 +152,59 @@ const instruments = new Instruments(sdk);
         console.log(d[i]); // eslint-disable-line no-console
     }
 
-    // function getIntersection(dataByDay: { [x: string]: any; }) {
-    //     const uniqUid: any = {};
+    function getIntersection(dataByDay: { [x: string]: any; }) {
+        const uniqUid: any = {};
 
-    //     Object.keys(dataByDay).forEach(k => dataByDay[k].forEach((u: any) => uniqUid[u.uid] = []));
+        Object.keys(dataByDay).forEach(k => dataByDay[k].forEach((u: any) => uniqUid[u.uid] = []));
 
-    //     const intersectUids: any = {};
-    //     Object.keys(uniqUid).forEach((k) => {
-    //         Object.keys(dataByDay).forEach(j => {
-    //             const daysWithUid = dataByDay[j].filter((p: { uid: string; }) => p.uid === k);
-    //             if (daysWithUid.length) {
-    //                 uniqUid[k].push(dataByDay[j].map((p: { uid: any; }) => p.uid));
-    //             }
-    //         });
+        const intersectUids: any = {};
 
-    //         intersectUids[k] = [];
+        Object.keys(uniqUid).forEach(k => {
+            Object.keys(dataByDay).forEach(j => {
+                const daysWithUid = dataByDay[j].filter((p: { uid: string; }) => p.uid === k);
 
-    //         uniqUid[k].forEach((u: string | any[], i: any) => {
-    //             if (!intersectUids[k]) {
-    //                 return;
-    //             }
+                if (daysWithUid.length) {
+                    uniqUid[k].push(dataByDay[j].map((p: { uid: any; }) => p.uid));
+                }
+            });
 
-    //             if (!i) {
-    //                 intersectUids[k] = u;
-    //             } else {
-    //                 intersectUids[k] = intersectUids[k].filter((value: any) => u.includes(value));
-    //             }
+            intersectUids[k] = [];
 
-    //             if (intersectUids[k].length <= 1) {
-    //                 delete intersectUids[k];
-    //             }
-    //         });
-    //     });
+            uniqUid[k].forEach((u: string | any[], i: any) => {
+                if (!intersectUids[k]) {
+                    return;
+                }
 
-    //     // console.log(intersectUids); // eslint-disable-line no-console
+                if (!i) {
+                    intersectUids[k] = u;
+                } else {
+                    intersectUids[k] = intersectUids[k].filter((value: any) => u.includes(value));
+                }
 
-    //     Object.keys(intersectUids).forEach(uid => {
-    //         console.log('Движение вместе с', cachedUidTicker[uid]); // eslint-disable-line no-console
+                if (intersectUids[k].length <= 1) {
+                    delete intersectUids[k];
+                }
+            });
+        });
 
-    //         intersectUids[uid].forEach((u: string) => {
-    //             if (u !== uid) {
-    //                 console.log(cachedUidTicker[u]); // eslint-disable-line no-console
-    //             }
-    //         });
+        // console.log(intersectUids); // eslint-disable-line no-console
 
-    //         console.log(); // eslint-disable-line no-console
-    //     });
-    // }
+        Object.keys(intersectUids).forEach(uid => {
+            console.log('Движение вместе с', cachedUidTicker[uid]); // eslint-disable-line no-console
 
-    // console.log('plusByDay'); // eslint-disable-line no-console
-    // getIntersection(plusByDay);
+            intersectUids[uid].forEach((u: string) => {
+                if (u !== uid) {
+                    console.log(cachedUidTicker[u]); // eslint-disable-line no-console
+                }
+            });
 
-    // console.log('minusByDay'); // eslint-disable-line no-console
-    // getIntersection(minusByDay);
+            console.log(); // eslint-disable-line no-console
+        });
+    }
+
+    console.log('plusByDay'); // eslint-disable-line no-console
+    getIntersection(plusByDay);
+
+    console.log('minusByDay'); // eslint-disable-line no-console
+    getIntersection(minusByDay);
 })();
