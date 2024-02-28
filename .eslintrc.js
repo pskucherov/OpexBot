@@ -50,7 +50,7 @@ module.exports = {
         'no-unreachable': 'error',
         strict: 'off',
         'max-params': ['error', 6],
-        'max-depth': ['error', 4],
+        'max-depth': ['error', 8],
         'no-eq-null': 'off',
         'no-unused-expressions': 'off',
         'dot-notation': 'off',

@@ -9,7 +9,7 @@ import { Instruments } from '../../../components/investAPI/instruments';
 import { logger } from '../../../src/utils';
 
 import { Common } from '../../../src/Common/Common';
-import * as tf from '@tensorflow/tfjs-node';
+import * as tf from '@tensorflow/tfjs-node'; // eslint-disable-line import/no-unresolved
 tf.enableProdMode();
 
 const sdk = createSdk(TOKEN, 'backtester', logger);

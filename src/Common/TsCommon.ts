@@ -271,6 +271,8 @@ export class Common {
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
+
+            return await acc;
         }, Promise.resolve(<any>{}));
     }
 
