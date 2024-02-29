@@ -117,6 +117,7 @@ package-lock.json
 db/data
 
 config.ts
+sandboxConfig.ts
 idsConfig.json
 
 build

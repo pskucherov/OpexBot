@@ -25,6 +25,12 @@ export class Accounts {
         return await this.sdk.sandbox.getSandboxAccounts({});
     }
 
+    async getPortfolio({ accountId }: { accountId: string }) {
+        return await this.sdk.sandbox.getSandboxPortfolio({
+            accountId,
+        });
+    }
+
     async close(account: Account) {
         const { id } = account;
 
