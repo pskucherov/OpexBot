@@ -1,4 +1,4 @@
-import { Candles } from '../../components/investAPI/candles';
+// import { Candles } from '../../components/investAPI/candles';
 import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { TOKEN } from '../../config';
 
@@ -10,8 +10,16 @@ import { Common } from '../../src/Common/TsCommon';
 // import { Common } from '../../src/Common/Common';
 
 const sdk = createSdk(TOKEN, 'backtester', logger);
-const candlesSdk = new Candles(sdk);
+
+// const candlesSdk = new Candles(sdk);
 const instruments = new Instruments(sdk);
+
+const startData = {
+    buyPrices: {},
+    sellPrices: {},
+    buyQuantityCount: 0,
+    sellQuantityCount: 0,
+};
 
 (async () => { // eslint-disable-line
     const allBaseShares = (await instruments.getAllShares()).filter(f => f.currency === 'rub');
@@ -30,32 +38,33 @@ const instruments = new Instruments(sdk);
         wait: [],
     };
 
+    // const uids: string[] = [];
+
     for (let i = 0; i < allBaseShares.length; i++) {
         const { uid, ticker, name } = allBaseShares[i];
 
+        // if (ticker !== 'SBER') {
+        //     continue;
+        // }
+
+        // uids.push(uid);
         cachedUidTicker[uid] = `${name} (${ticker})`;
 
-        const historicCandlesArr = await candlesSdk.getCandles(
-            {
-                instrumentId: uid,
-                interval: sdk.CandleInterval.CANDLE_INTERVAL_1_MIN,
-                from,
-                to,
-            },
-        );
+        // continue;
+        // const historicCandlesArr = await candlesSdk.getCandles(
+        //     {
+        //         instrumentId: uid,
+        //         interval: sdk.CandleInterval.CANDLE_INTERVAL_1_MIN,
+        //         from,
+        //         to,
+        //     },
+        // );
 
         const { trades } = (await sdk.marketData.getLastTrades({
             instrumentId: uid,
             from,
             to,
         })) || {};
-
-        const startData = {
-            buyPrices: {},
-            sellPrices: {},
-            buyQuantityCount: 0,
-            sellQuantityCount: 0,
-        };
 
         lastTrades[uid] = {
             m60: { ...startData },
@@ -114,7 +123,7 @@ const instruments = new Instruments(sdk);
             }
         }
 
-        console.log(i, ticker, name, historicCandlesArr.length); // eslint-disable-line no-console
+        console.log(i, ticker, name); // eslint-disable-line no-console
         periodsArr.forEach(pName => {
             console.log(pName, lastTrades[uid][pName].sellQuantityCount, lastTrades[uid][pName].buyQuantityCount); // eslint-disable-line no-console
         });
@@ -135,10 +144,16 @@ const instruments = new Instruments(sdk);
             allMarket.wait.push(ticker);
             console.log('Ждать'); // eslint-disable-line no-console
         }
+
+        // break;
     }
 
-    console.log('Состояние рынка'); // eslint-disable-line no-console
-    console.log('Продавать', allMarket.sell.length, 'Ждать', allMarket.wait.length); // eslint-disable-line no-console
-    console.log('Покупать', allMarket.buy.length); // eslint-disable-line no-console
-    console.log(allMarket.buy); // eslint-disable-line no-console
+    try {
+        console.log('Состояние рынка'); // eslint-disable-line no-console
+        console.log('Продавать', allMarket.sell.length, 'Ждать', allMarket.wait.length); // eslint-disable-line no-console
+        console.log('Покупать', allMarket.buy.length); // eslint-disable-line no-console
+        console.log(allMarket.buy); // eslint-disable-line no-console
+    } catch (e) {
+        console.log(e); // eslint-disable-line
+    }
 })();
