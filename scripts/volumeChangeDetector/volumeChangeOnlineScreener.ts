@@ -46,9 +46,8 @@ const startData = {
 
         if (![
             'TATNP',
-
-            // 'BANE'
-            // 'SBER', 'OZON', 'TATN', 'NLMK'
+            'BANE',
+            'SBER', 'OZON', 'TATN', 'NLMK',
         ].includes(ticker)) {
             continue;
         }
@@ -185,7 +184,7 @@ async function* createSubscriptionTradesRequest(
     instruments: { instrumentId: string; }[],
 ): AsyncIterable<DeepPartial<MarketDataRequest>> {
     while (true) {
-        await timer(5000);
+        await timer(1);
         yield MarketDataRequest.fromPartial({
             subscribeTradesRequest: {
                 subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
