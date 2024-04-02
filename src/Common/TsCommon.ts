@@ -13,7 +13,7 @@ import { mkDirByPathSync } from '../utils';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
+import { OrderDirection, OrderExecutionReportStatus } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 import TelegramBot from 'node-telegram-bot-api';
 
 export class Common {
@@ -249,31 +249,34 @@ export class Common {
             return;
         }
 
+        if (!this.allInstrumentsInfo) {
+            this.allInstrumentsInfo = {};
+        }
+
         const req = {
             instrumentStatus: this.sdk.InstrumentStatus.INSTRUMENT_STATUS_BASE,
         };
 
-        this.allInstrumentsInfo = await [
-            'bonds', 'shares', 'futures',
+        const names = [
+            'shares', 'bonds', 'futures',
             'etfs', 'options', 'currencies',
-        ].reduce(async (acc: Promise<any>, name) => {
+        ];
+
+        for (let i = 0; i < names.length; i++) {
             try {
-                const data = await acc;
+                const name = names[i];
+
                 const { instruments } = await this.sdk.instruments[name](req);
 
                 if (instruments?.length) {
                     instruments.forEach(instrument => {
-                        data[instrument.uid] = instrument;
+                        this.allInstrumentsInfo[instrument.uid] = instrument;
                     });
                 }
-
-                return data;
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
-
-            return await acc;
-        }, Promise.resolve(<any>{}));
+        }
     }
 
     async updateOrders() {
@@ -295,29 +298,37 @@ export class Common {
     }
 
     async updatePositions() {
-        const p = await this.getPositions();
+        try {
+            const p = await this.getPositions();
 
-        if (!p || !p.securities) {
-            return [];
+            if (!p || !p.securities) {
+                return [];
+            }
+
+            this.currentPositions = ([].concat(p.securities, p.futures, p.options, p.bonds))
+                .filter(f => Boolean(f))
+                .reduce((prev, cur) => {
+                    try {
+                        const i = this.currentPortfolio?.positions?.findIndex((f: { instrumentId: any; }) => (f.instrumentId ? f.instrumentId === cur.instrumentId :
+                            f.instrumentUid === cur.instrumentUid));
+
+                        if (i === -1) {
+                            return prev;
+                        }
+
+                        prev.push({
+                            ...this.currentPortfolio?.positions[i],
+                            ...cur,
+                        });
+
+                        return prev;
+                    } catch (e) {
+                        console.log(e); // eslint-disable-line no-console
+                    }
+                }, []);
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
         }
-
-        this.currentPositions = ([].concat(p.securities, p.futures, p.options, p.bonds))
-            .filter(f => Boolean(f))
-            .reduce((prev, cur) => {
-                const i = this.currentPortfolio?.positions?.findIndex((f: { instrumentId: any; }) => (f.instrumentId ? f.instrumentId === cur.instrumentId :
-                    f.instrumentUid === cur.instrumentUid));
-
-                if (i === -1) {
-                    return prev;
-                }
-
-                prev.push({
-                    ...this.currentPortfolio?.positions[i],
-                    ...cur,
-                });
-
-                return prev;
-            }, []);
     }
 
     /**
@@ -339,7 +350,7 @@ export class Common {
         return new Promise(resolve => setTimeout(resolve, time));
     }
 
-    async restart(timeout = 100) {
+    async restart(timeout = 500) {
         this.stop();
         await this.timer(timeout);
         this.start();
@@ -566,7 +577,7 @@ export class Common {
                 // Записываем новое состояние, только если оно изминилось.
                 if (!this.backtest && this.instrumentId && this.cb.cacheState &&
                     (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
-                    this.cb.cacheState(this.getFileName(), new Date().getTime(), this.lastPrice, this.orderbook);
+                    // this.cb.cacheState(this.getFileName(), new Date().getTime(), this.lastPrice, this.orderbook);
                     this.subscribeDataUpdated.lastPrice = false;
                     this.subscribeDataUpdated.orderbook = false;
                 }
@@ -966,22 +977,26 @@ export class Common {
     }
 
     async getPositions() {
-        if (this.backtest) {
-            return this.getBacktestPositions();
-        }
+        try {
+            if (this.backtest) {
+                return this.getBacktestPositions();
+            }
 
-        if (!this.accountId) {
-            throw 'Укажите accountId';
-        }
+            if (!this.accountId) {
+                throw 'Укажите accountId';
+            }
 
-        if (this.sdk && !this.isSandbox) {
-            return await this.sdk.operations.getPositions({
-                accountId: this.accountId,
-            });
-        }
+            if (this.sdk && !this.isSandbox) {
+                return await this.sdk.operations.getPositions({
+                    accountId: this.accountId,
+                });
+            }
 
-        return this.cb.getPositions &&
-            (await this.cb.getPositions(this.accountId));
+            return this.cb.getPositions &&
+                (await this.cb.getPositions(this.accountId));
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
     }
 
     getBacktestPositions() {
@@ -1028,6 +1043,10 @@ export class Common {
     }
 
     hasBlockedPositions() {
+        if (!this.currentPositions?.length) {
+            return false;
+        }
+
         return this
             .currentPositions
             .some(p => Boolean(p.blocked)) ||
@@ -1161,6 +1180,62 @@ export class Common {
         return Math.floor(sum / minInc) * minInc;
     }
 
+    static addMinPriceIncrement(price: Quotation, minInc: Quotation) {
+        let units = price.units + minInc.units;
+        let nano = price.nano + minInc.nano;
+
+        if (nano >= 1e9) {
+            units += minInc.units || 1;
+            nano -= 1e9;
+        }
+
+        return {
+            units,
+            nano,
+        };
+    }
+
+    static subMinPriceIncrement(price: Quotation, minInc: Quotation) {
+        let units = price.units - minInc.units;
+        let nano = price.nano - minInc.nano;
+
+        if (nano < 0) {
+            units -= minInc.units || 1;
+            nano += 1e9;
+        }
+
+        return {
+            units,
+            nano,
+        };
+    }
+
+    static resolveMinPriceIncrement(price: Quotation, minInc: Quotation) {
+        let units = this.getMinPriceIncrement(price.units, minInc.units);
+        let nano = this.getMinPriceIncrement(price.nano, minInc.nano);
+
+        if (nano >= 1e9) {
+            units += minInc.units || 1;
+            nano -= 1e9;
+        }
+
+        return {
+            units,
+            nano,
+        };
+    }
+
+    static getMinPriceIncrement(sum: number, minInc: number) {
+        if (!minInc || !sum) {
+            return sum;
+        }
+
+        const int = Math.floor(sum / minInc) * minInc;
+        const fract = Math.floor(sum % minInc);
+
+        return !fract ? int : int + minInc;
+    }
+
     /**
      * Расчитывает цену фиксации по TP.
      *
@@ -1270,14 +1345,14 @@ export class Common {
 
     async getOpenOrders() {
         try {
-            // TODO: брать из OrderExecutionReportStatus
-            // EXECUTION_REPORT_STATUS_NEW (4)
-            // EXECUTION_REPORT_STATUS_PARTIALLYFILL (5)
             const { orders } = this.cb.getOrders && (await this.cb.getOrders(this.accountId)) || {};
 
             this.allOrders = orders;
 
-            return orders && orders.filter((o: { executionReportStatus: number; }) => [4, 5].includes(o.executionReportStatus));
+            return orders && orders.filter((o: { executionReportStatus: number; }) => [
+                OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
+                OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL,
+            ].includes(o.executionReportStatus));
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
