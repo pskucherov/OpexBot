@@ -7,6 +7,9 @@ if (!TOKEN) {
     throw 'Заполните токен в файле config.ts';
 }
 
+const ACCOUNTID = '';
+
 export {
     TOKEN,
+    ACCOUNTID,
 };
