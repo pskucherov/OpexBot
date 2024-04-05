@@ -18,13 +18,19 @@ try {
      */
     class Bot extends Common {
         // instrument — торгует одним инструментом. portfolio — всем портфелем.
-        static type = 'autostop';
+        static type = 'autoprofit';
         name: string | undefined;
+
         decisionBuyPositionMessage!: string;
         decisionClosePositionMessage!: string | number;
         allInstrumentsInfo: {
             [key: string]: Share
         } = {};
+        breakeven: number = 0.0011;
+        breakevenStep1: number = 0.002;
+        breakevenStep2: number = 0.005;
+        breakevenStep3: number = 0.0075;
+        breakevenStep4: number = 0.0095;
 
         // @ts-ignore
         constructor(...args) {
@@ -38,6 +44,10 @@ try {
 
         async processing() { // eslint-disable-line
             await super.processing();
+
+            if (!this.inProgress) {
+                return;
+            }
 
             const sdk = this.sdk;
             const accountId = this.accountId;
@@ -57,8 +67,6 @@ try {
                     accountId,
                     status: StopOrderStatusOption.STOP_ORDER_STATUS_ACTIVE,
                 });
-
-                console.log('Выставляем стопы'); // eslint-disable-line no-console
 
                 for (let j = 0; j < positions.length; j++) {
                     const {
@@ -249,21 +257,21 @@ try {
 
         getStopProfitForLong(price: number) {
             return {
-                breakeven: price * 1.0011,
-                step1: price * 1.002,
-                step2: price * 1.005,
-                step3: price * 1.0075,
-                step4: price * 1.0095,
+                breakeven: price * (1 + this.breakeven),
+                step1: price * (1 + this.breakevenStep1),
+                step2: price * (1 + this.breakevenStep2),
+                step3: price * (1 + this.breakevenStep3),
+                step4: price * (1 + this.breakevenStep4),
             };
         }
 
         getStopProfitForShort(price: number) {
             return {
-                breakeven: price * (1 - 0.0011),
-                step1: price * (1 - 0.002),
-                step2: price * (1 - 0.005),
-                step3: price * (1 - 0.0075),
-                step4: price * (1 - 0.0095),
+                breakeven: price * (1 - this.breakeven),
+                step1: price * (1 - this.breakevenStep1),
+                step2: price * (1 - this.breakevenStep2),
+                step3: price * (1 - this.breakevenStep3),
+                step4: price * (1 - this.breakevenStep4),
             };
         }
 

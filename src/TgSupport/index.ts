@@ -119,7 +119,7 @@ try {
                         }
                     });
 
-                this.tgBot.sendMessage(textPositions.join('\r\n'));
+                this.tgBot?.sendMessage(textPositions.join('\r\n'));
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }

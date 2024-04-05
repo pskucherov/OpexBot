@@ -1471,11 +1471,11 @@ export class Common {
     }
 
     static getStaticFileSettings(name: any, accountId: any, instrumentId: any) {
-        if (!name || !accountId || !instrumentId) {
+        if (!name || !accountId) {
             return;
         }
 
-        const dir = path.resolve(__dirname, '../../orders', name.toString(), accountId.toString(), instrumentId.toString());
+        const dir = path.resolve(__dirname, '../../orders', name.toString(), accountId.toString(), instrumentId ? instrumentId.toString() : '');
 
         mkDirByPathSync(dir);
 
@@ -1510,6 +1510,12 @@ export class Common {
 
             support: { units: 0, nano: 0 },
             resistance: { units: 0, nano: 0 },
+
+            breakeven: 0.0011,
+            breakevenStep1: 0.002,
+            breakevenStep2: 0.005,
+            breakevenStep3: 0.0075,
+            breakevenStep4: 0.0095,
         };
 
         if (name && accountId && instrumentId) {
@@ -1612,7 +1618,18 @@ export class Common {
             current.tradingDays = settings.tradingDays;
         }
 
-        if (name && accountId && instrumentId) {
+        settings.breakeven = parseFloat(settings.breakeven);
+        settings.breakevenStep1 = parseFloat(settings.breakevenStep1);
+        settings.breakevenStep2 = parseFloat(settings.breakevenStep2);
+        settings.breakevenStep3 = parseFloat(settings.breakevenStep3);
+        settings.breakevenStep4 = parseFloat(settings.breakevenStep4);
+        settings.breakeven > 0 && (current.breakeven = settings.breakeven);
+        settings.breakevenStep1 > 0 && (current.breakevenStep1 = settings.breakevenStep1);
+        settings.breakevenStep2 > 0 && (current.breakevenStep2 = settings.breakevenStep2);
+        settings.breakevenStep3 > 0 && (current.breakevenStep3 = settings.breakevenStep3);
+        settings.breakevenStep4 > 0 && (current.breakevenStep4 = settings.breakevenStep4);
+
+        if (name && accountId) {
             const file = this.getStaticFileSettings(name, accountId, instrumentId);
 
             file && fs.writeFileSync(file, JSON.stringify(current));
@@ -1657,6 +1674,26 @@ export class Common {
         this.startTradingTimeMinutes = current.startTradingTimeMinutes;
         this.endTradingTimeHours = current.endTradingTimeHours;
         this.endTradingTimeMinutes = current.endTradingTimeMinutes;
+
+        if (current.breakeven) {
+            this.breakeven = current.breakeven;
+        }
+
+        if (current.breakevenStep1) {
+            this.breakevenStep1 = current.breakevenStep1;
+        }
+
+        if (current.breakevenStep2) {
+            this.breakevenStep2 = current.breakevenStep2;
+        }
+
+        if (current.breakevenStep3) {
+            this.breakevenStep3 = current.breakevenStep3;
+        }
+
+        if (current.breakevenStep4) {
+            this.breakevenStep4 = current.breakevenStep4;
+        }
 
         this.tradingDays = current.tradingDays;
     }
