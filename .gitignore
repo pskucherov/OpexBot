@@ -121,3 +121,4 @@ sandboxConfig.ts
 idsConfig.json
 
 build
+node_modules*

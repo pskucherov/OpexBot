@@ -57,6 +57,18 @@ try {
             }
 
             try {
+                await this.syncPos();
+
+                const isSync = this.currentPositions.every(p =>
+
+                    // @ts-ignore
+                    p?.quantity?.units && p?.quantity?.units === p?.balance && !p?.blocked,
+                );
+
+                if (!isSync) {
+                    return;
+                }
+
                 const { positions } = this.currentPortfolio || {};
 
                 if (!positions?.length) {
@@ -79,12 +91,23 @@ try {
 
                     const isShort = (this.getPrice(quantity) || 0) < 0;
 
+                    const instrumentInOrders = this.currentOrders.find(o => o.instrumentUid === instrumentUid);
+
                     if (
                         // instrumentType !== 'share' ||
                         !averagePositionPrice ||
-                        !this.allInstrumentsInfo?.[instrumentUid]?.lot
+                        !this.allInstrumentsInfo?.[instrumentUid]?.lot ||
+
+                        // Если по инструменту выставлена активная заявка, то стоп не ставим.
+                        instrumentInOrders
                     ) {
                         continue;
+                    }
+
+                    if (this.hasBlockedPositions(instrumentUid)) {
+                        this.decisionBuyPositionMessage = 'decisionBuy: есть блокированные позиции.';
+
+                        return;
                     }
 
                     const averagePositionPriceVal = Common.getPrice(averagePositionPrice);

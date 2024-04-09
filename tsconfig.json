@@ -49,8 +49,13 @@
   ],
   "exclude": [
     "node_modules",
+    "node_modules_w",
+    "**/node_modules_w",
+    "**/node_modules_u",
+    "**/node_modules",
     ".eslintrc.js",
     "build",
+    "**/dist",
     "**/dist/**/*.d.ts",
   ]
 }

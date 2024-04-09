@@ -13,7 +13,7 @@ import { mkDirByPathSync } from '../utils';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { OrderDirection, OrderExecutionReportStatus } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
+import { OrderDirection, OrderExecutionReportStatus, OrderState } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 import TelegramBot from 'node-telegram-bot-api';
 
 export class Common {
@@ -60,7 +60,7 @@ export class Common {
     startTradingTimeMinutes: any;
     endTradingTimeMinutes: any;
     tradingDays!: boolean;
-    currentOrders: any;
+    currentOrders: OrderState[];
     ordersInited!: boolean;
     currentPortfolio: PortfolioResponse | undefined;
     currentPositions!: never[];
@@ -141,7 +141,7 @@ export class Common {
         this.subscribesTimer = 1000;
 
         // Таймер выполнения process
-        this.robotTimer = 3000;
+        this.robotTimer = 4000;
         this.subscribeDataUpdated = {};
 
         this.orders = {};
@@ -1042,9 +1042,15 @@ export class Common {
             .filter((o: { instrumentId: any; }) => this.checkInstrumentId(o.instrumentId)).length);
     }
 
-    hasBlockedPositions() {
+    hasBlockedPositions(instrumentUid?: string) {
         if (!this.currentPositions?.length) {
             return false;
+        }
+
+        if (instrumentUid) {
+            return Boolean(this
+                .currentPositions
+                .some(p => Boolean(p.blocked) && p.instrumentUid === instrumentUid));
         }
 
         return this
