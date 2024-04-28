@@ -3,7 +3,7 @@
   "author": "pskucherov",
   "description": "Trading bot.",
   "license": "Apache-2.0",
-  "version": "0.5.17",
+  "version": "0.5.18",
   "main": "./build/opexbot.js",
   "engines": {
     "node": ">=16.14.2"
@@ -54,7 +54,7 @@
     "sqlite": "^4.1.2",
     "sqlite3": "^5.1.4",
     "tinkoff-sdk-grpc-js": "^1.19.1",
-    "tinkofftradingbotconnector": "^0.5.7",
+    "tinkofftradingbotconnector": "^0.5.8",
     "ts-node": "^10.9.2",
     "uuid": "^9.0.1",
     "webpack-node-externals": "^3.0.0"

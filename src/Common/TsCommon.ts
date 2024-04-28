@@ -141,7 +141,7 @@ export class Common {
         this.subscribesTimer = 1000;
 
         // Таймер выполнения process
-        this.robotTimer = 4000;
+        this.robotTimer = 5000;
         this.subscribeDataUpdated = {};
 
         this.orders = {};

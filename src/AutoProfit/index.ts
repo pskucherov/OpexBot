@@ -80,6 +80,8 @@ try {
                     status: StopOrderStatusOption.STOP_ORDER_STATUS_ACTIVE,
                 });
 
+                await this.updateOrders();
+
                 for (let j = 0; j < positions.length; j++) {
                     const {
                         // instrumentType,
