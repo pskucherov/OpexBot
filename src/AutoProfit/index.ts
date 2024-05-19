@@ -281,6 +281,8 @@ try {
         }
 
         getStopProfitForLong(price: number) {
+            this.getCurrentSettings();
+
             return {
                 breakeven: price * (1 + this.breakeven),
                 step1: price * (1 + this.breakevenStep1),
@@ -291,6 +293,8 @@ try {
         }
 
         getStopProfitForShort(price: number) {
+            this.getCurrentSettings();
+
             return {
                 breakeven: price * (1 - this.breakeven),
                 step1: price * (1 - this.breakevenStep1),

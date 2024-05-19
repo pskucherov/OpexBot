@@ -1,0 +1,26 @@
+import { ACCOUNTID, SDK } from '../../config';
+import { TRequests } from './TRequests';
+const AutoProfit = require('../AutoProfit');
+
+const q = new TRequests(SDK);
+
+(async () => {
+    try {
+        for (let i = 0; i < 3; i++) {
+            console.log(i);
+
+            new AutoProfit['AutoProfit'](
+                ACCOUNTID, undefined, undefined, {}, {}, SDK, q);
+
+            // const w = await q.getPositions(ACCOUNTID);
+
+            // console.log(q.requests.operations.count, w?.money);
+        }
+    } catch (e) {
+        console.log('w', e);
+    }
+})();
+
+setInterval(() => {
+
+}, 5000);

@@ -38,6 +38,9 @@ try {
                     clearTimeout(this.balanceMessageTimeout);
                 }
 
+                await this.updatePortfolio();
+                await this.updatePositions();
+
                 const {
                     expectedYield,
                     totalAmountPortfolio,
@@ -54,13 +57,15 @@ try {
 
                 const totalPortfolio = this.getPrice(totalAmountPortfolio);
 
+                textPositions.push('# ' + this.accountId);
+
                 textPositions.push('Портфель: ' +
                     `${this.toMoneyString(totalPortfolio)} ${totalAmountPortfolio?.currency} `,
                 );
 
                 const yld = totalPortfolio * this.getPrice(expectedYield) / 100;
 
-                textPositions.push(`Доходность: ${this.toMoneyString(yld && yld.toFixed(2))} (${this.getPrice(expectedYield)}%)`);
+                textPositions.push(`Доходность: ${this.toMoneyString(yld && yld.toFixed(2))} (${this.getPrice(expectedYield).toFixed(2)}%)`);
                 textPositions.push('');
 
                 const names: { [key: string]: string; } = {
@@ -96,7 +101,6 @@ try {
                         averagePositionPrice: MoneyValue; currentPrice: MoneyValue; quantity: Quotation;
                     }) => {
                         try {
-                            // console.log(p);
                             textPositions.push(p.name + ` (${p.ticker})`);
 
                             // let lots = this.getPrice(p.quantity) / this.getPrice(p.lot);
@@ -133,8 +137,6 @@ try {
 
                 this.tgBot.onText(/счёт|счет/igm, async () => {
                     try {
-                        await this.updatePortfolio();
-                        await this.updatePositions();
                         await this.sendBalanceMessage();
                     } catch (e) {
                         console.log(e); // eslint-disable-line
@@ -163,13 +165,13 @@ try {
 
         stop() {
             try {
-                super.stop();
-
                 this.tgBot.removeTextListener(/счёт|счет/igm);
 
                 if (this.sendBalanceMessageInterval) {
                     clearInterval(this.sendBalanceMessageInterval);
                 }
+
+                super.stop();
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }

@@ -15,6 +15,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { OrderDirection, OrderExecutionReportStatus, OrderState } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 import TelegramBot from 'node-telegram-bot-api';
+import { TRequests as TRequestsBase } from '../TRequests/TRequests';
 
 export class Common {
     static settingsFileName = 'settings.json';
@@ -95,7 +96,7 @@ export class Common {
     positionsProfit: any;
     sdk?: ReturnType<typeof createSdk>;
 
-    constructor(accountId: any, _adviser: any, backtest: any, callbacks = {
+    constructor(accountId: any, _adviser: any, backtest: any, callbacks = { // eslint-disable-line max-params
         subscribes: {},
 
         // TODO: порефакторить количество параметров
@@ -113,7 +114,7 @@ export class Common {
         // takeProfit: 3,
         // stopLoss: 1,
         // useTrailingStop: true,
-    }, sdk?: ReturnType<typeof createSdk>) {
+    }, sdk?: ReturnType<typeof createSdk>, TRequests?: ReturnType<typeof TRequestsBase>) {
         this.accountId = accountId;
         this.backtest = Boolean(backtest);
         this.enums = options.enums;
@@ -129,6 +130,15 @@ export class Common {
         this.isSandbox = Boolean(options.isSandbox);
         this.blueChipsShares = options.blueChipsShares;
 
+        if (!TRequests) {
+            throw 'Не задан TRequests для управления лимитами SDK.';
+        }
+        if (!sdk) {
+            throw 'Не задан SDK.';
+        }
+
+        this.TRequests = TRequests;
+
         (async () => {
             this.init();
             this.initAsync();
@@ -137,12 +147,8 @@ export class Common {
     }
 
     init() {
-        // Таймер подписки на события.
-        this.subscribesTimer = 1000;
-
         // Таймер выполнения process
         this.robotTimer = 5000;
-        this.subscribeDataUpdated = {};
 
         this.orders = {};
 
@@ -240,43 +246,13 @@ export class Common {
         await this.updateOrders();
         await this.updatePortfolio();
         await this.updatePositions();
-        await this.updateOrdersInLog();
         await this.getAllInstruments();
+
+        // await this.updateOrdersInLog();
     }
 
     async getAllInstruments() {
-        if (!this.sdk) {
-            return;
-        }
-
-        if (!this.allInstrumentsInfo) {
-            this.allInstrumentsInfo = {};
-        }
-
-        const req = {
-            instrumentStatus: this.sdk.InstrumentStatus.INSTRUMENT_STATUS_BASE,
-        };
-
-        const names = [
-            'shares', 'bonds', 'futures',
-            'etfs', 'options', 'currencies',
-        ];
-
-        for (let i = 0; i < names.length; i++) {
-            try {
-                const name = names[i];
-
-                const { instruments } = await this.sdk.instruments[name](req);
-
-                if (instruments?.length) {
-                    instruments.forEach(instrument => {
-                        this.allInstrumentsInfo[instrument.uid] = instrument;
-                    });
-                }
-            } catch (e) {
-                console.log(e); // eslint-disable-line
-            }
-        }
+        this.allInstrumentsInfo = await this.TRequests.getAllInstruments();
     }
 
     async updateOrders() {
@@ -356,157 +332,6 @@ export class Common {
         this.start();
     }
 
-    getSubscribeOptions() {
-        const abortSubscribe = (_type: any, abort: () => void) => {
-            if (!this.inProgress) {
-                abort();
-            }
-        };
-
-        return {
-            signal: {
-                addEventListener: abortSubscribe,
-                removeEventListener: abortSubscribe,
-            },
-        };
-    }
-    subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
-        try {
-            if (this.backtest) {
-                return;
-            }
-            const { subscribes } = this.cb;
-
-            [
-                'lastPrice',
-                'orderbook',
-                'candle',
-            ].forEach(name => {
-                if (subscribes[name]) {
-                    setImmediate(async () => {
-                        const subscribeArr = subscribes[name]();
-
-                        let gen = subscribeArr[0]((async function* () {
-                            try {
-                                while (this.inProgress) {
-                                    await this.timer(this.subscribesTimer);
-
-                                    if (this.instrumentId) {
-                                        const instrumentId = typeof this.instrumentId === 'string' ? this.instrumentId.split(',') : this.instrumentId;
-
-                                        yield subscribeArr[1](instrumentId);
-                                    }
-                                }
-
-                                gen = null;
-                            } catch (e) {
-                                console.log(e); // eslint-disable-line no-console
-                            }
-                        }).call(this), this.getSubscribeOptions());
-
-                        try {
-                            for await (const data of gen) {
-                                if (data[name]) {
-                                    this.subscribeDataUpdated[name] = true;
-                                    const isLastPrice = name === 'lastPrice';
-                                    const currentData = isLastPrice ? data[name].price : data[name];
-
-                                    this[data[name].instrumentId] || (this[data[name].instrumentId] = {});
-                                    this[data[name].instrumentId][name] = currentData;
-
-                                    if (!this.isPortfolio) {
-                                        this[name] = currentData;
-                                    }
-                                }
-                                if (!this.inProgress) {
-                                    gen = null;
-                                    break;
-                                }
-                            }
-                        } catch (e) {
-                            console.log(e); // eslint-disable-line no-console
-
-                            // Перезапускаем робота в случае ошибки.
-                            // Ошибка сюда прилетит в случае обрыва соединения.
-                            await this.restart(this.robotTimer + this.subscribesTimer);
-                        }
-                    });
-                }
-            });
-
-            ['orders', 'positions'].forEach(name => {
-                if (subscribes[name]) {
-                    setImmediate(async () => {
-                        try {
-                            let gen = subscribes[name]({
-                                accounts: [this.accountId],
-                            }, this.getSubscribeOptions());
-
-                            for await (const data of gen) {
-                                if (data.orderTrades) {
-                                    if (!this.orderTrades) {
-                                        this.orderTrades = [];
-                                    }
-
-                                    this.orderTrades.push(data.orderTrades);
-                                    this.logOrders(data);
-                                    await this.updateOrders();
-                                } else if (data.position && this.isPortfolio) {
-                                    [
-                                        'securities',
-
-                                        // 'futures',
-                                        // 'options',
-                                    ].forEach(name => {
-                                        try {
-                                            if (!data.position[name] || !data.position[name].length) {
-                                                return;
-                                            }
-
-                                            data.position[name].forEach(async (p: { instrumentId: any; instrumentType: any; }) => {
-                                                const currentIndex = this.currentPositions.findIndex(c => {
-                                                    return c.instrumentId === p.instrumentId &&
-                                                        c.instrumentType === p.instrumentType;
-                                                });
-
-                                                if (currentIndex >= 0) {
-                                                    this.currentPositions[currentIndex] = {
-                                                        ...this.currentPositions[currentIndex],
-                                                        ...p,
-                                                    };
-                                                } else {
-                                                    await this.updatePositions();
-                                                }
-                                            });
-                                        } catch (e) {
-                                            console.log(e); // eslint-disable-line no-console
-                                        }
-                                    });
-
-                                    await this.updateInstrumentId();
-                                    await this.updateOrdersInLog();
-                                }
-
-                                if (!this.inProgress) {
-                                    gen = null;
-                                    break;
-                                }
-                            }
-                        } catch (e) {
-                            console.log(e); // eslint-disable-line no-console
-
-                            // Перезапускаем робота в случае ошибки.
-                            // Ошибка сюда прилетит в случае обрыва соединения.
-                            await this.restart(this.robotTimer + this.subscribesTimer);
-                        }
-                    });
-                }
-            });
-        } catch (e) {
-            console.log(e); // eslint-disable-line no-console
-        }
-    }
-
     /**
      * Обновляем instrumentId для портфельного управления.
      */
@@ -541,17 +366,6 @@ export class Common {
             if (!this.backtest) {
                 await this.checkExchangeDay();
                 await this.checkTradingDayAndTime();
-
-                if (this.brokerId === 'FINAM') {
-                    await this.updateOrders();
-                    await this.updatePortfolio();
-
-                    // update orderbook
-                    // update price
-                    // TODO: поменять на bid и ...
-                    this.testData = this.cb.getQuotationsAndOrderbook(this.instrumentId);
-                    this.lastPrice = this.testData?.quotations?.bid;
-                }
             }
 
             if (this.tradingTime || this.backtest) {
@@ -575,12 +389,12 @@ export class Common {
                 }
 
                 // Записываем новое состояние, только если оно изминилось.
-                if (!this.backtest && this.instrumentId && this.cb.cacheState &&
-                    (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
-                    // this.cb.cacheState(this.getFileName(), new Date().getTime(), this.lastPrice, this.orderbook);
-                    this.subscribeDataUpdated.lastPrice = false;
-                    this.subscribeDataUpdated.orderbook = false;
-                }
+                // if (!this.backtest && this.instrumentId && this.cb.cacheState &&
+                //     (this.subscribeDataUpdated.orderbook && this.subscribeDataUpdated.lastPrice)) {
+                //     // this.cb.cacheState(this.getFileName(), new Date().getTime(), this.lastPrice, this.orderbook);
+                //     this.subscribeDataUpdated.lastPrice = false;
+                //     this.subscribeDataUpdated.orderbook = false;
+                // }
             } else {
                 await this.setExchangesTradingTime();
             }
@@ -781,7 +595,8 @@ export class Common {
         }
 
         this.inProgress = true;
-        this.subscribes();
+
+        // this.subscribes();
 
         console.log(this.name, this.accountId, 'start'); // eslint-disable-line no-console
     }
@@ -964,8 +779,7 @@ export class Common {
     }
 
     async getPortfolio() {
-        return this.accountId && this.cb.getPortfolio &&
-            (await this.cb.getPortfolio(this.accountId)); // , this.isPortfolio ? undefined : this.instrumentId));
+        return await this.TRequests.getPortfolio(this.accountId);
     }
 
     async getCurrentPositions() {
@@ -986,14 +800,7 @@ export class Common {
                 throw 'Укажите accountId';
             }
 
-            if (this.sdk && !this.isSandbox) {
-                return await this.sdk.operations.getPositions({
-                    accountId: this.accountId,
-                });
-            }
-
-            return this.cb.getPositions &&
-                (await this.cb.getPositions(this.accountId));
+            return await this.TRequests.getPositions(this.accountId);
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -1350,18 +1157,7 @@ export class Common {
     }
 
     async getOpenOrders() {
-        try {
-            const { orders } = this.cb.getOrders && (await this.cb.getOrders(this.accountId)) || {};
-
-            this.allOrders = orders;
-
-            return orders && orders.filter((o: { executionReportStatus: number; }) => [
-                OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
-                OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL,
-            ].includes(o.executionReportStatus));
-        } catch (e) {
-            console.log(e); // eslint-disable-line no-console
-        }
+        return await this.TRequests.getOpenOrders(this.accountId);
     }
 
     async openOrdersExist() {
@@ -1524,7 +1320,7 @@ export class Common {
             breakevenStep4: 0.0095,
         };
 
-        if (name && accountId && instrumentId) {
+        if (name && accountId) {
             const file = this.getStaticFileSettings(name, accountId, instrumentId);
 
             if (fs.existsSync(file)) {

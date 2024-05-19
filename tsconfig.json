@@ -13,7 +13,6 @@
     "skipLibCheck": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    // "noEmit": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
     "noImplicitReturns": true,
@@ -33,26 +32,17 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  // "ts-node": {
-  //   // these options are overrides used only by ts-node
-  //   // same as the --compilerOptions flag and the TS_NODE_COMPILER_OPTIONS environment variable
-  //   "compilerOptions": {
-  //     "module": "commonjs"
-  //   }
-  // },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     "**/*.js",
-    "**/*.jsx",
+    "**/*.jsx", "src/TRequests/q.ts_test",
   ],
   "exclude": [
-    "node_modules",
-    "node_modules_w",
-    "**/node_modules_w",
-    "**/node_modules_u",
     "**/node_modules",
+    "**/node_modules_u",
+    "**/node_modules_w",
     ".eslintrc.js",
     "build",
     "**/dist",

@@ -3,7 +3,7 @@
   "author": "pskucherov",
   "description": "Trading bot.",
   "license": "Apache-2.0",
-  "version": "0.5.18",
+  "version": "0.6.2",
   "main": "./build/opexbot.js",
   "engines": {
     "node": ">=16.14.2"
@@ -18,7 +18,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=production ts-node src/main",
     "bot": "cross-env DEBUG=1 ts-node ./bots/backtester/backtester.ts",
-    "build": "cross-env NODE_ENV=production tsc",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 NODE_ENV=production tsc",
     "lint-fix": "npx eslint --fix ."
   },
   "precommit": [
@@ -56,6 +56,7 @@
     "tinkoff-sdk-grpc-js": "^1.19.1",
     "tinkofftradingbotconnector": "^0.5.8",
     "ts-node": "^10.9.2",
+    "typescript": "^5.4.5",
     "uuid": "^9.0.1",
     "webpack-node-externals": "^3.0.0"
   }

@@ -1,4 +1,3 @@
-import { createSdk } from 'tinkoff-sdk-grpc-js';
 import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 import { PortfolioPosition } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
 import { OrderDirection } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
@@ -21,10 +20,10 @@ export class Backtest extends Common {
     step!: number;
     name?: string;
 
-    constructor(accountId: string, _adviser?: boolean,
-        backtest?: boolean, callbacks?: any, // eslint-disable-line
-        options?: any, sdk?: ReturnType<typeof createSdk>) { // eslint-disable-line
-        super(accountId, _adviser, backtest, callbacks, options, sdk);
+    // @ts-ignore
+    constructor(...args) {
+        // @ts-ignore
+        super(...args);
     }
 
     init() {

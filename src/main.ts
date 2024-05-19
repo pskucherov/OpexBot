@@ -19,6 +19,7 @@ const hmr = require('node-hmr');
 
 import { getDBPath, createTables, DemoTables } from '../db/tables';
 import { createTgBot } from '../components/tgbot/tgbot';
+import { TRequests } from './TRequests/TRequests';
 
 // this is a top-level await
 (async () => {
@@ -43,8 +44,17 @@ import { createTgBot } from '../components/tgbot/tgbot';
     fs.readdirSync(path.resolve(__dirname)).forEach(file => {
         const p = path.resolve(__dirname, file);
 
-        if (fs.lstatSync(p).isDirectory() && file !== 'Common' &&
-            file !== 'Example' && file !== 'Buyer') {
+        if (fs.lstatSync(p).isDirectory() &&
+            file !== 'Common' &&
+            file !== 'Example' &&
+            file !== 'Buyer' &&
+            file !== 'OpexBot' &&
+            file !== 'RandomExample' &&
+
+            // file !== 'StaticExample' &&
+            file !== 'SupportResistance' &&
+            file !== 'TRequests'
+        ) {
             const module = require(p);
 
             if (module[file]) {
@@ -62,6 +72,7 @@ import { createTgBot } from '../components/tgbot/tgbot';
         db,
         DemoTables: new DemoTables(db),
         createTgBot,
+        TRequests: TRequests,
     });
 
     exports.bots = bots;
