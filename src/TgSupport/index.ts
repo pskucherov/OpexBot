@@ -38,6 +38,8 @@ try {
                     clearTimeout(this.balanceMessageTimeout);
                 }
 
+                this.restartBalanceInterval();
+
                 await this.updatePortfolio();
                 await this.updatePositions();
 
@@ -147,6 +149,14 @@ try {
             }
         }
 
+        restartBalanceInterval() {
+            if (this.sendBalanceMessageInterval) {
+                clearInterval(this.sendBalanceMessageInterval);
+            }
+
+            this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage.bind(this), 3600000);
+        }
+
         start() {
             try {
                 // Костыль, чтобы вотчер не триггерил несколько событий отправки.
@@ -156,8 +166,6 @@ try {
                 this.startTimer = Date.now();
 
                 this.subscribeTgEvents();
-
-                this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage.bind(this), 3600000);
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }

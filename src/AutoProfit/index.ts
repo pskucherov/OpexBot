@@ -59,11 +59,11 @@ try {
             try {
                 await this.syncPos();
 
-                const isSync = this.currentPositions.every(p =>
+                const isSync = Boolean(this.currentPositions?.every(p =>
 
                     // @ts-ignore
                     p?.quantity?.units && p?.quantity?.units === p?.balance && !p?.blocked,
-                );
+                ));
 
                 if (!isSync) {
                     return;
@@ -158,11 +158,20 @@ try {
                             nano: newNano1,
                         }, min);
 
-                        const data = {
-                            quantity: Math.abs(
-                                (Common.getPrice(quantity) || 1) /
+                        // API не умеет работать с неполными лотами. Поэтому округляем в меньшую сторону.
+                        const quantSize = Math.floor(
+                            Math.abs(
+                                (quantity?.units || 0) /
                                 this.allInstrumentsInfo[instrumentUid].lot,
                             ),
+                        );
+
+                        if (!quantSize) {
+                            return;
+                        }
+
+                        const data = {
+                            quantity: quantSize,
                             price: curStopOrderPrice,
                             stopPrice:
                                 isShort ?
