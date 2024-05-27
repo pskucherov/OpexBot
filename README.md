@@ -1,5 +1,7 @@
 # OpexBot
 
+# Открыть: [https://opexflow.com/kit](https://opexflow.com/kit)
+
 ## Требования
 ```
 node >= 17
