@@ -18,52 +18,6 @@ try {
      * Заготовка торгового робота.
      */
     class Bot extends Backtest {
-        static async order(sdk: ReturnType<typeof createSdk>,
-            props: {
-                accountId: string;
-                instrumentId: string;
-                quantity: number;
-                price?: string;
-                orderType?: OrderType;
-            },
-        ) {
-            const {
-                accountId,
-                price,
-                instrumentId,
-                quantity,
-                orderType,
-            } = props;
-
-            try {
-                if (!sdk?.orders?.postOrder || !accountId || !quantity) {
-                    return;
-                }
-
-                const orderId = this.genOrderId();
-                const direction = quantity < 0 ?
-                    sdk?.OrderDirection.ORDER_DIRECTION_SELL :
-                    sdk?.OrderDirection.ORDER_DIRECTION_BUY;
-
-                const data = {
-                    quantity: Math.abs(quantity),
-                    accountId,
-                    direction,
-                    orderId,
-                    instrumentId,
-                    orderType: orderType || sdk.OrderType.ORDER_TYPE_BESTPRICE,
-                };
-
-                if (price) {
-                    data[price] = price;
-                }
-
-                return await sdk?.orders?.postOrder(data);
-            } catch (e) {
-                console.log('order', e); // eslint-disable-line no-console
-            }
-        }
-
         static async closeAllByBestPrice(sdk: ReturnType<typeof createSdk>, props: { accountId: string; allInstrumentsWithIdKeys?: any; }) {
             try {
                 if (!sdk?.operations?.getPositions) {

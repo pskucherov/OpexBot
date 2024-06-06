@@ -59,15 +59,16 @@ try {
             try {
                 await this.syncPos();
 
-                const isSync = Boolean(this.currentPositions?.every(p =>
+                // const isSync = Boolean(this.currentPositions?.every(p =>
 
-                    // @ts-ignore
-                    p?.quantity?.units && p?.quantity?.units === p?.balance && !p?.blocked,
-                ));
+                //     // @ts-ignore
+                //     p?.quantity?.units && p?.quantity?.units === p?.balance, // && !p?.blocked,
+                // ));
 
-                if (!isSync) {
-                    return;
-                }
+                // if (!isSync) {
+                //     console.log(this.currentPositions);
+                //     return;
+                // }
 
                 const { positions } = this.currentPortfolio || {};
 
@@ -89,7 +90,29 @@ try {
                         averagePositionPrice,
                         instrumentUid,
                         currentPrice,
+
+                        // blocked,
                     } = positions[j];
+
+                    const curPos: {
+                        blocked?: number | boolean;
+                        quantity?: Quotation;
+                        balance?: number;
+                    } = this.currentPositions?.find(
+                        (p: { instrumentUid: 'string'; },
+
+                        ) => p.instrumentUid === instrumentUid) || {};
+
+                    const {
+                        blocked,
+                        balance,
+                    } = curPos;
+
+                    const quantityPos = curPos?.quantity;
+
+                    if (quantityPos?.units && quantityPos?.units !== balance || blocked) {
+                        continue;
+                    }
 
                     const isShort = (this.getPrice(quantity) || 0) < 0;
 
@@ -103,6 +126,7 @@ try {
                         // Если по инструменту выставлена активная заявка, то стоп не ставим.
                         instrumentInOrders
                     ) {
+                        // здесь добавить, что если цена проскочила заявку, то заявку закрыть.
                         continue;
                     }
 
@@ -120,8 +144,8 @@ try {
                     }
 
                     const currentStopOrder = stopOrders.find(s => s.instrumentUid === instrumentUid);
-                    const stopOrdersLotsDiff = currentStopOrder?.lotsRequested !==
-                        (Common.getPrice(quantity) || 1) / this.allInstrumentsInfo[instrumentUid].lot;
+                    const stopOrdersLotsDiff = Math.abs(currentStopOrder?.lotsRequested || 0) !==
+                        Math.abs((Common.getPrice(quantity) || 1) / this.allInstrumentsInfo[instrumentUid].lot);
 
                     const min = this.allInstrumentsInfo[instrumentUid].minPriceIncrement;
 
@@ -198,7 +222,6 @@ try {
                             )
                         ) {
                             if (currentStopOrder?.stopOrderId) {
-                                console.log('Закрываем заявку', existOrderStopPrice); // eslint-disable-line no-console
                                 const { stopOrderId } = currentStopOrder;
 
                                 await this.closeStopOrder(accountId, stopOrderId);
