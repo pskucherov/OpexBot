@@ -37,7 +37,7 @@
     "**/*.ts",
     "**/*.tsx",
     "**/*.js",
-    "**/*.jsx", "src/TRequests/q.ts_test",
+    "**/*.jsx", "src/TRequests/q.ts_test", "src/Scalper/index.ts_",
   ],
   "exclude": [
     "**/node_modules",

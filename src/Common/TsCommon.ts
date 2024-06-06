@@ -13,9 +13,10 @@ import { mkDirByPathSync } from '../utils';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { OrderDirection, OrderExecutionReportStatus, OrderState } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
+import { OrderDirection, OrderExecutionReportStatus, OrderState, OrderType, TimeInForceType } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 import TelegramBot from 'node-telegram-bot-api';
 import { TRequests as TRequestsBase } from '../TRequests/TRequests';
+import { Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 
 export class Common {
     static settingsFileName = 'settings.json';
@@ -114,7 +115,7 @@ export class Common {
         // takeProfit: 3,
         // stopLoss: 1,
         // useTrailingStop: true,
-    }, sdk?: ReturnType<typeof createSdk>, TRequests?: ReturnType<typeof TRequestsBase>) {
+    }, sdk?: ReturnType<typeof createSdk>, TRequests?: InstanceType<typeof TRequestsBase>) {
         this.accountId = accountId;
         this.backtest = Boolean(backtest);
         this.enums = options.enums;
@@ -251,8 +252,8 @@ export class Common {
         // await this.updateOrdersInLog();
     }
 
-    async getAllInstruments() {
-        this.allInstrumentsInfo = await this.TRequests.getAllInstruments();
+    async getAllInstruments(name?: string) {
+        this.allInstrumentsInfo = await this.TRequests.getAllInstruments(name);
     }
 
     async updateOrders() {
@@ -360,6 +361,16 @@ export class Common {
 
                 return;
             }
+
+            // // Если информация по инструментам не получена, то ожидаем.
+            // if (!this.allInstrumentsInfo?.length) {
+            //     setImmediate(async () => {
+            //         await this.timer(this.robotTimer);
+            //         this.processing();
+            //     });
+
+            //     return;
+            // }
 
             this.getCurrentSettings();
 
@@ -596,7 +607,7 @@ export class Common {
 
         this.inProgress = true;
 
-        // this.subscribes();
+        this.TRequests?.subscribes();
 
         console.log(this.name, this.accountId, 'start'); // eslint-disable-line no-console
     }
@@ -1667,6 +1678,81 @@ export class Common {
             };
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
+        }
+    }
+
+    async getAllShares() {
+        try {
+            this.allSharesInfo = await this.TRequests?.getAllShares();
+
+            return this.allSharesInfo;
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+
+            return [];
+        }
+    }
+
+    /**
+     * Возвращает массив акций, доступных для торговли и подходящих для заданного лимита лота.
+     */
+    async getSharesForTrading(props?: { maxLotPrice?: number }) {
+        return await this.TRequests?.getSharesForTrading(props);
+    }
+
+    static async order(sdk?: ReturnType<typeof createSdk>,
+        props: {
+            accountId: string;
+            instrumentId: string;
+            quantity: number;
+            price?: string;
+            orderType?: OrderType;
+            timeInForceType?: TimeInForceType;
+        },
+    ) {
+        if (!sdk) {
+            throw 'В order не передан sdk';
+        }
+
+        const {
+            accountId,
+            price,
+            instrumentId,
+            quantity,
+            orderType,
+            timeInForceType,
+        } = props;
+
+        try {
+            if (!sdk?.orders?.postOrder || !accountId || !quantity) {
+                return;
+            }
+
+            const orderId = this.genOrderId();
+            const direction = quantity < 0 ?
+                sdk?.OrderDirection.ORDER_DIRECTION_SELL :
+                sdk?.OrderDirection.ORDER_DIRECTION_BUY;
+
+            const data = {
+                quantity: Math.abs(quantity),
+                accountId,
+                direction,
+                orderId,
+                instrumentId,
+                orderType: orderType || sdk.OrderType.ORDER_TYPE_BESTPRICE,
+            };
+
+            if (price) {
+                data.price = price;
+            }
+
+            if (timeInForceType) {
+                data.TimeInForceType = timeInForceType;
+            }
+
+            return await sdk?.orders?.postOrder(data);
+        } catch (e) {
+            console.log('order', e); // eslint-disable-line no-console
         }
     }
 }

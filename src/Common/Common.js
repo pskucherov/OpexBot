@@ -1217,29 +1217,33 @@ try {
         }
 
         static getLogFileName(name, accountId, instrumentId, date) {
-            const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
+            try {
+                const dateOptions = { year: 'numeric', month: 'numeric', day: 'numeric' };
 
-            return {
-                dir: path.resolve(__dirname, '../../orders', name, accountId, instrumentId),
-                name: new Date(Number(date)).toLocaleString('ru', dateOptions) + '.json',
-            };
+                return {
+                    dir: path.resolve(__dirname, '../../orders', name, accountId, instrumentId),
+                    name: new Date(Number(date)).toLocaleString('ru', dateOptions) + '.json',
+                };
+            } catch (e) { console.log(e) } // eslint-disable-line no-console
         }
 
         static getLogFiles(name, accountId, instrumentId, date) {
-            const { dir } = this.getLogFileName(name, accountId, instrumentId, date);
+            try {
+                const { dir } = this.getLogFileName(name, accountId, instrumentId, date);
 
-            return fs.readdirSync(path.resolve(dir)).reduce((prev, file) => {
-                // const p = path.resolve(dir, file);
+                return fs.readdirSync(path.resolve(dir)).reduce((prev, file) => {
+                    // const p = path.resolve(dir, file);
 
-                if (file !== this.settingsFileName) {
-                    const n = file.replace('.json', '').split('.');
+                    if (file !== this.settingsFileName) {
+                        const n = file.replace('.json', '').split('.');
 
-                    // Переставляем значения местами, чтобы привести ru формат к en.
-                    prev.push(new Date(n[2], n[1] - 1, n[0]).getTime());
-                }
+                        // Переставляем значения местами, чтобы привести ru формат к en.
+                        prev.push(new Date(n[2], n[1] - 1, n[0]).getTime());
+                    }
 
-                return prev;
-            }, []);
+                    return prev;
+                }, []);
+            } catch (e) { console.log(e) } // eslint-disable-line no-console
         }
 
         static getStaticFileSettings(name, accountId, instrumentId) {
