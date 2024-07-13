@@ -43,9 +43,9 @@ try {
         }
 
         async processing() { // eslint-disable-line
-            await super.processing();
-
             if (!this.inProgress) {
+                await super.processing();
+
                 return;
             }
 
@@ -53,6 +53,8 @@ try {
             const accountId = this.accountId;
 
             if (!sdk || !accountId) {
+                await super.processing();
+
                 return;
             }
 
@@ -73,6 +75,8 @@ try {
                 const { positions } = this.currentPortfolio || {};
 
                 if (!positions?.length) {
+                    await super.processing();
+
                     return;
                 }
 
@@ -133,6 +137,8 @@ try {
                     if (this.hasBlockedPositions(instrumentUid)) {
                         this.decisionBuyPositionMessage = 'decisionBuy: есть блокированные позиции.';
 
+                        await super.processing();
+
                         return;
                     }
 
@@ -191,12 +197,14 @@ try {
                         );
 
                         if (!quantSize) {
+                            await super.processing();
+
                             return;
                         }
 
                         const data = {
                             quantity: quantSize,
-                            price: curStopOrderPrice,
+                            price: Common.getQuotationFromPrice(realStop), // curStopOrderPrice,
                             stopPrice:
                                 isShort ?
                                     Common.subMinPriceIncrement(curStopOrderPrice, min) :
@@ -239,6 +247,8 @@ try {
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+
+            await super.processing();
         }
 
         getStopPriceWithSteps(

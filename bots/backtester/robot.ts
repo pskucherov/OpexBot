@@ -2,7 +2,7 @@ import { Backtest, IBacktestPositions } from '../../src/Common/TsBacktest';
 
 import { RSI } from '../../components/indicator/RSI';
 import { MA } from '../../components/indicator/MA';
-import { Common } from '../../src/Common/Common';
+import { Common } from '../../src/Common/TsCommon';
 
 import { Log } from '../../components/log';
 import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';

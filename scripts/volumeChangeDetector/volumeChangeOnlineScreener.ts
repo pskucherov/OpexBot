@@ -7,7 +7,7 @@ import { logger } from '../../src/utils';
 import { DeepPartial, MarketDataRequest, SubscriptionAction, TradeDirection } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 import { Common } from '../../src/Common/TsCommon';
 
-// import { Common } from '../../src/Common/Common';
+// import { Common } from '../../src/Common/TsCommon';
 
 const sdk = createSdk(TOKEN, 'backtester', logger);
 

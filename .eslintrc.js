@@ -143,7 +143,5 @@ module.exports = {
         '.eslintrc.js',
         '**/build/*',
         '**/dist/*',
-        "src/Common/Backtest.js",
-        "src/Common/Common.js",
     ],
 };

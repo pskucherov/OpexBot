@@ -327,7 +327,9 @@ export class TRequests {
 
                     // Перезапускаем робота в случае ошибки.
                     // Ошибка сюда прилетит в случае обрыва соединения.
-                    await this.restart(this.robotTimer + this.subscribesTimer);
+                    // await this.restart(this.robotTimer + this.subscribesTimer);
+                    await this.timer(500);
+                    await this.subscribes();
                 }
             });
 
@@ -388,74 +390,74 @@ export class TRequests {
             //     }
             // });
 
-            0 && ['orders', 'positions'].forEach(name => {
-                if (subscribes[name]) {
-                    setImmediate(async () => {
-                        try {
-                            let gen = subscribes[name]({
-                                accounts: [accountId],
-                            }, this.getSubscribeOptions());
+            // 0 && ['orders', 'positions'].forEach(name => {
+            //     if (subscribes[name]) {
+            //         setImmediate(async () => {
+            //             try {
+            //                 let gen = subscribes[name]({
+            //                     accounts: [accountId],
+            //                 }, this.getSubscribeOptions());
 
-                            for await (const data of gen) {
-                                if (data.orderTrades) {
-                                    if (!this.orderTrades) {
-                                        this.orderTrades = [];
-                                    }
+            //                 for await (const data of gen) {
+            //                     if (data.orderTrades) {
+            //                         if (!this.orderTrades) {
+            //                             this.orderTrades = [];
+            //                         }
 
-                                    this.orderTrades.push(data.orderTrades);
-                                    await this.updateOrders();
-                                } else if (data.position && this.isPortfolio) {
-                                    [
-                                        'securities',
+            //                         this.orderTrades.push(data.orderTrades);
+            //                         await this.updateOrders();
+            //                     } else if (data.position && this.isPortfolio) {
+            //                         [
+            //                             'securities',
 
-                                        // 'futures',
-                                        // 'options',
-                                    ].forEach(name => {
-                                        try {
-                                            if (!data.position[name] || !data.position[name].length) {
-                                                return;
-                                            }
+            //                             // 'futures',
+            //                             // 'options',
+            //                         ].forEach(name => {
+            //                             try {
+            //                                 if (!data.position[name] || !data.position[name].length) {
+            //                                     return;
+            //                                 }
 
-                                            data.position[name].forEach(async (p: { instrumentId: any; instrumentType: any; }) => {
-                                                const currentIndex = this.currentPositions.findIndex(c => {
-                                                    return c.instrumentId === p.instrumentId &&
-                                                        c.instrumentType === p.instrumentType;
-                                                });
+            //                                 data.position[name].forEach(async (p: { instrumentId: any; instrumentType: any; }) => {
+            //                                     const currentIndex = this.currentPositions.findIndex(c => {
+            //                                         return c.instrumentId === p.instrumentId &&
+            //                                             c.instrumentType === p.instrumentType;
+            //                                     });
 
-                                                if (currentIndex >= 0) {
-                                                    this.currentPositions[currentIndex] = {
-                                                        ...this.currentPositions[currentIndex],
-                                                        ...p,
-                                                    };
-                                                } else {
-                                                    await this.updatePositions();
-                                                }
-                                            });
-                                        } catch (e) {
-                                            console.log(e); // eslint-disable-line no-console
-                                        }
-                                    });
+            //                                     if (currentIndex >= 0) {
+            //                                         this.currentPositions[currentIndex] = {
+            //                                             ...this.currentPositions[currentIndex],
+            //                                             ...p,
+            //                                         };
+            //                                     } else {
+            //                                         await this.updatePositions();
+            //                                     }
+            //                                 });
+            //                             } catch (e) {
+            //                                 console.log(e); // eslint-disable-line no-console
+            //                             }
+            //                         });
 
-                                    await this.updateInstrumentId();
+            //                         await this.updateInstrumentId();
 
-                                    // await this.updateOrdersInLog();
-                                }
+            //                         // await this.updateOrdersInLog();
+            //                     }
 
-                                if (!this.inProgress) {
-                                    gen = null;
-                                    break;
-                                }
-                            }
-                        } catch (e) {
-                            console.log(e); // eslint-disable-line no-console
+            //                     if (!this.inProgress) {
+            //                         gen = null;
+            //                         break;
+            //                     }
+            //                 }
+            //             } catch (e) {
+            //                 console.log(e); // eslint-disable-line no-console
 
-                            // Перезапускаем робота в случае ошибки.
-                            // Ошибка сюда прилетит в случае обрыва соединения.
-                            await this.restart(this.robotTimer + this.subscribesTimer);
-                        }
-                    });
-                }
-            });
+            //                 // Перезапускаем робота в случае ошибки.
+            //                 // Ошибка сюда прилетит в случае обрыва соединения.
+            //                 await this.restart(this.robotTimer + this.subscribesTimer);
+            //             }
+            //         });
+            //     }
+            // });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -791,7 +793,7 @@ export class TRequests {
             });
 
             // Возвращает массив инструментов, которые отфильтрованы по заданным выше условиям.
-            filtredPricesToDel.forEach(f => {
+            filtredPricesToDel?.forEach(f => {
                 delete shares[f.instrumentUid];
             });
 

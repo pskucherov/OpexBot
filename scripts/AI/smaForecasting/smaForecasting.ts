@@ -8,7 +8,7 @@ import { TOKEN } from '../../../config';
 import { Instruments } from '../../../components/investAPI/instruments';
 import { logger } from '../../../src/utils';
 
-import { Common } from '../../../src/Common/Common';
+import { Common } from '../../../src/Common/TsCommon';
 import * as tf from '@tensorflow/tfjs-node'; // eslint-disable-line import/no-unresolved
 tf.enableProdMode();
 

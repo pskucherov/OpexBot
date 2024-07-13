@@ -149,7 +149,7 @@ export class Common {
 
     init() {
         // Таймер выполнения process
-        this.robotTimer = 5000;
+        this.robotTimer = 15000;
 
         this.orders = {};
 
@@ -497,7 +497,9 @@ export class Common {
 
     updateLogOrdersFile() {
         const { dir, name } = Common.getLogFileName(this.name, this.accountId,
-            this.getFileName(), new Date());
+
+            // this.getFileName(),
+            new Date());
 
         if (!dir) {
             return;
@@ -507,9 +509,9 @@ export class Common {
         this.logOrdersFile = path.join(dir, name);
     }
 
-    getFileName() {
-        return this.isPortfolio ? this.type : this.instrumentId;
-    }
+    // getFileName() {
+    //     return this.isPortfolio ? this.type : this.instrumentId;
+    // }
 
     isEmptyTickerInfo() {
         return !this.tickerInfo || Array.isArray(this.tickerInfo) && !this.tickerInfo.length;
@@ -582,7 +584,7 @@ export class Common {
 
     static getPrice(quotation?: MoneyValue | Quotation) {
         if (!quotation || typeof quotation !== 'object') {
-            return quotation;
+            return quotation || 0;
         }
 
         if (quotation.nano) {
@@ -592,8 +594,22 @@ export class Common {
         return quotation.units;
     }
 
+    static getQuotationFromPrice(price: number) {
+        const units = Math.floor(price);
+        const nano = price * 1e9 - units * 1e9;
+
+        return {
+            units,
+            nano,
+        };
+    }
+
     getPrice(quotation?: MoneyValue | Quotation) {
         return Common.getPrice(quotation);
+    }
+
+    getQuotationFromPrice(price: number) {
+        return Common.getQuotationFromPrice(price);
     }
 
     start(instrumentId?: string | string[]) {
@@ -1462,13 +1478,19 @@ export class Common {
      */
     setCurrentSettings(settings: any) {
         // const current =
-        Common.setSettings(this.name, settings, this.accountId, this.getFileName());
+        Common.setSettings(this.name, settings, this.accountId,
+
+            // , this.getFileName()
+        );
 
         this.getCurrentSettings();
     }
 
     getCurrentSettings() {
-        const current = Common.getSettings(this.name, this.accountId, this.getFileName());
+        const current = Common.getSettings(this.name, this.accountId,
+
+            // , this.getFileName()
+        );
 
         this.isAdviser = current.isAdviser;
         this.takeProfit = current.takeProfit;
@@ -1698,6 +1720,20 @@ export class Common {
      */
     async getSharesForTrading(props?: { maxLotPrice?: number }) {
         return await this.TRequests?.getSharesForTrading(props);
+    }
+
+    static median(values) {
+        if (values.length === 0) return 0;
+
+        values.sort((a, b) => {
+            return a - b;
+        });
+
+        const half = Math.floor(values.length / 2);
+
+        if (values.length % 2) { return values[half] }
+
+        return (values[half - 1] + values[half]) / 2.0;
     }
 
     static async order(sdk?: ReturnType<typeof createSdk>,

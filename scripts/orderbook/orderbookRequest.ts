@@ -4,11 +4,12 @@ import { TOKEN } from '../../config';
 
 import { Instruments } from '../../components/investAPI/instruments';
 import { logger } from '../../src/utils';
+import { Common } from '../../src/Common/TsCommon';
 
 // import { TradeDirection } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 // import { Common } from '../../src/Common/TsCommon';
 
-// import { Common } from '../../src/Common/Common';
+// import { Common } from '../../src/Common/TsCommon';
 
 const sdk = createSdk(TOKEN, 'orderbook', logger);
 
@@ -30,11 +31,11 @@ const instruments = new Instruments(sdk);
     const wait = [];
 
     for (let i = 0; i < allBaseShares.length; i++) {
-        const { uid, ticker, name } = allBaseShares[i];
+        const { uid, ticker, name, lot } = allBaseShares[i];
 
-        // if (ticker !== 'SBER') {
-        //     continue;
-        // }
+        if (ticker !== 'NVTK') {
+            continue;
+        }
 
         // uids.push(uid);
         cachedUidTicker[uid] = `${name} (${ticker})`;
@@ -43,6 +44,17 @@ const instruments = new Instruments(sdk);
             depth: 50,
             instrumentId: uid,
         })) || {};
+
+        console.log('bids', ( // eslint-disable-line no-console
+            bids.reduce((acc, val) => acc + Common.getPrice(val.price) * lot * val.quantity, 0,
+            ) / 1e6).toFixed(2));
+        console.log('asks', ( // eslint-disable-line no-console
+            asks.reduce((acc, val) => acc + Common.getPrice(val.price) * lot * val.quantity, 0,
+            ) / 1e6).toFixed(2));
+
+        // if (1) {
+        //     return;
+        // }
 
         // depth: number;
         // bids: Order[];
