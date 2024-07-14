@@ -75,7 +75,24 @@ try {
             }
         }
 
+        static async closeAllByMarket(sdk: ReturnType<typeof createSdk>, props: { accountId: string; allInstrumentsWithIdKeys?: any; }) {
+            return await this.closeAll(sdk, {
+                ...props,
+                closeBy: 'market',
+            });
+        }
+
         static async closeAllByBestPrice(sdk: ReturnType<typeof createSdk>, props: { accountId: string; allInstrumentsWithIdKeys?: any; }) {
+            return await this.closeAll(sdk, {
+                ...props,
+                closeBy: 'bestprice',
+            });
+        }
+
+        static async closeAll(sdk: ReturnType<typeof createSdk>, props: {
+            accountId: string; allInstrumentsWithIdKeys?: any;
+            closeBy: 'bestprice' | 'market',
+        }) {
             try {
                 if (!sdk?.operations?.getPositions) {
                     return;
@@ -84,6 +101,7 @@ try {
                 const {
                     accountId,
                     allInstrumentsWithIdKeys,
+                    closeBy,
                 } = props;
 
                 const p = await sdk?.operations?.getPositions({
@@ -101,7 +119,6 @@ try {
 
                     try {
                         const id = position.instrumentUid;
-
                         const info = allInstrumentsWithIdKeys?.[id];
 
                         if (info?.lot && id && props.accountId) {
@@ -111,6 +128,8 @@ try {
                                     accountId: props.accountId,
                                     instrumentId: id,
                                     quantity: -1 * parseInt(position.balance / info?.lot, 10),
+                                    orderType: closeBy === 'bestprice' ? OrderType.ORDER_TYPE_BESTPRICE :
+                                        OrderType.ORDER_TYPE_MARKET,
                                 },
                             );
                         }
@@ -122,6 +141,7 @@ try {
                 console.log('closeAllByBestPrice', e); // eslint-disable-line no-console
             }
         }
+
     }
 
     if (name) {

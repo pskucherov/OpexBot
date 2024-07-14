@@ -196,7 +196,8 @@ export class TRequests {
         return this.allLastTradesAggregated?.[uid];
     }
 
-    async subscribes(accountId) { // eslint-disable-line sonarjs/cognitive-complexity
+    // accountId
+    async subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
         try {
             const { subscribes } = this.cb || {};
 

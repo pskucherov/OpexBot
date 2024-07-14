@@ -1783,7 +1783,7 @@ export class Common {
             }
 
             if (timeInForceType) {
-                data.TimeInForceType = timeInForceType;
+                data.timeInForce = timeInForceType;
             }
 
             return await sdk?.orders?.postOrder(data);
