@@ -48,12 +48,12 @@ try {
                     totalAmountPortfolio,
                 } = this.currentPortfolio;
 
-                const positions = this.currentPortfolio?.positions.map((p: { instrumentUid: string | number; }) => {
+                const positions = this.currentPortfolio?.positions?.map((p: { instrumentUid: string | number; }) => {
                     return {
                         ...p,
                         ...(this.allInstrumentsInfo?.[p.instrumentUid] || {}),
                     };
-                });
+                }) || [];
 
                 const textPositions: string[] = [];
 

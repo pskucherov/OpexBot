@@ -51,6 +51,9 @@ import { TRequests } from './TRequests/TRequests';
             file !== 'OpexBot' &&
             file !== 'RandomExample' &&
 
+            file !== 'Scalper' &&
+            file !== 'ScalperSeller' &&
+
             // file !== 'StaticExample' &&
             file !== 'SupportResistance' &&
             file !== 'TRequests'

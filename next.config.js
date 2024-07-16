@@ -1,6 +1,6 @@
 // /** @type {import('next').NextConfig} */
 // const nextConfig = {
-//     reactStrictMode: true,
+//     reactStrictMode: false,
 //     distDir: './node_modules/opexviewer/build',
 // };
 
@@ -22,7 +22,7 @@ const PROJECT_ROOT = fs.existsSync(path.resolve(__dirname, moduleBuildDist)) ?
     moduleBuildDist : fs.existsSync(path.resolve(__dirname, moduleDist)) ? moduleDist : packageDist;
 
 const nextConfig = {
-    reactStrictMode: true,
+    reactStrictMode: false,
     distDir: path.join(PROJECT_ROOT, 'build'),
 
     // basePath: path.resolve(PROJECT_ROOT),

@@ -171,8 +171,11 @@ try {
 
                     if (realStop &&
                         (
-                            (isShort && (curPrice * 1.0005) <= realStop) ||
-                            (!isShort && (curPrice * 0.9995) >= realStop)
+
+                            // (isShort && (curPrice * 1.0005) <= realStop) ||
+                            // (!isShort && (curPrice * 0.9995) >= realStop)
+                            (isShort && (curPrice) <= realStop) ||
+                            (!isShort && (curPrice) >= realStop)
                         )
                     ) {
                         const p = this.getStopPriceWithSteps(isShort, curPrice, breakeven, averagePositionPriceVal);

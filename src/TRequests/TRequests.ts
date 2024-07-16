@@ -19,10 +19,10 @@ import { MarketDataRequest, SubscriptionAction, TradeSourceType } from 'tinkoff-
 import { Common } from '../Common/TsCommon';
 import { Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 
-export class TRequests {
+class TRequests {
     sdk?: ReturnType<typeof createSdk>;
 
-    requests = {
+    static requests = {
         // lastMinutes: new Date().getMinutes(),
         // lastSeconds: new Date().getSeconds(),
         count: 0,
@@ -54,7 +54,7 @@ export class TRequests {
         },
     };
 
-    reqKeys = Object.keys(this.requests).filter(k => typeof this.requests[k] === 'object');
+    static reqKeys = Object.keys(TRequests.requests).filter(k => typeof TRequests.requests[k] === 'object');
 
     constructor(sdk?: ReturnType<typeof createSdk>) {
         this.sdk = sdk;
@@ -74,11 +74,15 @@ export class TRequests {
         this.asyncInit();
         setInterval(() => this.asyncInit(), 24 * 3600 * 1000);
 
-        this.clean();
+        // this.clean();
+    }
+
+    static timer(time: number | undefined) {
+        return new Promise(resolve => setTimeout(resolve, time));
     }
 
     timer(time: number | undefined) {
-        return new Promise(resolve => setTimeout(resolve, time));
+        return TRequests.timer(time);
     }
 
     async asyncInit() {
@@ -472,7 +476,7 @@ export class TRequests {
 
             if (!this.allInstrumentsInfo) {
                 this.allInstrumentsInfo = {};
-            } else if (!this.checkLimits('instruments')) {
+            } else if (!TRequests.checkLimits('instruments')) {
                 return this.allInstrumentsInfo;
             }
 
@@ -491,7 +495,7 @@ export class TRequests {
                 try {
                     const name = names[i];
 
-                    if (!this.checkLimits('instruments')) {
+                    if (!TRequests.checkLimits('instruments')) {
                         continue;
                     }
 
@@ -512,52 +516,41 @@ export class TRequests {
 
         this.allInstrumentsInfoTimeout = Date.now();
 
+        TRequests.allInstrumentsInfo = this.allInstrumentsInfo;
+
         return this.allInstrumentsInfo;
     }
 
     async getOpenOrders(accountId) {
         try {
-            if (!this.checkLimits('orders')) {
-                if (this.getOpenOrdersCache && this.getOpenOrdersTimeout && (this.getOpenOrdersTimeout + 1000) > Date.now()) {
-                    return this.getOpenOrdersCache;
-                }
+            const reqName = 'orders';
+            const cacheName = reqName + accountId;
 
-                await this.timer(1000);
-            }
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                const { orders } = await this.sdk?.orders.getOrders({ accountId }) || {};
 
-            const { orders } = await this.sdk?.orders.getOrders({ accountId }) || {};
-
-            this.allOrders = orders;
-
-            this.getOpenOrdersCache = orders && orders.filter((o: { executionReportStatus: number; }) => [
-                OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
-                OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL,
-            ].includes(o.executionReportStatus));
-
-            return this.getOpenOrdersCache;
+                return orders && orders.filter((o: { executionReportStatus: number; }) => [
+                    OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW,
+                    OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL,
+                ].includes(o.executionReportStatus));
+            });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
-
-        this.getOpenOrdersTimeout = Date.now();
-
-        return this.getOpenOrdersCache;
     }
 
     async getPortfolio(accountId) {
         try {
-            if (!this.checkLimits('operations')) {
-                if (this.getPortfolioTimeout && (this.getPortfolioTimeout + 1000) > Date.now()) {
-                    return this.getPortfolioCache;
-                }
-
-                await this.timer(1000);
+            if (!accountId) {
+                throw 'Укажите accountId';
             }
 
-            this.getPortfolioTimeout = Date.now();
-            this.getPortfolioCache = accountId && await this.sdk?.operations.getPortfolio({ accountId });
+            const reqName = 'operations';
+            const cacheName = reqName + accountId;
 
-            return this.getPortfolioCache;
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return await this.sdk?.operations.getPortfolio({ accountId });
+            });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -568,39 +561,47 @@ export class TRequests {
         this.ordersInited = true;
     }
 
-    clean() {
-        this.allRequestsCacheData = {};
+    static clean() {
+        try {
+            TRequests.allRequestsCacheData = {};
 
-        setInterval(() => {
-            this.requests.count = 0;
-        }, 1000);
+            setInterval(() => {
+                TRequests.requests.count = 0;
+            }, 1000);
 
-        setInterval(() => {
-            this.allRequestsCacheData = {};
-        }, 2000);
+            setInterval(() => {
+                TRequests.allRequestsCacheData = {};
+            }, 2000);
 
-        setInterval(() => {
-            // this.requests.lastMinutes = new Date().getMinutes();
-            for (let i = 0; i < this.reqKeys.length; i++) {
-                if (this.requests[this.reqKeys[i]].count) {
-                    this.requests[this.reqKeys[i]].count = 0;
+            setInterval(() => {
+                try {
+                    // TRequests.requests.lastMinutes = new Date().getMinutes();
+                    for (let i = 0; i < TRequests.reqKeys.length; i++) {
+                        if (TRequests.requests[TRequests.reqKeys[i]].count) {
+                            TRequests.requests[TRequests.reqKeys[i]].count = 0;
+                        }
+                    }
+                } catch (e) {
+                    console.log(e); // eslint-disable-line no-console
                 }
-            }
-        }, 60000);
+            }, 60000);
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
     }
 
-    checkLimits(type: string) {
+    static checkLimits(type: string) {
         try {
-            if (this.requests.count >= this.requests.limit) {
-                throw `RPS limit ${type} ${this.requests.count} / ${this.requests.limit}`;
+            if (TRequests.requests.count >= TRequests.requests.limit) {
+                throw `RPS limit ${type} ${TRequests.requests.count} / ${TRequests.requests.limit}`;
             }
 
-            if (this.requests[type].count >= this.requests[type].limit) {
-                throw `${type} limit ${this.requests[type].count} / ${this.requests[type].limit}`;
+            if (TRequests.requests[type].count >= TRequests.requests[type].limit) {
+                throw `${type} limit ${TRequests.requests[type].count} / ${TRequests.requests[type].limit}`;
             }
 
-            ++this.requests.count;
-            ++this.requests[type].count;
+            ++TRequests.requests.count;
+            ++TRequests.requests[type].count;
 
             return true;
         } catch (e) {
@@ -614,18 +615,12 @@ export class TRequests {
                 throw 'Укажите accountId';
             }
 
-            if (!this.checkLimits('operations')) {
-                if (this.getPositionsTimeout && (this.getPositionsTimeout + 1000) > Date.now()) {
-                    return this.getPositionsCache;
-                }
+            const reqName = 'operations';
+            const cacheName = reqName + accountId;
 
-                await this.timer(1000);
-            }
-
-            this.getPositionsTimeout = Date.now();
-            this.getPositionsCache = accountId && await this.sdk?.operations.getPositions({ accountId });
-
-            return this.getPositionsCache;
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return await this.sdk?.operations.getPositions({ accountId });
+            });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -636,7 +631,7 @@ export class TRequests {
             const reqName = 'marketData';
             const cacheName = reqName + uid;
 
-            return this.getCacheOrRequest(reqName, cacheName, async () => {
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
                 return !from && !to ?
                     await this.sdk.marketData.getLastTrades({ instrumentId: uid }) :
                     await this.sdk.marketData.getLastTrades({
@@ -650,15 +645,19 @@ export class TRequests {
         }
     }
 
-    async getLastPrices(uids: string[]) {
+    static async getLastPrices(sdk, uids: string[]) {
         try {
             const reqName = 'marketData';
             const cacheName = reqName + uids.join(':');
 
-            return this.getCacheOrRequest(reqName, cacheName, async () => await this.sdk.marketData.getLastPrices({ instrumentId: uids }));
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => await sdk.marketData.getLastPrices({ instrumentId: uids }));
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
+    }
+
+    async getLastPrices(uids: string[]) {
+        return await TRequests.getLastPrices(this.sdk, uids);
     }
 
     async getOrderBook(uid) {
@@ -666,10 +665,55 @@ export class TRequests {
             const reqName = 'marketData';
             const cacheName = reqName + uid;
 
-            return this.getCacheOrRequest(reqName, cacheName, async () => await this.sdk.marketData.getOrderBook({
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => await this.sdk.marketData.getOrderBook({
                 depth: 50,
                 instrumentId: uid,
             }));
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
+    async getTradingStatuses(ids: string[]) {
+        try {
+            const reqName = 'marketData';
+            const cacheName = reqName + ids.join(':');
+
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return (await this.sdk.marketData.getTradingStatuses({
+                    instrumentId: ids,
+                }));
+            });
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
+    async getOrderPrice(props) {
+        try {
+            const reqName = 'orders';
+            const cacheName = reqName + JSON.stringify(props);
+
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return (await this.sdk.orders.getOrderPrice(props));
+            });
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
+    async getMaxLots(accountId, instrumentUid, price) {
+        try {
+            const reqName = 'orders';
+            const cacheName = reqName + accountId + instrumentUid + Common.getPrice(price);
+
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return (await this.sdk.orders.getMaxLots({
+                    accountId,
+                    instrumentId: instrumentUid,
+                    price,
+                }));
+            });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -680,44 +724,46 @@ export class TRequests {
             const reqName = 'marketData';
             const cacheName = reqName + JSON.stringify(req);
 
-            return this.getCacheOrRequest(reqName, cacheName, async () => await this.sdk.marketData.getTechAnalysis(req));
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => await this.sdk.marketData.getTechAnalysis(req));
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
     }
 
-    createCacheWayIfNotExist(requestName: string, cacheName: string) {
-        if (!this.allRequestsCacheData) {
-            this.allRequestsCacheData = {};
+    static createCacheWayIfNotExist(requestName: string, cacheName: string) {
+        if (!TRequests.allRequestsCacheData) {
+            TRequests.allRequestsCacheData = {};
         }
 
-        if (!this.allRequestsCacheData[requestName]) {
-            this.allRequestsCacheData[requestName] = {};
+        if (!TRequests.allRequestsCacheData[requestName]) {
+            TRequests.allRequestsCacheData[requestName] = {};
         }
 
-        if (!this.allRequestsCacheData[requestName][cacheName]) {
-            this.allRequestsCacheData[requestName][cacheName] = {};
+        if (!TRequests.allRequestsCacheData[requestName][cacheName]) {
+            TRequests.allRequestsCacheData[requestName][cacheName] = {};
         }
     }
 
-    async getCacheOrRequest(requestName: string, cacheName: string, cb: () => Promise<any>, timeout = 1000) {
+    static async getCacheOrRequest(requestName: string, cacheName: string, cb: () => Promise<any>, timeout = 1000) {
         try {
-            if (!this.checkLimits(requestName)) {
-                this.createCacheWayIfNotExist(requestName, cacheName);
-                const curData = this.allRequestsCacheData[requestName][cacheName];
+            if (!TRequests.checkLimits(requestName)) {
+                TRequests.createCacheWayIfNotExist(requestName, cacheName);
+                const curData = TRequests.allRequestsCacheData[requestName][cacheName];
 
                 if (curData.timeout && (curData.timeout + timeout) > Date.now() && curData.data) {
                     return curData.data;
                 }
 
-                await this.timer(60000);
+                await TRequests.timer(60000);
+
+                return await TRequests.getCacheOrRequest(requestName, cacheName, cb);
             }
 
             const data = await cb();
 
-            this.createCacheWayIfNotExist(requestName, cacheName);
+            TRequests.createCacheWayIfNotExist(requestName, cacheName);
 
-            this.allRequestsCacheData[requestName][cacheName] = {
+            TRequests.allRequestsCacheData[requestName][cacheName] = {
                 timeout: Date.now(),
                 data,
             };
@@ -804,3 +850,7 @@ export class TRequests {
         }
     }
 }
+
+TRequests.clean();
+
+export { TRequests };

@@ -53,8 +53,16 @@ const logger = (a, b, c) => { // eslint-disable-line @typescript-eslint/no-expli
     return console.log(a || '', b || '', c || ''); // eslint-disable-line no-console
 };
 
+function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 module.exports = {
     todayDate: new Date().toLocaleString('ru', dateOptions),
+    getRandomInt,
     mkDirByPathSync,
     logger,
 };

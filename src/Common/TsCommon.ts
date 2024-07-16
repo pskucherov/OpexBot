@@ -132,6 +132,7 @@ export class Common {
         this.blueChipsShares = options.blueChipsShares;
 
         if (!TRequests) {
+            console.trace(); // eslint-disable-line
             throw 'Не задан TRequests для управления лимитами SDK.';
         }
         if (!sdk) {
@@ -294,14 +295,14 @@ export class Common {
                         }
 
                         prev.push({
-                            ...this.currentPortfolio?.positions[i],
+                            ...this.currentPortfolio?.positions?.[i],
                             ...cur,
                         });
-
-                        return prev;
                     } catch (e) {
                         console.log(e); // eslint-disable-line no-console
                     }
+
+                    return prev;
                 }, []);
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
