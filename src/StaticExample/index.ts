@@ -217,7 +217,7 @@ try {
                     return;
                 }
 
-                const { bids, asks, limitDown, limitUp } = (await sdk.marketData.getOrderBook({
+                const { bids, asks, limitDown, limitUp } = (await TRequests.getOrderBook({
                     depth: 50,
                     instrumentId,
                 })) || {};

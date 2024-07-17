@@ -626,7 +626,7 @@ class TRequests {
         }
     }
 
-    async getLastTrades(uid, from?: Date, to?: Date) {
+    async getLastTrades(uid, from?: Date, to?: Date, timeout = 120000) {
         try {
             const reqName = 'marketData';
             const cacheName = reqName + uid;
@@ -639,7 +639,7 @@ class TRequests {
                         from,
                         to,
                     });
-            });
+            }, timeout);
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -660,15 +660,14 @@ class TRequests {
         return await TRequests.getLastPrices(this.sdk, uids);
     }
 
-    async getOrderBook(uid) {
+    async getOrderBook(req) {
         try {
             const reqName = 'marketData';
-            const cacheName = reqName + uid;
+            const cacheName = reqName + JSON.stringify(req);
 
-            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => await this.sdk.marketData.getOrderBook({
-                depth: 50,
-                instrumentId: uid,
-            }));
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return await this.sdk.marketData.getOrderBook(req);
+            });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
