@@ -205,13 +205,15 @@ try {
                             return;
                         }
 
+                        const price = Common.resolveMinPriceIncrement(Common.getQuotationFromPrice(realStop), min);
+                        const stopPrice = Common.resolveMinPriceIncrement(isShort ?
+                            Common.subMinPriceIncrement(curStopOrderPrice, min) :
+                            Common.addMinPriceIncrement(curStopOrderPrice, min), min);
+
                         const data = {
                             quantity: quantSize,
-                            price: Common.getQuotationFromPrice(realStop), // curStopOrderPrice,
-                            stopPrice:
-                                isShort ?
-                                    Common.subMinPriceIncrement(curStopOrderPrice, min) :
-                                    Common.addMinPriceIncrement(curStopOrderPrice, min),
+                            price,
+                            stopPrice,
                             direction: isShort ?
                                 StopOrderDirection.STOP_ORDER_DIRECTION_BUY :
                                 StopOrderDirection.STOP_ORDER_DIRECTION_SELL,
@@ -238,7 +240,7 @@ try {
                                 await this.closeStopOrder(accountId, stopOrderId);
                             }
 
-                            console.log('Открываем заявку', curStopOrderPriceNum); // eslint-disable-line no-console
+                            console.log('Открываем заявку', curStopOrderPriceNum, price, stopPrice); // eslint-disable-line no-console
                             await sdk.stopOrders.postStopOrder(data);
                         }
                     } else if (currentStopOrder?.stopOrderId) {

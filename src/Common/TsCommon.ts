@@ -1062,7 +1062,7 @@ export class Common {
 
         return {
             units,
-            nano,
+            nano: !minInc.nano && nano ? 0 : nano,
         };
     }
 
