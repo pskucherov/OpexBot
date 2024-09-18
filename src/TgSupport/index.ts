@@ -173,7 +173,7 @@ try {
 
         stop() {
             try {
-                this.tgBot.removeTextListener(/счёт|счет/igm);
+                this.tgBot?.removeTextListener(/счёт|счет/igm);
 
                 if (this.sendBalanceMessageInterval) {
                     clearInterval(this.sendBalanceMessageInterval);
