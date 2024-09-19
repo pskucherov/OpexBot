@@ -19,6 +19,8 @@ import { MarketDataRequest, SubscriptionAction, TradeSourceType } from 'tinkoff-
 import { Common } from '../Common/TsCommon';
 import { Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 
+import EventEmitter from 'events';
+
 class TRequests {
     sdk?: ReturnType<typeof createSdk>;
 
@@ -59,6 +61,8 @@ class TRequests {
     constructor(sdk?: ReturnType<typeof createSdk>) {
         this.sdk = sdk;
 
+        this.eventEmitter = new EventEmitter();
+
         // Таймер подписки на события.
         this.subscribesTimer = 150;
         this.subscribeDataUpdated = {};
@@ -77,6 +81,10 @@ class TRequests {
         // this.clean();
     }
 
+    getEventEmitter() {
+        return this.eventEmitter;
+    }
+
     static timer(time: number | undefined) {
         return new Promise(resolve => setTimeout(resolve, time));
     }
@@ -92,11 +100,35 @@ class TRequests {
 
     getSubscribeOptions() {
         const abortSubscribe = (_type: any, abort: () => void) => {
-            // console.log('abort', this.inProgress);
-            if (!this.inProgress) {
+            // console.log('abort', this.subscrNoAccinProgress);
+            if (!this.subscrNoAccinProgress) {
                 abort();
             }
         };
+
+        return {
+            signal: {
+                addEventListener: abortSubscribe,
+                removeEventListener: abortSubscribe,
+            },
+        };
+    }
+
+    getSubscribeOptionsWithAccs() {
+        const abortSubscribe = (_type: any, abort: () => void) => {
+            // console.log('abort', this.subscrNoAccinProgress);
+            if (!this.subscribesWithAccount) {
+                abort();
+            }
+        };
+
+        // const abortSubscribeRemove = (_type: any, abort: () => void) => {
+        //     // console.log('abort', this.subscrNoAccinProgress);
+        //     // if (!this.subscribesWithAccount) {
+        //     console.log('abortSubscribeRemove', abortSubscribeRemove);
+        //     abort();
+        //     // }
+        // };
 
         return {
             signal: {
@@ -200,20 +232,90 @@ class TRequests {
         return this.allLastTradesAggregated?.[uid];
     }
 
-    // accountId
+    async subscribesWithAccount(accountId?: string) {
+        if (!accountId && !this.subscrAccList) {
+            return;
+        }
+
+        if (accountId) {
+            if (!this.subscrAccList) {
+                this.subscrAccList = new Set([accountId]);
+            } else {
+                this.subscrAccList.add(accountId);
+            }
+        }
+
+        this.sybscrWithAccinProgress = true;
+
+        try {
+            if (!this.genSubscrWithAccId) {
+                this.genSubscrWithAccId = 1;
+            } else {
+                ++this.genSubscrWithAccId;
+            }
+
+            setImmediate(async () => {
+                try {
+                    const id = this.genSubscrWithAccId;
+
+                    // let gen = subscribes[name]({
+                    //     accounts: [accountId],
+                    // }, this.getSubscribeOptions());
+
+                    let gen = this.sdk?.ordersStream.tradesStream({
+                        accounts: Array.from(this.subscrAccList),
+                    }, this.getSubscribeOptionsWithAccs());
+
+                    for await (const data of gen) {
+                        if (id !== this.genSubscrWithAccId) {
+                            gen = null;
+                            break;
+                        }
+
+                        if (data.orderTrades) {
+                            const {
+                                accountId,
+                            } = data?.orderTrades || {};
+
+                            if (accountId) {
+                                this.eventEmitter.emit('subscribe:orderTrades:' + accountId, data.orderTrades);
+                            }
+                        }
+
+                        if (!this.sybscrWithAccinProgress) {
+                            gen = null;
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.log(e); // eslint-disable-line no-console
+
+                    // Перезапускаем робота в случае ошибки.
+                    // Ошибка сюда прилетит в случае обрыва соединения.
+                    // await this.restart(this.robotTimer + this.subscribesTimer);
+                    this.sybscrWithAccinProgress = false;
+                    await this.timer(500);
+                    await this.subscribesWithAccount();
+                }
+            });
+        } catch (e) {
+            console.log(e); // eslint-disable-line
+        }
+    }
+
     async subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
         try {
             const { subscribes } = this.cb || {};
 
             const shares = await this.getSharesForTrading({
-                maxLotPrice: 3500,
+                // maxLotPrice: 3500,
             });
 
-            if (this.inProgress) {
+            if (this.subscrNoAccinProgress) {
                 return;
             }
 
-            this.inProgress = true;
+            this.subscrNoAccinProgress = true;
 
             // const instruments = (shares);
             this.allLastTrades = {};
@@ -225,7 +327,7 @@ class TRequests {
                 // console.log('subscr');
                 let gen = this.sdk?.marketDataStream.marketDataStream((async function* () {
                     try {
-                        while (this.inProgress) {
+                        while (this.subscrNoAccinProgress) {
                             await this.timer(this.subscribesTimer);
                             yield MarketDataRequest.fromPartial({
                                 subscribeTradesRequest: {
@@ -322,7 +424,7 @@ class TRequests {
                             console.log(e); // eslint-disable-line no-console
                         }
 
-                        if (!this.inProgress) {
+                        if (!this.subscrNoAccinProgress) {
                             gen = null;
                             break;
                         }
@@ -349,7 +451,7 @@ class TRequests {
 
             //             let gen = subscribeArr[0]((async function* () {
             //                 try {
-            //                     while (this.inProgress) {
+            //                     while (this.subscrNoAccinProgress) {
             //                         await this.timer(this.subscribesTimer);
 
             //                         if (this.instrumentId) {
@@ -379,7 +481,7 @@ class TRequests {
             //                             this[name] = currentData;
             //                         }
             //                     }
-            //                     if (!this.inProgress) {
+            //                     if (!this.subscrNoAccinProgress) {
             //                         gen = null;
             //                         break;
             //                     }
@@ -395,73 +497,11 @@ class TRequests {
             //     }
             // });
 
-            // 0 && ['orders', 'positions'].forEach(name => {
-            //     if (subscribes[name]) {
-            //         setImmediate(async () => {
-            //             try {
-            //                 let gen = subscribes[name]({
-            //                     accounts: [accountId],
-            //                 }, this.getSubscribeOptions());
+            // ['orders', 'positions'
+            // ].forEach(name => {
+            // if (subscribes[name]) {
 
-            //                 for await (const data of gen) {
-            //                     if (data.orderTrades) {
-            //                         if (!this.orderTrades) {
-            //                             this.orderTrades = [];
-            //                         }
-
-            //                         this.orderTrades.push(data.orderTrades);
-            //                         await this.updateOrders();
-            //                     } else if (data.position && this.isPortfolio) {
-            //                         [
-            //                             'securities',
-
-            //                             // 'futures',
-            //                             // 'options',
-            //                         ].forEach(name => {
-            //                             try {
-            //                                 if (!data.position[name] || !data.position[name].length) {
-            //                                     return;
-            //                                 }
-
-            //                                 data.position[name].forEach(async (p: { instrumentId: any; instrumentType: any; }) => {
-            //                                     const currentIndex = this.currentPositions.findIndex(c => {
-            //                                         return c.instrumentId === p.instrumentId &&
-            //                                             c.instrumentType === p.instrumentType;
-            //                                     });
-
-            //                                     if (currentIndex >= 0) {
-            //                                         this.currentPositions[currentIndex] = {
-            //                                             ...this.currentPositions[currentIndex],
-            //                                             ...p,
-            //                                         };
-            //                                     } else {
-            //                                         await this.updatePositions();
-            //                                     }
-            //                                 });
-            //                             } catch (e) {
-            //                                 console.log(e); // eslint-disable-line no-console
-            //                             }
-            //                         });
-
-            //                         await this.updateInstrumentId();
-
-            //                         // await this.updateOrdersInLog();
-            //                     }
-
-            //                     if (!this.inProgress) {
-            //                         gen = null;
-            //                         break;
-            //                     }
-            //                 }
-            //             } catch (e) {
-            //                 console.log(e); // eslint-disable-line no-console
-
-            //                 // Перезапускаем робота в случае ошибки.
-            //                 // Ошибка сюда прилетит в случае обрыва соединения.
-            //                 await this.restart(this.robotTimer + this.subscribesTimer);
-            //             }
-            //         });
-            //     }
+            // }
             // });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
@@ -826,22 +866,24 @@ class TRequests {
                 [key: string]: number | string;
             }[] = [];
 
-            // Фильтрует цены, с учётом лотности, которые нужно удалить.
-            const filtredPricesToDel = !maxLotPrice ? [] : prices?.lastPrices?.filter(f => {
-                if (!shares?.[f.instrumentUid]?.lot) {
-                    return false;
-                }
+            if (maxLotPrice) {
+                // Фильтрует цены, с учётом лотности, которые нужно удалить.
+                const filtredPricesToDel = prices?.lastPrices?.filter(f => {
+                    if (!shares?.[f.instrumentUid]?.lot) {
+                        return false;
+                    }
 
-                const currentPrice = Common.getPrice(f.price) || 0;
-                const lotPrice = currentPrice * shares[f.instrumentUid].lot;
+                    const currentPrice = Common.getPrice(f.price) || 0;
+                    const lotPrice = currentPrice * shares[f.instrumentUid].lot;
 
-                return lotPrice > maxLotPrice;
-            });
+                    return lotPrice > maxLotPrice;
+                });
 
-            // Возвращает массив инструментов, которые отфильтрованы по заданным выше условиям.
-            filtredPricesToDel?.forEach(f => {
-                delete shares[f.instrumentUid];
-            });
+                // Возвращает массив инструментов, которые отфильтрованы по заданным выше условиям.
+                filtredPricesToDel?.forEach(f => {
+                    delete shares[f.instrumentUid];
+                });
+            }
 
             return shares;
         } catch (e) {

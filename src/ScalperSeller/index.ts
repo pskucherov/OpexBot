@@ -47,7 +47,7 @@ try {
             [key: string]: Share
         } = {};
         TRequests: InstanceType<typeof TRequestsBase> | undefined;
-        maxLotPrice: number;
+        // maxLotPrice: number;
         rsiMonth: number;
         rsiWeek: number;
         rsiDay: number;
@@ -61,7 +61,7 @@ try {
             this.isPortfolio = false;
             this.name = name;
 
-            this.maxLotPrice = 5000;
+            // this.maxLotPrice = 5000;
             this.rsiMonth = 70;
             this.rsiWeek = 60;
             this.rsiDay = 60;
@@ -195,7 +195,7 @@ try {
                 }
 
                 const shares = await this.getSharesForTrading({
-                    maxLotPrice: this.maxLotPrice,
+                    // maxLotPrice: this.maxLotPrice,
                 });
 
                 if (!shares) {

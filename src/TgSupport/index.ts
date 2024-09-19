@@ -1,4 +1,8 @@
 import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import {
+    OrderDirection,
+    OrderStateStreamResponse_OrderState, // eslint-disable-line camelcase
+} from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 
 try {
     const { Backtest } = require('../Common/TsBacktest');
@@ -157,6 +161,65 @@ try {
             this.sendBalanceMessageInterval = setInterval(this.sendBalanceMessage.bind(this), 3600000);
         }
 
+        async onTradeData(data: OrderStateStreamResponse_OrderState) { // eslint-disable-line camelcase
+            try {
+                if (this.tgBot?.sendMessage) {
+                    const textArr: string[] = [];
+
+                    const {
+                        direction,
+                        instrumentUid,
+                        trades,
+                    } = data;
+
+                    let sumQ = 0;
+
+                    // let sumP = 0;
+                    let all = 0;
+
+                    trades.forEach(t => {
+                        try {
+                            const info = this.allInstrumentsInfo?.[instrumentUid];
+                            const {
+                                price,
+                                quantity,
+                            } = t;
+
+                            let text;
+
+                            if (direction === OrderDirection.ORDER_DIRECTION_BUY) {
+                                text = 'Покупка';
+                            } else {
+                                text = 'Продажа';
+                            }
+
+                            text += ` ${info.ticker} по цене ${this.getPrice(price)} (x ${quantity} шт.)`;
+
+                            if (quantity > 1) {
+                                text += ` на сумму ${this.getPrice(price) * quantity}`;
+                            }
+
+                            textArr.push(text);
+                            sumQ += quantity;
+
+                            // sumP += this.getPrice(price);
+                            all += this.getPrice(price) * quantity;
+                        } catch (e) {
+                            console.log(e); // eslint-disable-line
+                        }
+                    });
+
+                    if (textArr.length > 1) {
+                        this.tgBot?.sendMessage(textArr.join('\r\n') + '\r\n' + `Всего ${sumQ} шт. на сумму ${all}`);
+                    } else {
+                        this.tgBot?.sendMessage(textArr[0]);
+                    }
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+        }
+
         start() {
             try {
                 // Костыль, чтобы вотчер не триггерил несколько событий отправки.
@@ -166,6 +229,11 @@ try {
                 this.startTimer = Date.now();
 
                 this.subscribeTgEvents();
+
+                super.start();
+
+                this.onTradeDataBinded = this.onTradeData.bind(this);
+                this.eventEmitter.on('subscribe:orderTrades:' + this.accountId, this.onTradeDataBinded);
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
@@ -174,6 +242,8 @@ try {
         stop() {
             try {
                 this.tgBot?.removeTextListener(/счёт|счет/igm);
+
+                this.eventEmitter.off('subscribe:orderTrades:' + this.accountId, this.onTradeDataBinded);
 
                 if (this.sendBalanceMessageInterval) {
                     clearInterval(this.sendBalanceMessageInterval);

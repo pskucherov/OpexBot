@@ -140,6 +140,7 @@ export class Common {
         }
 
         this.TRequests = TRequests;
+        this.eventEmitter = this.TRequests.getEventEmitter();
 
         (async () => {
             this.init();
@@ -625,6 +626,7 @@ export class Common {
         this.inProgress = true;
 
         this.TRequests?.subscribes();
+        this.TRequests?.subscribesWithAccount(this.accountId);
 
         console.log(this.name, this.accountId, 'start'); // eslint-disable-line no-console
     }
