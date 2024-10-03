@@ -1,6 +1,10 @@
 # OpexBot
 
-# Открыть: [https://opexflow.com/kit](https://opexflow.com/kit)
+# Описание: [https://opexflow.com/kit](https://opexflow.com/kit)
+
+# Установка: [здесь](https://articles.opexflow.com/software-trading/kak-ustanovit-i-zapustit-torgovogo-pomoshhnika-opexbot-dlya-tinkoff-investicii.htm)
+
+# Обновление: [здесь](https://articles.opexflow.com/programming/kak-obnovit-opexbot-s-soxraneniem-nastroek-na-windows.htm)
 
 ## Требования
 ```
