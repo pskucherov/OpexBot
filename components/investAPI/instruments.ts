@@ -13,6 +13,16 @@ export class Instruments extends Common {
         }
     }
 
+    async getAllFutures() {
+        try {
+            return (await this.sdk.instruments.futures({
+                instrumentStatus: InstrumentStatus.INSTRUMENT_STATUS_BASE,
+            })).instruments;
+        } catch (e) {
+            return [];
+        }
+    }
+
     async getInstrumentById(id: string, idType?: InstrumentIdType) {
         return await this.sdk.instruments.getInstrumentBy({
             idType: idType || this.sdk.InstrumentIdType.INSTRUMENT_ID_TYPE_UID,

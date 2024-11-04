@@ -23,6 +23,7 @@ import EventEmitter from 'events';
 
 class TRequests {
     sdk?: ReturnType<typeof createSdk>;
+    isSandbox?: boolean;
 
     static requests = {
         // lastMinutes: new Date().getMinutes(),
@@ -58,8 +59,9 @@ class TRequests {
 
     static reqKeys = Object.keys(TRequests.requests).filter(k => typeof TRequests.requests[k] === 'object');
 
-    constructor(sdk?: ReturnType<typeof createSdk>) {
+    constructor(sdk?: ReturnType<typeof createSdk>, options) {
         this.sdk = sdk;
+        this.isSandbox = options.isSandbox;
 
         this.eventEmitter = new EventEmitter();
 
@@ -734,6 +736,10 @@ class TRequests {
             const cacheName = reqName + JSON.stringify(props);
 
             return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                if (this.isSandbox) {
+                    return;
+                }
+
                 return (await this.sdk.orders.getOrderPrice(props));
             });
         } catch (e) {
