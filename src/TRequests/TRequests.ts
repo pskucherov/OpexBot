@@ -730,6 +730,23 @@ class TRequests {
         }
     }
 
+    async getFavorites() {
+        try {
+            const reqName = 'instruments';
+            const cacheName = reqName;
+
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                // if (this.isSandbox) {
+                //     return;
+                // }
+
+                return (await this.sdk?.instruments.getFavorites({}));
+            });
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
     async getOrderPrice(props) {
         try {
             const reqName = 'orders';
