@@ -7,6 +7,7 @@
 process.setMaxListeners(0);
 
 const sqlite3 = require('sqlite3');
+const request = require('@cypress/request-promise');
 
 sqlite3.verbose();
 
@@ -21,8 +22,22 @@ import { getDBPath, createTables, DemoTables } from '../db/tables';
 import { createTgBot } from '../components/tgbot/tgbot';
 import { TRequests } from './TRequests/TRequests';
 
+let currentVersion;
+
+// let latestVersion;
+
 // this is a top-level await
 (async () => {
+    try {
+        const { version } = JSON.parse(fs.readFileSync(
+            path.resolve(__dirname, '../package.json'),
+        ).toString()) || {};
+
+        currentVersion = version;
+    } catch (e) {
+        console.log(e); // eslint-disable-line
+    }
+
     // open the database
     const db = await open({
         filename: getDBPath(),
@@ -76,6 +91,9 @@ import { TRequests } from './TRequests/TRequests';
         DemoTables: new DemoTables(db),
         createTgBot,
         TRequests: TRequests,
+        currentVersion,
+
+        // latestVersion,
     });
 
     exports.bots = bots;

@@ -30,7 +30,11 @@ try {
             })();
         }
 
-        async sendBalanceMessage() {
+        async sendBalanceMessage(props?: { sendEmpty?: boolean; } | undefined) {
+            const {
+                sendEmpty,
+            } = props || {};
+
             try {
                 if (!this.allInstrumentsInfo || !this.currentPortfolio?.totalAmountPortfolio) {
                     this.balanceMessageTimeout = setTimeout(this.sendBalanceMessage.bind(this), 200);
@@ -42,7 +46,11 @@ try {
                     clearTimeout(this.balanceMessageTimeout);
                 }
 
-                this.restartBalanceInterval();
+                // this.restartBalanceInterval();
+
+                if (sendEmpty) {
+                    console.log(1);
+                }
 
                 await this.updatePortfolio();
                 await this.updatePositions();
@@ -143,7 +151,9 @@ try {
 
                 this.tgBot.onText(/счёт|счет/igm, async () => {
                     try {
-                        await this.sendBalanceMessage();
+                        await this.sendBalanceMessage({
+                            sendEmpty: true,
+                        });
                     } catch (e) {
                         console.log(e); // eslint-disable-line
                     }
