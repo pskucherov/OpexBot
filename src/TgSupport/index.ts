@@ -153,9 +153,12 @@ try {
 
                 this.tgBot.onText(/счёт|счет/igm, async () => {
                     try {
-                        await this.sendBalanceMessage({
-                            sendEmpty: true,
-                        });
+                        await this.sendBalanceMessage(
+
+                            //     {
+                            //     sendEmpty: true,
+                            // }
+                        );
                     } catch (e) {
                         console.log(e); // eslint-disable-line
                     }
