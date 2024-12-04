@@ -30,10 +30,12 @@ try {
             })();
         }
 
-        async sendBalanceMessage(props?: { sendEmpty?: boolean; } | undefined) {
-            const {
-                sendEmpty,
-            } = props || {};
+        async sendBalanceMessage(
+            //props?: { sendEmpty?: boolean; } | undefined
+        ) {
+            // const {
+            //     sendEmpty,
+            // } = props || {};
 
             try {
                 if (!this.allInstrumentsInfo || !this.currentPortfolio?.totalAmountPortfolio) {
@@ -48,9 +50,9 @@ try {
 
                 // this.restartBalanceInterval();
 
-                if (sendEmpty) {
-                    console.log(1);
-                }
+                // if (sendEmpty) {
+                //     console.log(1);
+                // }
 
                 await this.updatePortfolio();
                 await this.updatePositions();

@@ -189,6 +189,36 @@ try {
             });
         }
 
+        static async orderByBestPrice(sdk: ReturnType<typeof createSdk>, TRequests?: InstanceType<typeof TRequestsBase>, props: {
+            accountId: string;
+            instrumentId: string;
+            quantity: number;
+        }) {
+            try {
+                const {
+                    accountId,
+                    instrumentId,
+                    quantity,
+                } = props;
+
+                if (instrumentId && accountId && quantity) {
+                    const data = {
+                        accountId,
+                        instrumentId,
+                        quantity,
+                        orderType: OrderType.ORDER_TYPE_BESTPRICE,
+                    };
+
+                    return await this.order(
+                        sdk,
+                        data,
+                    );
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
+
         static async spreadOrdersByOrderBook(sdk?: ReturnType<typeof createSdk>, TRequests?: InstanceType<typeof TRequestsBase>,
             props: {
                 accountId: string;

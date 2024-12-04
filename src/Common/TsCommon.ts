@@ -128,6 +128,7 @@ export class Common {
 
         // Автоматически переставлять stopLoss и takeProfit при движении цены в нужную сторону.
         // this.useTrailingStop = options.useTrailingStop;
+
         this.isSandbox = Boolean(options.isSandbox);
         this.blueChipsShares = options.blueChipsShares;
 
