@@ -143,6 +143,8 @@ export class Common {
         this.TRequests = TRequests;
         this.eventEmitter = this.TRequests.getEventEmitter();
 
+        this.getCurrentSettings();
+
         (async () => {
             this.init();
             this.initAsync();
@@ -619,6 +621,8 @@ export class Common {
         if (this.inProgress) {
             return;
         }
+
+        this.getCurrentSettings();
 
         if (instrumentId) {
             this.instrumentId = instrumentId;
@@ -1331,6 +1335,9 @@ export class Common {
             volume: 1,
             lotsSize: 1,
 
+            profitRange: 0.2,
+            iagreetrade: false,
+
             orderType: 1, // лимитная заявка =1. Рыночная =2. this.enums.OrderType.ORDER_TYPE_LIMIT
             orderTimeout: 30, // секунд.
 
@@ -1381,6 +1388,11 @@ export class Common {
 
         settings.stopLoss = parseFloat(settings.stopLoss);
         settings.stopLoss > 0 && settings.stopLoss <= 100 && (current.stopLoss = settings.stopLoss);
+
+        settings.profitRange = parseFloat(settings.profitRange);
+        settings.profitRange > 0 && settings.profitRange <= 100 && (current.profitRange = settings.profitRange);
+
+        current.iagreetrade = Boolean(settings.iagreetrade);
 
         settings.volume = parseInt(settings.volume * 100, 10) / 100;
         settings.volume > 0 && settings.volume <= 100 && (current.volume = settings.volume);
@@ -1501,6 +1513,10 @@ export class Common {
         this.stopLoss = current.stopLoss;
         this.volume = current.volume;
         this.lotsSize = current.lotsSize;
+
+        this.profitRange = current.profitRange;
+
+        this.iagreetrade = current.iagreetrade;
 
         // Уровни поддержки и сопротивления.
         this.support = current.support;

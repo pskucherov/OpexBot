@@ -17,13 +17,17 @@ import { OrderDirection, OrderExecutionReportStatus, OrderState } from 'tinkoff-
 import TelegramBot from 'node-telegram-bot-api';
 import { MarketDataRequest, SubscriptionAction, TradeSourceType } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 import { Common } from '../Common/TsCommon';
-import { Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
+import { Instrument, Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 
 import EventEmitter from 'events';
 
 class TRequests {
     sdk?: ReturnType<typeof createSdk>;
     isSandbox?: boolean;
+
+    allInstrumentsInfo: {
+        [key: string]: Instrument
+    };
 
     static requests = {
         // lastMinutes: new Date().getMinutes(),
