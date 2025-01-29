@@ -146,6 +146,9 @@ try {
 
                     const buyPoint = this.getTPPoint(currentPriceNum, !isBuy, this.takeProfit, min);
                     const sellPoint = this.getSLPoint(currentPriceNum, !isBuy, this.stopLoss, min);
+                    const medianBase = Math.max(quantityNum * 0.005, 1);
+
+                    console.log(ticker, quantityNum, averagePositionPriceVal, currentPriceNum, this.takeProfit, this.stopLoss);
 
                     const orderDataTakeProfit = await StaticExample.getSpreadOrderMapByOrderBook(this.sdk,
                         this.TRequests,
@@ -155,6 +158,10 @@ try {
                             quantity: Math.floor(quantityNum / lot),
                             minPrice: buyPoint,
                             maxPrice: sellPoint,
+
+                            medianBase,
+                            priceFrom: 260,
+                            priceTo: 290,
                         });
 
                     const orderDataStopLoss = await StaticExample.getSpreadOrderMapByOrderBook(this.sdk,
@@ -165,6 +172,9 @@ try {
                             quantity: -1 * Math.floor(quantityNum / lot),
                             minPrice: buyPoint,
                             maxPrice: sellPoint,
+                            medianBase,
+                            priceFrom: 260,
+                            priceTo: 290,
                         });
 
                     if (0) {
@@ -172,7 +182,6 @@ try {
                         console.log('orderData SELL', orderDataStopLoss);
                     }
 
-                    console.log(ticker, quantityNum, averagePositionPriceVal, currentPriceNum, this.takeProfit, this.stopLoss);
                     console.log('getTPPoint', this.getTPPoint(currentPriceNum, !isBuy, this.takeProfit, min));
                     console.log('getSLPoint', this.getSLPoint(currentPriceNum, !isBuy, this.stopLoss, min));
 

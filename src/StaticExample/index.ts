@@ -245,11 +245,21 @@ try {
                 quantity: number;
             };
         },
-        pricesList: string | any[],
-        lastQuantityBase: any, quantsArrBase: any[],
-        params: { median: any; }) {
+            pricesList: {
+                quantity: number;
+                price: Quotation;
+            }[],
+            lastQuantityBase: number, quantsArrBase: number[],
+            params: {
+                median: number;
+                priceFrom?: number;
+                priceTo?: number;
+            },
+        ) {
             const {
                 median,
+                priceFrom,
+                priceTo,
             } = params;
 
             const quantsArr = quantsArrBase;
@@ -261,6 +271,10 @@ try {
 
                 lastQuantity -= curQuant;
                 const price = this.getPrice(pricesList[i].price);
+
+                if (priceFrom && priceTo && (price < priceFrom || price > priceTo)) {
+                    continue;
+                }
 
                 if (!orders[price]) {
                     orders[price] = {
@@ -290,11 +304,16 @@ try {
                 price: Quotation, quantity: number;
             };
         },
-        pricesList: string | any[],
-        lastQuantityBase: any, quantsArr: any[],
-        params: {
-                isBuy: any; limDown: any;
-                limUp: any; min: any;
+            pricesList: {
+                quantity: number;
+                price: Quotation;
+            }[],
+            lastQuantityBase: number, quantsArr: number[],
+            params: {
+                isBuy: boolean; limDown: number;
+                limUp: number; min: Quotation;
+                priceFrom?: number;
+                priceTo?: number;
             }) {
             let lastQuantity = lastQuantityBase;
 
@@ -303,6 +322,8 @@ try {
                 min,
                 limDown,
                 limUp,
+                priceFrom,
+                priceTo,
             } = params;
 
             const { minQuant, maxQuant } = quantsArr.reduce(
@@ -312,19 +333,25 @@ try {
                         maxQuant: Math.max(acc.maxQuant, val),
                     };
                 }, {
-                    minQuant: quantsArr[0],
-                    maxQuant: quantsArr[0],
-                });
+                minQuant: quantsArr[0],
+                maxQuant: quantsArr[0],
+            });
 
-            const lastPrice = pricesList[pricesList.length - 1];
+            const priceFromStart = Boolean(priceFrom && priceTo);
+            const lastPrice = pricesList[priceFromStart ? 0 : (pricesList.length - 1)];
+            const maxLenLoop = priceFromStart ? pricesList.length + 50 : 50;
 
-            for (let i = 1; i <= 50; i++) {
+            for (let i = 1; i <= maxLenLoop; i++) {
                 const minPrice = this.getPrice(min);
 
                 const nextPrice = this.getPrice(lastPrice.price) + ((isBuy ? -10 : 10) * minPrice) * i;
 
                 if (nextPrice <= limDown || nextPrice >= limUp) {
                     break;
+                }
+
+                if (priceFrom && priceTo && (nextPrice < priceFrom || nextPrice > priceTo)) {
+                    continue;
                 }
 
                 const curQuant = Math.min(lastQuantity, getRandomInt(minQuant, maxQuant));
@@ -353,10 +380,6 @@ try {
             };
         }
 
-        func(qwe: number) {
-            return qwe + 1;
-        }
-
         static async getSpreadOrderMapByOrderBook(sdk: ReturnType<typeof createSdk>,
             TRequests: InstanceType<typeof TRequestsBase>, props: {
                 accountId?: string; instrumentId: string;
@@ -364,10 +387,18 @@ try {
                 orderType?: OrderType | undefined; timeInForceType?: TimeInForceType | undefined;
                 closePriceBuyFrom?: any; closePriceBuyTo?: any; closePriceSellFrom?: any;
                 closePriceSellTo?: any;
+
+                medianBase?: number;
+                priceFrom?: number;
+                priceTo?: number;
             }) {
             const {
+                medianBase,
                 instrumentId,
                 quantity: quantityBase,
+
+                priceFrom,
+                priceTo,
 
                 // closePriceBuyFrom, // Минимальная цена, от которой выставлять сделки на покупку.
                 // closePriceBuyTo, // Максимальная цена, до которой выставлять сделки на покупку.
@@ -403,8 +434,19 @@ try {
             const limUp = this.getPrice(limitUp);
 
             const arrData = isBuy ? bids : asks;
-            const median = Bot.median(arrData.map((a: { quantity: any; }) => a.quantity));
+            const median = medianBase || Bot.median(arrData.map((a: { quantity: any; }) => a.quantity));
+
+            console.log('arrData', arrData);
+
             const pricesList = arrData.filter((a: { quantity: number; }) => a.quantity >= median);
+
+            console.log('pricesList', pricesList);
+            console.log(
+                'median', median, 'priceFrom', priceFrom,
+                'priceTo', priceTo, 'limDown',
+                limDown, 'limUp', limUp,
+            );
+
             let lastQuantity = quantity;
             let orders = {};
 
@@ -423,12 +465,16 @@ try {
                     quantsArrBase,
                 } = this.setOrderPrices(orders, pricesList, lastQuantity, quantsArr, {
                     median,
+                    priceFrom,
+                    priceTo,
                 });
 
                 quantsArr = quantsArrBase;
 
                 orders = ordersBase;
                 lastQuantity = lastQuantityBase;
+
+                console.log('orders 1', orders);
 
                 if (lastQuantity) {
                     const {
@@ -439,13 +485,17 @@ try {
                         limDown,
                         limUp,
                         min,
+                        priceFrom,
+                        priceTo,
                     });
 
                     orders = ordersBase;
                     lastQuantity = lastQuantityBase;
+                    console.log('orders 2', orders);
                 }
 
                 ++whileCount;
+                console.log('whileCount', whileCount);
             } while (lastQuantity > 0 && whileCount < 100);
 
             return orders;
