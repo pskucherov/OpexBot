@@ -17,6 +17,7 @@ import { OrderDirection, OrderExecutionReportStatus, OrderState, OrderType, Time
 import TelegramBot from 'node-telegram-bot-api';
 import { TRequests as TRequestsBase } from '../TRequests/TRequests';
 import { Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
+import { GetTradingStatusResponse } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 
 export class Common {
     static settingsFileName = 'settings.json';
@@ -150,6 +151,10 @@ export class Common {
             this.initAsync();
             this.processing();
         })();
+
+        setInterval(() => {
+            this.initAsync();
+        }, 15 * 60000);
     }
 
     init() {
@@ -253,8 +258,29 @@ export class Common {
         await this.updatePortfolio();
         await this.updatePositions();
         await this.getAllInstruments();
+        await this.getAllTradingStatuses();
 
         // await this.updateOrdersInLog();
+    }
+
+    async getAllTradingStatuses() {
+        try {
+            const ids = Object.keys(this.allInstrumentsInfo || {});
+
+            if (ids.length) {
+                const tradingStatuses: GetTradingStatusResponse[] = (
+                    (await this.TRequests.getTradingStatuses(ids)) || {}
+                ).tradingStatuses;
+
+                this.tradingStatuses = tradingStatuses.reduce((acc, val) => {
+                    acc[val.instrumentUid] = val;
+
+                    return acc;
+                }, {});
+            }
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
     }
 
     async getAllInstruments(name?: string) {
@@ -382,6 +408,7 @@ export class Common {
             if (!this.backtest) {
                 await this.checkExchangeDay();
                 await this.checkTradingDayAndTime();
+                await this.getAllTradingStatuses();
             }
 
             if (this.tradingTime || this.backtest) {
@@ -1225,6 +1252,20 @@ export class Common {
         return Common.genOrderId();
     }
 
+    roundPrice(price, num = 9) {
+        return Common.roundPrice(price, num);
+    }
+
+    static roundPrice(price, num = 9) {
+        const p = this.getPrice(price);
+
+        if (!p) {
+            return p;
+        }
+
+        return parseFloat(parseFloat(p).toFixed(num));
+    }
+
     static genOrderId() {
         // const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         // const charactersLength = characters.length;
@@ -1616,7 +1657,9 @@ export class Common {
             return d;
         }
 
-        const sp = Number(d) < 1 ? Number(d).toFixed(2).split('.') : String(d).split('.');
+        const sp = Math.abs(Number(d)) > 1 ?
+            Number(this.roundPrice(d)).toFixed(2).split('.') :
+            String(this.roundPrice(d)).split('.');
 
         const first = sp[0].split('').reverse();
 
@@ -1637,7 +1680,8 @@ export class Common {
         return money;
     }
 
-    static calcPortfolio(positions: any[], settings: { volume: number; takeProfit: number; stopLoss: number; }, type = 'share') { // eslint-disable-line
+    static calcPortfolio(positions: any[],
+        settings: { volume: number; takeProfit: number; stopLoss: number; }, type = 'share') { // eslint-disable-line
         try {
             if (!positions?.length) {
                 return {};
@@ -1664,8 +1708,8 @@ export class Common {
 
                     const expectedYield = this.getPrice(current.expectedYield);
 
-                    if (this[current.instrumentId]?.lastPrice) {
-                        prev.totalNowSharesAmount += this.getPrice(this[current.instrumentId]?.lastPrice) *
+                    if (current.currentPrice) {
+                        prev.totalNowSharesAmount += this.getPrice(current.currentPrice) *
                             Math.abs(this.getPrice(current.quantity));
                     } else {
                         prev.totalNowSharesAmount += avgPrice + expectedYield;

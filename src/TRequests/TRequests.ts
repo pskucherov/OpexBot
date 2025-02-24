@@ -73,6 +73,8 @@ class TRequests {
         this.subscribesTimer = 150;
         this.subscribeDataUpdated = {};
 
+        this.allLastPrices = {};
+
         // this.instrumentsStack = Array(this.limits.instruments);
         // this.accountsStack = Array(this.limits.accounts);
         // this.operationsStack = Array(this.limits.operations);
@@ -309,6 +311,23 @@ class TRequests {
         }
     }
 
+    getLastPrice(instrumentUid) {
+        return this.allLastPrices?.[instrumentUid];
+    }
+
+    updateLastPrice(instrumentUid, price, time, checkTime = false) {
+        if (!checkTime || !this.allLastPrices[instrumentUid] ||
+            new Date(
+                this.allLastPrices[instrumentUid].time,
+            ).getTime() < new Date(time).getTime()
+        ) {
+            this.allLastPrices[instrumentUid] = {
+                price,
+                time,
+            };
+        }
+    }
+
     async subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
         try {
             const { subscribes } = this.cb || {};
@@ -336,6 +355,12 @@ class TRequests {
                         while (this.subscrNoAccinProgress) {
                             await this.timer(this.subscribesTimer);
                             yield MarketDataRequest.fromPartial({
+                                subscribeLastPriceRequest: {
+                                    subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+                                    tradeType: TradeSourceType.TRADE_SOURCE_ALL,
+                                    instruments: Object.keys(shares)
+                                        .map(f => { return { instrumentId: f } }),
+                                },
                                 subscribeTradesRequest: {
                                     subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
                                     tradeType: TradeSourceType.TRADE_SOURCE_ALL,
@@ -354,11 +379,12 @@ class TRequests {
                 try {
                     for await (const data of gen) {
                         try {
-                            const name = 'trade';
+                            if (data['lastPrice']) {
+                                const { instrumentUid, price, time } = data.lastPrice;
 
-                            // console.log(data);
-
-                            if (data[name]) {
+                                this.updateLastPrice(instrumentUid, price, time);
+                            } else if (data['trade']) {
+                                const name = 'trade';
                                 const { instrumentUid } = data[name];
 
                                 if (!this.allLastTrades[instrumentUid]) {
@@ -426,6 +452,10 @@ class TRequests {
                                 //     this[name] = currentData;
                                 // }
                             }
+
+                            //  else {
+                            //     console.log(data);
+                            // }
                         } catch (e) {
                             console.log(e); // eslint-disable-line no-console
                         }
@@ -596,6 +626,22 @@ class TRequests {
 
             return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
                 return await this.sdk?.operations.getPortfolio({ accountId });
+            });
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
+    async cancelOrder(accountId, orderId) {
+        try {
+            const reqName = 'orders';
+            const cacheName = reqName + accountId + orderId;
+
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return (await this.sdk.orders.cancelOrder({
+                    accountId,
+                    orderId,
+                }));
             });
         } catch (e) {
             console.log(e); // eslint-disable-line no-console

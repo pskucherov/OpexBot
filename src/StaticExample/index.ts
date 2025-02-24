@@ -245,12 +245,12 @@ try {
                 quantity: number;
             };
         },
-            pricesList: {
+        pricesList: {
                 quantity: number;
                 price: Quotation;
             }[],
-            lastQuantityBase: number, quantsArrBase: number[],
-            params: {
+        lastQuantityBase: number, quantsArrBase: number[],
+        params: {
                 median: number;
                 priceFrom?: number;
                 priceTo?: number;
@@ -266,7 +266,7 @@ try {
             let lastQuantity = lastQuantityBase;
 
             for (let i = 0; i < pricesList.length; i++) {
-                const fullQuant = Math.max(1, Math.floor(pricesList[i].quantity / median));
+                const fullQuant = median <= 1 ? 1 : Math.floor(pricesList[i].quantity / median);
                 const curQuant = Math.min(lastQuantity, fullQuant);
 
                 lastQuantity -= curQuant;
@@ -299,11 +299,12 @@ try {
             };
         }
 
-        static distributionRemainingPrices(orders: {
-            [x: string]: {
-                price: Quotation, quantity: number;
-            };
-        },
+        static distributionRemainingPrices(
+            orders: {
+                [x: string]: {
+                    price: Quotation, quantity: number;
+                };
+            },
             pricesList: {
                 quantity: number;
                 price: Quotation;
@@ -314,7 +315,9 @@ try {
                 limUp: number; min: Quotation;
                 priceFrom?: number;
                 priceTo?: number;
-            }) {
+            },
+            step: number = 10,
+        ) {
             let lastQuantity = lastQuantityBase;
 
             const {
@@ -333,18 +336,17 @@ try {
                         maxQuant: Math.max(acc.maxQuant, val),
                     };
                 }, {
-                minQuant: quantsArr[0],
-                maxQuant: quantsArr[0],
-            });
+                    minQuant: quantsArr?.[0] || 1,
+                    maxQuant: quantsArr?.[0] || 1,
+                });
 
             const priceFromStart = Boolean(priceFrom && priceTo);
             const lastPrice = pricesList[priceFromStart ? 0 : (pricesList.length - 1)];
             const maxLenLoop = priceFromStart ? pricesList.length + 50 : 50;
+            const minPrice = this.getPrice(min);
 
             for (let i = 1; i <= maxLenLoop; i++) {
-                const minPrice = this.getPrice(min);
-
-                const nextPrice = this.getPrice(lastPrice.price) + ((isBuy ? -10 : 10) * minPrice) * i;
+                const nextPrice = this.getPrice(lastPrice.price) + ((isBuy ? -step : step) * minPrice) * i;
 
                 if (nextPrice <= limDown || nextPrice >= limUp) {
                     break;
@@ -380,123 +382,213 @@ try {
             };
         }
 
+        static async getSpreadOrderMapByFromTo(sdk: ReturnType<typeof createSdk>,
+            TRequests: InstanceType<typeof TRequestsBase>, props: {
+                accountId: string; instrumentId: string;
+                quantity: number;
+                priceFrom: number;
+                priceTo: number;
+                isTP: boolean;
+                isSL: boolean;
+                isBuy: boolean;
+            }) {
+            try {
+                const {
+                    instrumentId,
+                    quantity: quantityBase,
+
+                    priceFrom = 0,
+                    priceTo = 0,
+                    isTP,
+                    isSL,
+                    isBuy,
+                } = props;
+
+                if (!TRequests || !sdk) {
+                    return;
+                }
+
+                const {
+                    // bids,
+                    // asks,
+                    limitDown,
+                    limitUp,
+                    lastPrice: lastPriceBase,
+                    lastPriceTs,
+                } = (await TRequests.getOrderBook({
+                    depth: 50,
+                    instrumentId,
+                })) || {};
+
+                if (!limitDown || !limitUp) {
+                    return;
+                }
+
+                // Обновляем последнюю цену, если она актуальна,
+                // т.к. если нет сделок по инструменту, то цены не будет вообще.
+                TRequests?.updateLastPrice(instrumentId, lastPriceBase, lastPriceTs, true);
+
+                const lastPrice = this.getPrice(lastPriceBase);
+
+                const minQuotation = TRequests?.allInstrumentsInfo?.[instrumentId]?.minPriceIncrement;
+                const min = this.getPrice(minQuotation);
+
+                if (!min || !minQuotation) {
+                    return;
+                }
+
+                const quantity = Math.abs(quantityBase);
+
+                const limDown = this.getPrice(limitDown);
+                const limUp = this.getPrice(limitUp);
+
+                // console.log(1, 'isSL', isSL, 'priceTo', priceTo);
+                if (isTP && priceFrom) {
+                    let limDownPrice;
+                    let limUpPrice;
+
+                    if (isBuy) {
+                        limDownPrice = priceFrom;
+                        limUpPrice = limUp;
+                    } else {
+                        limDownPrice = limDown;
+                        limUpPrice = priceFrom;
+                    }
+
+                    // console.log('isBuy', isBuy);
+                    // console.log('tp', 'lastPrice', lastPrice, 'limDownPrice', limDownPrice, 'limUpPrice', limUpPrice);
+                    return this.distributeLots(quantity,
+                        this.getPrice(limDownPrice), this.getPrice(limUpPrice), minQuotation, !isBuy);
+                } else if (isSL && priceTo) {
+                    let limDownPrice;
+                    let limUpPrice;
+
+                    if (isBuy) {
+                        limDownPrice = Math.max(limDown, priceTo);
+                        limUpPrice = lastPrice;
+                    } else {
+                        limDownPrice = lastPrice;
+                        limUpPrice = Math.min(limUp, priceTo);
+                    }
+
+                    return this.distributeLots(quantity,
+                        this.getPrice(limDownPrice), this.getPrice(limUpPrice), minQuotation, !isBuy);
+                }
+
+                // if ((priceFrom || priceTo) && (isTP || isSL)) {
+                //     if (priceFrom) {
+                //         const limDownPrice = Math.max(Math.min(priceFrom, lastPrice), limDown);
+                //         const limUpPrice = Math.min(Math.max(priceFrom, lastPrice), limUp);
+
+                //         return this.distributeLots(quantity, limDownPrice, limUpPrice, minQuotation);
+                //     } else if (priceTo) {
+                //         const limDownPrice = Math.max(Math.min(priceTo, lastPrice), limDown);
+                //         const limUpPrice = Math.min(Math.max(priceTo, lastPrice), limUp);
+
+                //         return this.distributeLots(quantity, limDownPrice, limUpPrice, minQuotation, Boolean(!isBuy && isSL));
+                //     }
+                // }
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+
+            return undefined;
+        }
+
         static async getSpreadOrderMapByOrderBook(sdk: ReturnType<typeof createSdk>,
             TRequests: InstanceType<typeof TRequestsBase>, props: {
                 accountId?: string; instrumentId: string;
                 quantity: any; price?: string | undefined;
                 orderType?: OrderType | undefined; timeInForceType?: TimeInForceType | undefined;
-                closePriceBuyFrom?: any; closePriceBuyTo?: any; closePriceSellFrom?: any;
-                closePriceSellTo?: any;
-
-                medianBase?: number;
-                priceFrom?: number;
-                priceTo?: number;
             }) {
-            const {
-                medianBase,
-                instrumentId,
-                quantity: quantityBase,
-
-                priceFrom,
-                priceTo,
-
-                // closePriceBuyFrom, // Минимальная цена, от которой выставлять сделки на покупку.
-                // closePriceBuyTo, // Максимальная цена, до которой выставлять сделки на покупку.
-
-                // closePriceSellFrom, // Минимальная цена, от которой выставлять сделки на продажу.
-                // closePriceSellTo, // Максимальная цена, до которой выставлять сделки на продажу.
-            } = props;
-
-            if (!TRequests || !sdk) {
-                return;
-            }
-
-            const { bids, asks, limitDown, limitUp } = (await TRequests.getOrderBook({
-                depth: 50,
-                instrumentId,
-            })) || {};
-
-            if (!bids && !asks) {
-                return;
-            }
-
-            const min = TRequests?.allInstrumentsInfo?.[instrumentId]?.minPriceIncrement;
-
-            if (!min) {
-                return;
-            }
-
-            const isBuy = quantityBase > 0;
-
-            const quantity = Math.abs(quantityBase);
-
-            const limDown = this.getPrice(limitDown);
-            const limUp = this.getPrice(limitUp);
-
-            const arrData = isBuy ? bids : asks;
-            const median = medianBase || Bot.median(arrData.map((a: { quantity: any; }) => a.quantity));
-
-            console.log('arrData', arrData);
-
-            const pricesList = arrData.filter((a: { quantity: number; }) => a.quantity >= median);
-
-            console.log('pricesList', pricesList);
-            console.log(
-                'median', median, 'priceFrom', priceFrom,
-                'priceTo', priceTo, 'limDown',
-                limDown, 'limUp', limUp,
-            );
-
-            let lastQuantity = quantity;
             let orders = {};
 
-            if (!pricesList?.length) {
-                return;
-            }
+            try {
+                const {
+                    instrumentId,
+                    quantity: quantityBase,
+                } = props;
 
-            let whileCount = 0;
-
-            do {
-                let quantsArr: number[] = [];
+                if (!TRequests || !sdk) {
+                    return;
+                }
 
                 const {
-                    ordersBase,
-                    lastQuantityBase,
-                    quantsArrBase,
-                } = this.setOrderPrices(orders, pricesList, lastQuantity, quantsArr, {
-                    median,
-                    priceFrom,
-                    priceTo,
-                });
+                    bids,
+                    asks,
+                    limitDown,
+                    limitUp,
+                } = (await TRequests.getOrderBook({
+                    depth: 50,
+                    instrumentId,
+                })) || {};
 
-                quantsArr = quantsArrBase;
+                if (!bids && !asks) {
+                    return;
+                }
 
-                orders = ordersBase;
-                lastQuantity = lastQuantityBase;
+                const minQuotation = TRequests?.allInstrumentsInfo?.[instrumentId]?.minPriceIncrement;
+                const min = this.getPrice(minQuotation);
 
-                console.log('orders 1', orders);
+                if (!min || !minQuotation) {
+                    return;
+                }
 
-                if (lastQuantity) {
+                const isBuy = quantityBase > 0;
+                const quantity = Math.abs(quantityBase);
+
+                const limDown = this.getPrice(limitDown);
+                const limUp = this.getPrice(limitUp);
+
+                const arrData = isBuy ? bids : asks;
+
+                const median = Bot.median(arrData.map((a: { quantity: number; }) => a.quantity));
+                const pricesList = arrData.filter((a: { quantity: number; }) => a.quantity >= median);
+
+                let lastQuantity = quantity;
+
+                if (!pricesList?.length) {
+                    return;
+                }
+
+                let whileCount = 0;
+
+                do {
+                    let quantsArr: number[] = [];
+
                     const {
                         ordersBase,
                         lastQuantityBase,
-                    } = this.distributionRemainingPrices(orders, pricesList, lastQuantity, quantsArr, {
-                        isBuy,
-                        limDown,
-                        limUp,
-                        min,
-                        priceFrom,
-                        priceTo,
+                        quantsArrBase,
+                    } = this.setOrderPrices(orders, pricesList, lastQuantity, quantsArr, {
+                        median,
                     });
+
+                    quantsArr = quantsArrBase;
 
                     orders = ordersBase;
                     lastQuantity = lastQuantityBase;
-                    console.log('orders 2', orders);
-                }
 
-                ++whileCount;
-                console.log('whileCount', whileCount);
-            } while (lastQuantity > 0 && whileCount < 100);
+                    if (lastQuantity) {
+                        const {
+                            ordersBase,
+                            lastQuantityBase,
+                        } = this.distributionRemainingPrices(orders, pricesList, lastQuantity, quantsArr, {
+                            isBuy,
+                            limDown,
+                            limUp,
+                            min,
+                        });
+
+                        orders = ordersBase;
+                        lastQuantity = lastQuantityBase;
+                    }
+
+                    ++whileCount;
+                } while (lastQuantity > 0 && whileCount < 100);
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
 
             return orders;
         }
@@ -562,6 +654,71 @@ try {
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
+        }
+
+        static distributeLots(N: number, minPrice: number,
+            maxPrice: number, minQuotation: Quotation, fromTop = false) {
+            const prices = [];
+
+            try {
+                if (fromTop) {
+                    // console.log(1, 'fromTop', maxPrice, minPrice,
+                    //     this.getQuotationFromPrice(maxPrice),
+                    //     'maxPrice', this.resolveMinPriceIncrement(this.getQuotationFromPrice(maxPrice), minQuotation),
+                    //     'minPrice', minPrice,
+                    //     this.getPrice(this.resolveMinPriceIncrement(this.getQuotationFromPrice(maxPrice), minQuotation)) > minPrice,
+                    //     this.subMinPriceIncrement(this.resolveMinPriceIncrement(this.getQuotationFromPrice(maxPrice), minQuotation), minQuotation)
+                    // );
+                    for (let price = this.resolveMinPriceIncrement(this.getQuotationFromPrice(maxPrice), minQuotation);
+                        this.getPrice(price) > minPrice;
+                        price = this.subMinPriceIncrement(price, minQuotation)
+                    ) {
+                        // console.log(price);
+                        prices.push(price);
+                    }
+                } else {
+                    // console.log(1, 'else');
+                    for (let price = this.resolveMinPriceIncrement(this.getQuotationFromPrice(minPrice), minQuotation);
+                        this.getPrice(price) < maxPrice;
+                        price = this.addMinPriceIncrement(price, minQuotation)
+                    ) {
+                        prices.push(price);
+                    }
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+
+                return [];
+            }
+
+            // console.log('prices', prices);
+
+            const totalSteps = prices.length;
+            const lotMap = new Map();
+
+            if (fromTop) {
+                for (let i = N - 1; i >= 0; i--) {
+                    const index = Math.floor(i * totalSteps / N);
+                    const price = prices[index];
+
+                    lotMap.set(price, (lotMap.get(price) || 0) + 1);
+                }
+            } else {
+                for (let i = 0; i < N; i++) {
+                    const index = Math.floor(i * totalSteps / N);
+                    const price = prices[index];
+
+                    lotMap.set(price, (lotMap.get(price) || 0) + 1);
+                }
+            }
+
+            return Array
+                .from(lotMap, ([price, quantity]) => ({
+                    price,
+                    quantity,
+                }))
+                .filter(p => p.price && p.quantity)
+                .sort((a, b) => this.getPrice(a.price) - this.getPrice(b.price));
         }
     }
 

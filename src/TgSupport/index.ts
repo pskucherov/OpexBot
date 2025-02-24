@@ -38,7 +38,10 @@ try {
             // } = props || {};
 
             try {
-                if (!this.allInstrumentsInfo || !this.currentPortfolio?.totalAmountPortfolio) {
+                if (!this.allInstrumentsInfo ||
+                    !this.currentPortfolio ||
+                    !this.currentPortfolio?.totalAmountPortfolio
+                ) {
                     this.balanceMessageTimeout = setTimeout(this.sendBalanceMessage.bind(this), 200);
 
                     return;
@@ -71,7 +74,7 @@ try {
 
                 const textPositions: string[] = [];
 
-                const totalPortfolio = this.getPrice(totalAmountPortfolio);
+                const totalPortfolio = this.roundPrice(totalAmountPortfolio);
 
                 textPositions.push('# ' + this.accountId);
 
@@ -79,9 +82,10 @@ try {
                     `${this.toMoneyString(totalPortfolio)} ${totalAmountPortfolio?.currency} `,
                 );
 
-                const yld = totalPortfolio * this.getPrice(expectedYield) / 100;
+                const yld = totalPortfolio * this.roundPrice(expectedYield) / 100;
 
-                textPositions.push(`Доходность: ${this.toMoneyString(yld && yld.toFixed(2))} (${this.getPrice(expectedYield).toFixed(2)}%)`);
+                textPositions.push(`Доходность: ${this.toMoneyString(yld && yld.toFixed(2))
+                    } (${this.roundPrice(expectedYield).toFixed(2)}%)`);
                 textPositions.push('');
 
                 const names: { [key: string]: string; } = {
@@ -95,7 +99,7 @@ try {
                 };
 
                 Object.keys(names).map((p: string) => {
-                    const price = this.getPrice(this.currentPortfolio[p]);
+                    const price = this.roundPrice(this.currentPortfolio[p]);
 
                     if (price) {
                         textPositions.push(`${names[p]}: ` +
@@ -119,16 +123,17 @@ try {
                         try {
                             textPositions.push(p.name + ` (${p.ticker})`);
 
-                            // let lots = this.getPrice(p.quantity) / this.getPrice(p.lot);
+                            // let lots = this.roundPrice(p.quantity) / this.roundPrice(p.lot);
                             // lots = lots < 1 ? lots : (Math.floor(lots * 1000) / 1000);
 
                             textPositions.push(
-                                this.toMoneyString(this.getPrice(p.averagePositionPrice)) +
-                                ' → ' + this.toMoneyString(this.getPrice(p.currentPrice)) + ` (x ${this.getPrice(p.quantity)} шт.)`,
+                                this.toMoneyString(this.roundPrice(p.averagePositionPrice)) +
+                                ' → ' + this.toMoneyString(this.roundPrice(p.currentPrice)) +
+                                ` (x ${this.roundPrice(p.quantity)} шт.)`,
                             );
 
                             if (p.expectedYield) {
-                                const yld = this.getPrice(p.expectedYield);
+                                const yld = this.roundPrice(p.expectedYield);
 
                                 textPositions.push('Доходность: ' + this.toMoneyString(yld) + ' ' + p.currency);
                             }
@@ -192,6 +197,11 @@ try {
                     // let sumP = 0;
                     let all = 0;
 
+                    await this.syncPos();
+
+                    let sumYield = 0;
+                    let sumPriceYield = 0;
+
                     trades.forEach(t => {
                         try {
                             const info = this.allInstrumentsInfo?.[instrumentUid];
@@ -202,30 +212,75 @@ try {
 
                             let text;
 
-                            if (direction === OrderDirection.ORDER_DIRECTION_BUY) {
+                            const {
+                                quantity: quantityPositionBase,
+                                averagePositionPriceFifo,
+                            } = this.currentPositions.find(
+                                (p: { instrumentUid: string; }) => p.instrumentUid === instrumentUid,
+                            ) || {};
+
+                            const quantityPos = this.roundPrice(quantityPositionBase);
+                            const posPrice = this.roundPrice(averagePositionPriceFifo);
+
+                            const isBuyPos = this.getPrice(quantityPos) > 0;
+                            const isBuyOrder = direction === OrderDirection.ORDER_DIRECTION_BUY;
+
+                            const isCloseTrade = isBuyOrder && !isBuyPos ||
+                                !isBuyOrder && isBuyPos;
+
+                            if (isBuyOrder) {
                                 text = 'Покупка';
                             } else {
                                 text = 'Продажа';
                             }
 
-                            text += ` ${info.ticker} по цене ${this.getPrice(price)} (x ${quantity} шт.)`;
+                            const orderPrice = this.roundPrice(price);
+
+                            text += ` ${info.ticker} по цене ${orderPrice} (x ${quantity} шт.).`;
 
                             if (quantity > 1) {
-                                text += ` на сумму ${this.getPrice(price) * quantity}`;
+                                text += ` на сумму ${this.toMoneyString(orderPrice * quantity)}.`;
+                            }
+
+                            if (posPrice && isCloseTrade) {
+                                // posPrice - fifo позиция.
+                                // price - order позиция.
+                                const currentYieldSign = !isBuyOrder ? // Закрытие long
+                                    orderPrice >= posPrice ? 1 : -1 :
+                                    orderPrice <= posPrice ? 1 : -1;
+
+                                const currentPriceYield = currentYieldSign *
+                                    Math.abs(this.roundPrice(price) - posPrice);
+                                const currentYield = currentYieldSign *
+                                    Math.abs(currentPriceYield / posPrice) * 100;
+
+                                if (currentYield) {
+                                    sumYield += currentYield;
+                                    sumPriceYield += currentPriceYield;
+                                    text += ' Доходность сделки: ' + this.toMoneyString(
+                                        currentPriceYield * quantity,
+                                    ) + ` (${this.toMoneyString(currentYield)}%).`;
+                                }
                             }
 
                             textArr.push(text);
                             sumQ += quantity;
 
-                            // sumP += this.getPrice(price);
-                            all += this.getPrice(price) * quantity;
+                            // sumP += this.roundPrice(price);
+                            all += this.roundPrice(price) * quantity;
                         } catch (e) {
                             console.log(e); // eslint-disable-line
                         }
                     });
 
                     if (textArr.length > 1) {
-                        this.tgBot?.sendMessage(textArr.join('\r\n') + '\r\n' + `Всего ${sumQ} шт. на сумму ${all}`);
+                        let currentText = textArr.join('\r\n') + '\r\n' + `Всего ${sumQ} шт. на сумму ${this.toMoneyString(all)}.`;
+
+                        if (sumYield) {
+                            currentText += ` Совокупная доходность: ${this.toMoneyString(sumPriceYield)} (${this.toMoneyString(sumYield)}%).`;
+                        }
+
+                        this.tgBot?.sendMessage(currentText);
                     } else {
                         this.tgBot?.sendMessage(textArr[0]);
                     }

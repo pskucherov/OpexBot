@@ -1,7 +1,8 @@
 // const { throws } = require('assert');
 // const { parse } = require('path');
 
-import { Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { TRequests as TRequestsBase } from '../TRequests/TRequests';
 
 // import { StopOrderStatusOption, StopOrderDirection, StopOrderExpirationType, StopOrderType } from 'tinkoff-sdk-grpc-js/dist/generated/stoporders';
 import { Common } from '../Common/TsCommon';
@@ -10,8 +11,21 @@ import { Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 // @ts-ignore
 import { StaticExample } from '../StaticExample';
 import { PortfolioPosition } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
+import {
+    OrderDirection,
+    OrderStateStreamResponse_OrderState, // eslint-disable-line camelcase
+    OrderType,
+    TimeInForceType,
+} from 'tinkoff-sdk-grpc-js/dist/generated/orders';
+import { GetTradingStatusResponse } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import EventEmitterBase from 'events';
 
 // import { InstrumentStatus } from "tinkoff-sdk-grpc-js/dist/generated/instruments";
+
+interface IFastTPSL {
+    price: MoneyValue | undefined;
+    quantity: number;
+}
 
 try {
     const path = require('path');
@@ -28,17 +42,35 @@ try {
         iagreetrade!: boolean;
         profitRange!: number;
 
-        TRequests: any;
+        TRequests!: InstanceType<typeof TRequestsBase>;
 
-        SLMap!: any;
-        TPMap!: any;
-        FastTPMap!: any;
+        // SLMap!: unknown;
+        // TPMap!: unknown;
+        // FastTPMap!: unknown;
 
         decisionBuyPositionMessage!: string;
         decisionClosePositionMessage!: string | number;
         allInstrumentsInfo: {
             [key: string]: Share
         } = {};
+        TPSLMap: {
+            [x: string]: {
+                fastTP: IFastTPSL[];
+                SL: (IFastTPSL | undefined)[];
+                orders?: unknown[];
+                closed: unknown[];
+                reopened: unknown[];
+                closedOrders: unknown[],
+                fastTPQuantity: number;
+                SLQuantity: number;
+                reopenedQuantity: number;
+                profit: number;
+                profitYield: number;
+            }
+        };
+        tradingStatuses!: { [x: string]: GetTradingStatusResponse };
+        onTradeDataBinded!: (data: OrderStateStreamResponse_OrderState) => Promise<void>; // eslint-disable-line camelcase
+        eventEmitter!: InstanceType<typeof EventEmitterBase>;
 
         // @ts-ignore
         constructor(...args) {
@@ -48,37 +80,78 @@ try {
             this.type = Bot.type;
             this.isPortfolio = false;
             this.name = name;
+
+            this.TPSLMap = {
+                // fastTP: [],
+                // SL: [],
+                // orders: [],
+                // closed: [],
+                // reopened: [],
+            };
         }
 
         async syncSLMap() {
-            try {
-                if (this.SLMap) {
-                    return;
-                }
-            } catch (e) {
-                console.log(e); // eslint-disable-line no-console
-            }
+            // try {
+            //     if (this.SLMap) {
+            //         return;
+            //     }
+            // } catch (e) {
+            //     console.log(e); // eslint-disable-line no-console
+            // }
         }
 
         async syncTPMap() {
-            try {
-                if (this.TPMap) {
-                    return;
-                }
+            // try {
+            //     if (this.TPMap) {
+            //         return;
+            //     }
 
-                this.TPMap = {};
-            } catch (e) {
-                console.log(e); // eslint-disable-line no-console
-            }
+            //     this.TPMap = {};
+            // } catch (e) {
+            //     console.log(e); // eslint-disable-line no-console
+            // }
         }
 
-        async syncFastTPMapMap() {
+        // @ts-ignore
+        async syncLimitOrderMap(currentOrders, instrumentId, isBuy) {
             try {
-                if (this.FastTPMap) {
+                const sdk = this.sdk;
+
+                if (!currentOrders?.length || !sdk) {
                     return;
                 }
 
-                this.FastTPMap = {};
+                const accountId = this.accountId;
+
+                // this.currentOrdersMap = {};
+                // console.log('syncLimitOrderMap', ticker);
+                // console.log(currentOrders, instrumentInOrders);
+
+                for (let i = 0; i < currentOrders.length; i++) {
+                    const {
+                        price,
+                        quantity,
+                        order,
+                    } = currentOrders[i];
+
+                    if (order) {
+                        continue;
+                    }
+
+                    const data = {
+                        accountId,
+                        instrumentId,
+                        quantity,
+                        price,
+                        direction: isBuy ?
+                            OrderDirection.ORDER_DIRECTION_BUY :
+                            OrderDirection.ORDER_DIRECTION_SELL,
+                        orderType: OrderType.ORDER_TYPE_LIMIT,
+                        orderId: this.genOrderId(),
+                    };
+
+                    currentOrders[i].order = await sdk.orders.postOrder(data);
+                }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
@@ -98,100 +171,321 @@ try {
                         quantity,
                         instrumentType,
                         currentPrice,
+                        averagePositionPriceFifo,
                     } = positions[i];
 
-                    if (instrumentType !== 'share') {
+                    const {
+                        marketOrderAvailableFlag,
+                        apiTradeAvailableFlag,
+                        limitOrderAvailableFlag,
+                    } = this.tradingStatuses?.[instrumentUid] || {};
+
+                    if (instrumentType !== 'share' || !apiTradeAvailableFlag) {
                         continue;
                     }
+
+                    // const priceFromTReq = this.TRequests.getLastPrice(instrumentUid);
 
                     const averagePositionPriceVal = Common.getPrice(averagePositionPrice);
                     const {
                         lot,
                         minPriceIncrement: min,
-                        ticker,
+
+                        // ticker,
                     } = this.allInstrumentsInfo?.[instrumentUid] || {};
+
+                    // console.log('priceFromTReq', ticker, priceFromTReq);
 
                     if (!averagePositionPrice || !averagePositionPriceVal ||
                         !lot || !min) {
                         continue;
                     }
 
-                    if (!['e6123145-9665-43e0-8413-cd61b8aa9b13', '2c69924a-fcf4-4d3c-8c02-02cd665f554d'].includes(instrumentUid)) {
+                    this.TPSLMap[instrumentUid] || (this.TPSLMap[instrumentUid] = {
+                        fastTP: [],
+                        SL: [],
+                        orders: [],
+                        closed: [],
+                        closedOrders: [],
+                        reopened: [],
+                        fastTPQuantity: 0,
+                        SLQuantity: 0,
+                        reopenedQuantity: 0,
+                        profit: 0,
+                        profitYield: 0,
+                    });
+
+                    if (!marketOrderAvailableFlag) {
+                        this.TPSLMap[instrumentUid].SL = [];
+                        this.TPSLMap[instrumentUid].SLQuantity = 0;
+                    }
+
+                    if (!limitOrderAvailableFlag) {
+                        this.TPSLMap[instrumentUid].fastTP = [];
+                        this.TPSLMap[instrumentUid].fastTPQuantity = 0;
+                    }
+
+                    if (!marketOrderAvailableFlag && !limitOrderAvailableFlag) {
                         continue;
                     }
 
-                    const instrumentInOrders = this.currentOrders.find(o => o.instrumentUid === instrumentUid);
+                    // if (![
+                    //     'e6123145-9665-43e0-8413-cd61b8aa9b13',
+                    //     // '2c69924a-fcf4-4d3c-8c02-02cd665f554d',
+                    // ].includes(instrumentUid)) {
+                    //     continue;
+                    // }
 
-                    if (instrumentInOrders) {
-                        console.log(1);
-                    }
+                    // if (ticker === 'SVCB') {
+                    //     // console.log(this.currentOrders);
+                    //     console.log('instrumentInOrders', instrumentInOrders);
+                    //     console.log(instrumentUid);
+                    //     console.log(ticker);
+                    // }
 
-                    // console.log('instrumentInOrders', instrumentInOrders);
-                    // console.log('positions', accountId, positions[i]);
-                    // console.log(averagePositionPrice, averagePositionPriceVal, this.allInstrumentsInfo[instrumentUid]?.lot);
+                    // if (1) {
+                    //     continue;
+                    // }
 
                     const quantityNum = this.getPrice(quantity);
-
-                    // console.log('quantityNum', quantityNum);
-                    // console.log('lot', lot);
-
-                    // console.log('iagreetrade', this.iagreetrade);
-                    // console.log('profitRange', this.profitRange);
-
-                    // console.log('sl', this.stopLoss);
-                    // console.log('tp', this.takeProfit);
 
                     const currentPriceNum = this.getPrice(currentPrice);
                     const isBuy = quantityNum > 0;
 
-                    const buyPoint = this.getTPPoint(currentPriceNum, !isBuy, this.takeProfit, min);
-                    const sellPoint = this.getSLPoint(currentPriceNum, !isBuy, this.stopLoss, min);
-                    const medianBase = Math.max(quantityNum * 0.005, 1);
+                    const startTPPrice = isBuy ?
+                        Math.max(currentPriceNum, averagePositionPriceVal, this.getPrice(averagePositionPriceFifo)) :
+                        Math.min(currentPriceNum, averagePositionPriceVal, this.getPrice(averagePositionPriceFifo));
 
-                    console.log(ticker, quantityNum, averagePositionPriceVal, currentPriceNum, this.takeProfit, this.stopLoss);
+                    const tpPoint = this.getTPPoint(startTPPrice, !isBuy, this.takeProfit, min);
+                    const slPoint = this.getSLPoint(currentPriceNum, !isBuy, this.stopLoss, min);
 
-                    const orderDataTakeProfit = await StaticExample.getSpreadOrderMapByOrderBook(this.sdk,
-                        this.TRequests,
-                        {
-                            accountId,
-                            instrumentId: instrumentUid,
-                            quantity: Math.floor(quantityNum / lot),
-                            minPrice: buyPoint,
-                            maxPrice: sellPoint,
+                    // console.log('slPoint', slPoint, 'currentPriceNum', currentPriceNum);
 
-                            medianBase,
-                            priceFrom: 260,
-                            priceTo: 290,
-                        });
+                    if (limitOrderAvailableFlag) {
+                        const instrumentInOrders = this.currentOrders.filter(o => o.instrumentUid === instrumentUid);
 
-                    const orderDataStopLoss = await StaticExample.getSpreadOrderMapByOrderBook(this.sdk,
-                        this.TRequests,
-                        {
-                            accountId,
-                            instrumentId: instrumentUid,
-                            quantity: -1 * Math.floor(quantityNum / lot),
-                            minPrice: buyPoint,
-                            maxPrice: sellPoint,
-                            medianBase,
-                            priceFrom: 260,
-                            priceTo: 290,
-                        });
+                        // @ts-ignore
+                        this.TPSLMap[instrumentUid].orders = instrumentInOrders || [];
 
-                    if (0) {
-                        console.log('orderData BUY', orderDataTakeProfit);
-                        console.log('orderData SELL', orderDataStopLoss);
+                        if (instrumentInOrders?.length && !this.TPSLMap[instrumentUid].fastTP?.length) {
+                            this.TPSLMap[instrumentUid].fastTP = [];
+
+                            let fastTPQuantity = 0;
+
+                            instrumentInOrders.forEach(i => {
+                                fastTPQuantity += i.lotsRequested - i.lotsExecuted;
+
+                                this.TPSLMap[instrumentUid].fastTP.push({
+                                    price: i.initialSecurityPrice,
+                                    quantity: i.lotsRequested - i.lotsExecuted,
+                                });
+                            });
+
+                            this.TPSLMap[instrumentUid].fastTPQuantity = fastTPQuantity;
+
+                            this.TPSLMap[instrumentUid].fastTP
+                                .sort((a, b) => this.getPrice(a.price) - this.getPrice(b.price));
+                        }
+
+                        // Переоткрытие
+                        // if (this.iagreetrade && !this.TPSLMap[instrumentUid].reopened?.length) {
+                        //     const orderDataReopen = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
+                        //         this.TRequests,
+                        //         {
+                        //             accountId,
+                        //             instrumentId: instrumentUid,
+                        //             quantity: Math.floor(Math.abs(quantityNum / lot)),
+                        //             priceFrom: slPoint,
+                        //             isTP: true,
+                        //             isBuy: !isBuy,
+                        //         });
+
+                        //     console.log('ticker reopen', ticker, orderDataReopen);
+                        //     if (orderDataReopen) {
+                        //         this.TPSLMap[instrumentUid].reopened = orderDataReopen; //  || this.TPSLMap[instrumentUid].fastTP;
+
+                        //         this.TPSLMap[instrumentUid].reopenedQuantity = this.TPSLMap[instrumentUid]
+                        //             .reopened?.reduce((acc, val) => acc + val.quantity, 0);
+                        //     }
+
+                        //     // if (instrumentInOrders?.length) {
+                        //     //     console.log('instrumentInOrders?.length');
+                        //     // } else {
+                        //     await this.syncLimitOrderMap(this.TPSLMap[instrumentUid].reopened, instrumentUid, isBuy);
+                        //     // }
+                        // }
+
+                        if (!this.TPSLMap[instrumentUid].fastTP?.length) {
+                            const orderDataTakeProfit = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
+                                this.TRequests,
+                                {
+                                    accountId,
+                                    instrumentId: instrumentUid,
+                                    quantity: Math.floor(Math.abs(quantityNum / lot) * this.profitRange),
+                                    priceFrom: (tpPoint + currentPriceNum) / 2,
+                                    isTP: true,
+
+                                    isBuy,
+                                });
+
+                            if (orderDataTakeProfit) {
+                                this.TPSLMap[instrumentUid].fastTP = orderDataTakeProfit; //  || this.TPSLMap[instrumentUid].fastTP;
+
+                                this.TPSLMap[instrumentUid].fastTPQuantity = this.TPSLMap[instrumentUid]
+                                    .fastTP?.reduce((acc, val) => acc + val.quantity, 0);
+                            }
+
+                            if (!instrumentInOrders?.length) {
+                                await this.syncLimitOrderMap(this.TPSLMap[instrumentUid].fastTP, instrumentUid, !isBuy);
+                            }
+                        }
                     }
 
-                    console.log('getTPPoint', this.getTPPoint(currentPriceNum, !isBuy, this.takeProfit, min));
-                    console.log('getSLPoint', this.getSLPoint(currentPriceNum, !isBuy, this.stopLoss, min));
+                    if (marketOrderAvailableFlag) {
+                        const orderDataStopLoss = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
+                            this.TRequests,
+                            {
+                                accountId,
+                                instrumentId: instrumentUid,
+                                quantity: Math.floor(Math.abs(quantityNum / lot)),
+                                priceTo: slPoint,
+                                isSL: true,
+                                isBuy,
+                            });
 
+                        // if (0) {
+                        // console.log('orderData TP', orderDataTakeProfit);
+                        // console.log('orderData SL', orderDataStopLoss);
+                        // console.log('currentPriceNum', currentPriceNum);
+                        // }
+
+                        // console.log('getTPPoint', this.getTPPoint(currentPriceNum, !isBuy, this.takeProfit, min));
+                        // console.log('getSLPoint', this.getSLPoint(currentPriceNum, !isBuy, this.stopLoss, min));
+
+                        try {
+                            const oldSLCount = this.TPSLMap?.[instrumentUid]?.SL?.reduce(
+                                (acc, val) => acc + (val?.quantity || 0), 0,
+                            );
+                            const currentSLCount = orderDataStopLoss?.reduce((
+                                acc: number, val: { quantity: number; },
+                            ) => acc + val.quantity, 0);
+
+                            // Если количество изменилось
+                            if (oldSLCount !== currentSLCount) {
+                                this.TPSLMap[instrumentUid].SL = orderDataStopLoss;
+                            }
+                        } catch (e) {
+                            // console.log(JSON.stringify(this.TPSLMap?.[instrumentUid]?.SL, null, 4));
+                            console.log(e); // eslint-disable-line
+                        }
+                    }
+
+                    // this.TPSLMap[instrumentUid].SL = orderDataStopLoss || this.TPSLMap[instrumentUid].SL;
                     await this.syncTPMap();
                     await this.syncSLMap();
-                    await this.syncFastTPMapMap();
                 }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+        }
+
+        getTPSLMap() {
+            return this.TPSLMap;
+        }
+
+        async closeBySL(props: { accountId: string; positions: PortfolioPosition[]; }) {
+            try {
+                const {
+                    accountId,
+                    positions,
+                } = props;
+
+                for (let i = 0; i < positions.length; i++) {
+                    const {
+                        instrumentUid,
+                        averagePositionPrice,
+                        quantity,
+                        instrumentType,
+                        currentPrice,
+                    } = positions[i];
+
+                    const {
+                        marketOrderAvailableFlag,
+                        apiTradeAvailableFlag,
+                    } = this.tradingStatuses?.[instrumentUid] || {};
+
+                    if (instrumentType !== 'share' ||
+                        !marketOrderAvailableFlag ||
+                        !apiTradeAvailableFlag
+                    ) {
+                        continue;
+                    }
+
+                    try {
+                        const SLLen = this.TPSLMap?.[instrumentUid]?.SL?.length || 0;
+                        const averagePositionPriceVal = Common.getPrice(averagePositionPrice);
+                        const {
+                            lot,
+                            minPriceIncrement: min,
+
+                            // ticker,
+                        } = this.allInstrumentsInfo?.[instrumentUid] || {};
+
+                        if (!averagePositionPrice || !averagePositionPriceVal ||
+                            !lot || !min) {
+                            continue;
+                        }
+
+                        const quantityNum = this.getPrice(quantity);
+
+                        const currentPriceNum = this.getPrice(currentPrice);
+                        const isBuy = quantityNum > 0;
+                        let countForClose = 0;
+
+                        for (let j = 0; j < SLLen; j++) {
+                            const {
+                                price,
+                                quantity: quantitySl,
+                            } = this.TPSLMap?.[instrumentUid]?.SL[j] || {};
+
+                            const slPrice = this.getPrice(price);
+
+                            if (isBuy && slPrice >= currentPriceNum || !isBuy && slPrice <= currentPriceNum) {
+                                countForClose += quantitySl || 0;
+                                this.TPSLMap[instrumentUid].closed.push({ ...this.TPSLMap[instrumentUid].SL[j] });
+                                this.TPSLMap[instrumentUid].SL[j] = undefined;
+                            }
+                        }
+
+                        if (countForClose > 0) {
+                            this.TPSLMap[instrumentUid].SL = this.TPSLMap[instrumentUid].SL.filter(Boolean);
+
+                            const orderData = {
+                                accountId,
+                                instrumentId: instrumentUid,
+                                quantity: (isBuy ? -1 : 1) * countForClose,
+                                orderType: OrderType.ORDER_TYPE_MARKET,
+                                timeInForceType: TimeInForceType.TIME_IN_FORCE_FILL_AND_KILL,
+                            };
+
+                            const order = await Bot.order(
+                                this.sdk,
+                                orderData,
+                            );
+
+                            this.TPSLMap[instrumentUid].closedOrders.push(order);
+
+                            return true;
+                        }
+                    } catch (e) {
+                        console.log(e); // eslint-disable-line no-console
+                    }
+                }
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+
+            return false;
         }
 
         async processing() { // eslint-disable-line
@@ -217,16 +511,17 @@ try {
                 await this.syncPos();
                 await this.updateOrders();
 
-                // const isSync = Boolean(this.currentPositions?.every(p =>
+                const isSync = Boolean(this.currentPositions?.every(p =>
 
-                //     // @ts-ignore
-                //     p?.quantity?.units && p?.quantity?.units === p?.balance, // && !p?.blocked,
-                // ));
+                    // @ts-ignore
+                    p?.quantity?.units && (p?.quantity?.units - p?.blocked) === p?.balance, // && !p?.blocked,
+                ));
 
-                // if (!isSync) {
-                //     console.log(this.currentPositions);
-                //     return;
-                // }
+                if (!isSync) {
+                    await super.processing();
+
+                    return;
+                }
 
                 const { positions } = this.currentPortfolio || {};
 
@@ -235,6 +530,34 @@ try {
 
                     return;
                 }
+
+                // Проверить если цена перешла планку SL, то закрыть .
+
+                const someClosed = await this.closeBySL({
+                    accountId,
+                    positions,
+                });
+
+                if (someClosed) {
+                    await super.processing();
+
+                    return;
+                }
+
+                // Проверить, если цена пошла в сторону TP, то подвинуть TP и SL
+
+                // + 1. Закрытие заявки по SL
+                // 2. Если цена растёт в профите, то SL обновляем
+                // 3. Если цена падает в профите, то закрываем по SL и цену не двигаем
+                // 4. При обновлении цены SL не повышаем при изменениях ниже 0.2%
+                // 5. При увеличении профита сдвигаем заявки в стакане по TP
+                // 6. При уменьшении профита заявки в стакане не трогаем
+                // 7. Проверяем наличие заявок по TP. Если заявок нет, то нужно удалить из карты.
+
+                // 8. Хранить карту в БД и восстанавливать при перезапусках (?)
+
+                // 9. Карта закрытых сделок по TP и SL
+                // 10. Карта позиций и матчинг на закрытые сделки, чтобы понятен был профит и комиссия.
 
                 await this.createMaps({
                     accountId,
@@ -279,7 +602,7 @@ try {
                     }
 
                     // const isShort = (this.getPrice(quantity) || 0) < 0;
-                    const instrumentInOrders = this.currentOrders.find(o => o.instrumentUid === instrumentUid);
+                    const instrumentInOrders = this.currentOrders?.find(o => o.instrumentUid === instrumentUid);
 
                     if (
                         // instrumentType !== 'share' ||
@@ -532,6 +855,87 @@ try {
         //         stopOrderId,
         //     });
         // }
+
+        async onTradeData(data: OrderStateStreamResponse_OrderState) { // eslint-disable-line camelcase
+            try {
+                const {
+                    direction,
+                    instrumentUid,
+                    trades,
+                } = data;
+
+                await this.syncPos();
+
+                trades.forEach(t => {
+                    try {
+                        const {
+                            price,
+                            quantity,
+                        } = t;
+
+                        const {
+                            // @ts-ignore
+                            quantity: quantityPositionBase,
+
+                            // @ts-ignore
+                            averagePositionPriceFifo,
+                        } = this.currentPositions.find(
+                            (p: { instrumentUid: string; },
+
+                            ) => p.instrumentUid === instrumentUid) || {};
+
+                        const quantityPos = this.roundPrice(quantityPositionBase);
+                        const posPrice = this.roundPrice(averagePositionPriceFifo);
+
+                        const isBuyPos = quantityPos > 0;
+                        const isBuyOrder = direction === OrderDirection.ORDER_DIRECTION_BUY;
+
+                        const isCloseTrade = isBuyOrder && !isBuyPos ||
+                            !isBuyOrder && isBuyPos;
+
+                        const orderPrice = this.roundPrice(price);
+
+                        if (posPrice && isCloseTrade) {
+                            const currentYieldSign = !isBuyOrder ? // Закрытие long
+                                orderPrice >= posPrice ? 1 : -1 :
+                                orderPrice <= posPrice ? 1 : -1;
+
+                            const currentPriceYield = currentYieldSign * Math.abs(this.roundPrice(price) - posPrice);
+                            const currentYield = currentYieldSign * Math.abs(currentPriceYield / posPrice) * 100;
+
+                            if (currentYield) {
+                                this.TPSLMap[instrumentUid].profit += currentPriceYield * quantity;
+                                this.TPSLMap[instrumentUid].profitYield += currentYield;
+                            }
+                        }
+                    } catch (e) {
+                        console.log(e); // eslint-disable-line
+                    }
+                });
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+        }
+
+        start() {
+            try {
+                super.start();
+
+                this.onTradeDataBinded = this.onTradeData.bind(this);
+                this.eventEmitter.on('subscribe:orderTrades:' + this.accountId, this.onTradeDataBinded);
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+        }
+
+        stop() {
+            try {
+                this.eventEmitter.off('subscribe:orderTrades:' + this.accountId, this.onTradeDataBinded);
+                super.stop();
+            } catch (e) {
+                console.log(e); // eslint-disable-line
+            }
+        }
     }
 
     if (name) {
