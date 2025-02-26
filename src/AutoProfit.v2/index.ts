@@ -237,6 +237,27 @@ try {
             }
         }
 
+        restoreTPFromOrders(instrumentUid: string, instrumentInOrders: OrderState[]) {
+            this.TPSLMap[instrumentUid].fastTP = [];
+
+            let fastTPQuantity = 0;
+
+            instrumentInOrders.forEach(i => {
+                fastTPQuantity += i.lotsRequested - i.lotsExecuted;
+
+                this.TPSLMap[instrumentUid].fastTP.push({
+                    price: i.initialSecurityPrice,
+                    quantity: i.lotsRequested - i.lotsExecuted,
+                    order: i,
+                });
+            });
+
+            this.TPSLMap[instrumentUid].fastTPQuantity = fastTPQuantity;
+
+            this.TPSLMap[instrumentUid].fastTP
+                .sort((a, b) => this.getPrice(a.price) - this.getPrice(b.price));
+        }
+
         async syncTPMap(position: PortfolioPosition) {
             try {
                 const {
@@ -277,79 +298,64 @@ try {
                 const instrumentInOrders = this.currentOrders.filter(o => o.instrumentUid === instrumentUid);
 
                 if (instrumentInOrders?.length && !this.TPSLMap[instrumentUid].fastTP?.length) {
-                    this.TPSLMap[instrumentUid].fastTP = [];
-
-                    let fastTPQuantity = 0;
-
-                    instrumentInOrders.forEach(i => {
-                        fastTPQuantity += i.lotsRequested - i.lotsExecuted;
-
-                        this.TPSLMap[instrumentUid].fastTP.push({
-                            price: i.initialSecurityPrice,
-                            quantity: i.lotsRequested - i.lotsExecuted,
-                            order: i,
-                        });
-                    });
-
-                    this.TPSLMap[instrumentUid].fastTPQuantity = fastTPQuantity;
-
-                    this.TPSLMap[instrumentUid].fastTP
-                        .sort((a, b) => this.getPrice(a.price) - this.getPrice(b.price));
+                    this.restoreTPFromOrders(instrumentUid, instrumentInOrders);
                 }
 
-                // Переоткрытие
-                // if (this.iagreetrade && !this.TPSLMap[instrumentUid].reopened?.length) {
-                //     const orderDataReopen = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
-                //         this.TRequests,
-                //         {
-                //             accountId,
-                //             instrumentId: instrumentUid,
-                //             quantity: Math.floor(Math.abs(quantityNum / lot)),
-                //             priceFrom: slPoint,
-                //             isTP: true,
-                //             isBuy: !isBuy,
-                //         });
+                {
+                    // Переоткрытие
+                    // if (this.iagreetrade && !this.TPSLMap[instrumentUid].reopened?.length) {
+                    //     const orderDataReopen = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
+                    //         this.TRequests,
+                    //         {
+                    //             accountId,
+                    //             instrumentId: instrumentUid,
+                    //             quantity: Math.floor(Math.abs(quantityNum / lot)),
+                    //             priceFrom: slPoint,
+                    //             isTP: true,
+                    //             isBuy: !isBuy,
+                    //         });
 
-                //     console.log('ticker reopen', ticker, orderDataReopen);
-                //     if (orderDataReopen) {
-                //         this.TPSLMap[instrumentUid].reopened = orderDataReopen; //  || this.TPSLMap[instrumentUid].fastTP;
+                    //     console.log('ticker reopen', ticker, orderDataReopen);
+                    //     if (orderDataReopen) {
+                    //         this.TPSLMap[instrumentUid].reopened = orderDataReopen; //  || this.TPSLMap[instrumentUid].fastTP;
 
-                //         this.TPSLMap[instrumentUid].reopenedQuantity = this.TPSLMap[instrumentUid]
-                //             .reopened?.reduce((acc, val) => acc + val.quantity, 0);
-                //     }
+                    //         this.TPSLMap[instrumentUid].reopenedQuantity = this.TPSLMap[instrumentUid]
+                    //             .reopened?.reduce((acc, val) => acc + val.quantity, 0);
+                    //     }
 
-                //     // if (instrumentInOrders?.length) {
-                //     //     console.log('instrumentInOrders?.length');
-                //     // } else {
-                //     await this.syncLimitOrderMap(this.TPSLMap[instrumentUid].reopened, instrumentUid, isBuy);
-                //     // }
-                // }
+                    //     // if (instrumentInOrders?.length) {
+                    //     //     console.log('instrumentInOrders?.length');
+                    //     // } else {
+                    //     await this.syncLimitOrderMap(this.TPSLMap[instrumentUid].reopened, instrumentUid, isBuy);
+                    //     // }
+                    // }
+                }
+
+                let priceFrom = tpPoint;
+
+                if (isBuy && currentPriceNum > Math.max(
+                    averagePositionPriceVal, this.getPrice(averagePositionPriceFifo)) ||
+                    !isBuy && currentPriceNum < Math.min(
+                        averagePositionPriceVal, this.getPrice(averagePositionPriceFifo))
+                ) {
+                    priceFrom = (tpPoint + currentPriceNum) / 2;
+                }
+
+                const orderDataTakeProfit = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
+                    this.TRequests,
+                    {
+                        accountId: this.accountId,
+                        instrumentId: instrumentUid,
+                        quantity: Math.floor(Math.abs(avalibleQuantity / lot) * this.profitRange),
+                        priceFrom,
+                        isTP: true,
+
+                        isBuy,
+                    });
 
                 if (
                     !this.TPSLMap[instrumentUid].fastTP?.length
                 ) {
-                    let priceFrom = tpPoint;
-
-                    if (isBuy && currentPriceNum > Math.max(
-                        averagePositionPriceVal, this.getPrice(averagePositionPriceFifo)) ||
-                        !isBuy && currentPriceNum < Math.min(
-                            averagePositionPriceVal, this.getPrice(averagePositionPriceFifo))
-                    ) {
-                        priceFrom = (tpPoint + currentPriceNum) / 2;
-                    }
-
-                    const orderDataTakeProfit = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
-                        this.TRequests,
-                        {
-                            accountId: this.accountId,
-                            instrumentId: instrumentUid,
-                            quantity: Math.floor(Math.abs(avalibleQuantity / lot) * this.profitRange),
-                            priceFrom,
-                            isTP: true,
-
-                            isBuy,
-                        });
-
                     if (orderDataTakeProfit) {
                         this.TPSLMap[instrumentUid].fastTP = orderDataTakeProfit; //  || this.TPSLMap[instrumentUid].fastTP;
 
@@ -360,10 +366,31 @@ try {
                     if (!instrumentInOrders?.length) {
                         await this.syncLimitOrderMap(this.TPSLMap[instrumentUid].fastTP, instrumentUid, !isBuy);
                     }
+                } else if (this.needChange(
+                    this.TPSLMap[instrumentUid].fastTP,
+                    orderDataTakeProfit,
+                    isBuy,
+                )) {
+                    console.log('need change TP'); // eslint-disable-line no-console
+                    console.log('FROM', this.TPSLMap[instrumentUid].fastTP); // eslint-disable-line no-console
+                    console.log('TO', orderDataTakeProfit); // eslint-disable-line no-console
                 }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+        }
+
+        balanceQuantity(instrumentUid: string, diff: number, i: number) {
+            const current = this.TPSLMap[instrumentUid].SL[i]?.quantity || 0;
+
+            if (current) {
+                const toDel = Math.min(current, diff);
+
+                this.TPSLMap[instrumentUid].SL[i]!.quantity -= toDel;
+                diff -= toDel;
+            }
+
+            return diff;
         }
 
         async syncSLMap(position: PortfolioPosition) {
@@ -411,17 +438,42 @@ try {
                         acc: number, val: { quantity: number; },
                     ) => acc + val.quantity, 0);
 
-                    // Если количество изменилось
-                    if (oldSLCount !== currentSLCount) {
+                    if (this.needChange(this.TPSLMap[instrumentUid].SL, orderDataStopLoss, isBuy)) {
                         this.TPSLMap[instrumentUid].SL = orderDataStopLoss;
 
                         this.TPSLMap[instrumentUid].SL
                             .sort((a, b) => (
                                 this.getPrice(a?.price) || 0) - (this.getPrice(b?.price) || 0),
                             );
+                    } else if (oldSLCount > currentSLCount) {
+                        if (!currentSLCount) {
+                            this.TPSLMap[instrumentUid].SL = [];
+                        } else {
+                            let diff = oldSLCount - currentSLCount;
+                            const count = this.TPSLMap[instrumentUid].SL.length;
+
+                            if (isBuy) {
+                                for (let i = 0; i < count; i++) {
+                                    diff = this.balanceQuantity(instrumentUid, diff, i);
+                                    if (!diff) {
+                                        break;
+                                    }
+                                }
+                            } else {
+                                for (let i = count - 1; i >= 0; i--) {
+                                    diff = this.balanceQuantity(instrumentUid, diff, i);
+                                    if (!diff) {
+                                        break;
+                                    }
+                                }
+                            }
+
+                            this.TPSLMap[instrumentUid].SL = this.TPSLMap[instrumentUid]
+                                .SL
+                                .filter(sl => Boolean(sl?.quantity));
+                        }
                     }
                 } catch (e) {
-                    // console.log(JSON.stringify(this.TPSLMap?.[instrumentUid]?.SL, null, 4));
                     console.log(e); // eslint-disable-line
                 }
             } catch (e) {
@@ -443,14 +495,14 @@ try {
          * @param isBuy
          * @returns
          */
-        needChange(current: IFastTPSL[], next: IFastTPSL[], isBuy: boolean) {
+        needChange(current: (IFastTPSL | undefined)[], next: IFastTPSL[], isBuy: boolean) {
             if (!current?.length || !next?.length) {
                 return false;
             }
 
             try {
-                current.sort((a, b) => (this.getPrice(a.price) || 0) - (this.getPrice(b.price) || 0));
-                next.sort((a, b) => (this.getPrice(a.price) || 0) - (this.getPrice(b.price) || 0));
+                current.sort((a, b) => (this.getPrice(a?.price) || 0) - (this.getPrice(b?.price) || 0));
+                next.sort((a, b) => (this.getPrice(a?.price) || 0) - (this.getPrice(b?.price) || 0));
 
                 if (isBuy) {
                     return this.getPrice(next?.[0]?.price) > this.getPrice(current?.[0]?.price);

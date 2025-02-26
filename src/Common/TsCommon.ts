@@ -270,9 +270,9 @@ export class Common {
             if (ids.length) {
                 const tradingStatuses: GetTradingStatusResponse[] = (
                     (await this.TRequests.getTradingStatuses(ids)) || {}
-                ).tradingStatuses;
+                )?.tradingStatuses;
 
-                this.tradingStatuses = tradingStatuses.reduce((acc, val) => {
+                this.tradingStatuses = tradingStatuses?.reduce((acc, val) => {
                     acc[val.instrumentUid] = val;
 
                     return acc;
