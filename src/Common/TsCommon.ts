@@ -1245,6 +1245,10 @@ export class Common {
     async cancelOrder(orderId: any) {
         this.setLastOrderTime();
 
+        if (this.TRequests?.cancelOrder) {
+            return await this.TRequests?.cancelOrder(this.accountId, orderId);
+        }
+
         return (await this.cb.cancelOrder(this.accountId, orderId));
     }
 
