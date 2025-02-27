@@ -113,13 +113,12 @@ try {
                 }
 
                 if (order) {
-                    console.log('replace order'); // eslint-disable-line
-                    console.log('next currentOrder'); // eslint-disable-line
-                    console.log(currentOrder); // eslint-disable-line
-
-                    console.log('order'); // eslint-disable-line
-                    console.log(currentOrder.order); // eslint-disable-line
-                    console.log(); // eslint-disable-line
+                    if (order.initialSecurityPrice &&
+                        order.initialSecurityPrice.units === price?.units &&
+                        order.initialSecurityPrice.nano === price?.nano
+                    ) {
+                        return false;
+                    }
 
                     const data = {
                         accountId: this.accountId,
@@ -331,7 +330,11 @@ try {
 
                 const tpPoint = this.getTPPoint(startTPPrice, !isBuy, this.takeProfit, min);
 
-                const instrumentInOrders = this.currentOrders.filter(o => o.instrumentUid === instrumentUid);
+                const instrumentInOrders = this.currentOrders.filter(o => o.instrumentUid === instrumentUid &&
+                    o.direction === (!isBuy ?
+                        OrderDirection.ORDER_DIRECTION_BUY :
+                        OrderDirection.ORDER_DIRECTION_SELL),
+                );
 
                 if (instrumentInOrders?.length && !this.TPSLMap[instrumentUid].fastTP?.length) {
                     this.restoreTPFromOrders(instrumentUid, instrumentInOrders);
@@ -426,31 +429,35 @@ try {
 
         async syncTPOrdersInObj(instrumentUid: string, nextOrders: IFastTPSL[], isBuy: boolean) {
             const currentTP = this.TPSLMap[instrumentUid].fastTP;
-            const len = Math.max(this.TPSLMap[instrumentUid].fastTP?.length,
+            const len = Math.max(currentTP?.length,
                 nextOrders.length);
 
-            for (let i = 0; i < len; i++) {
-                if (!nextOrders[i] && currentTP[i]?.order?.orderId) {
-                    await this.cancelOrder(currentTP[i]?.order?.orderId);
-                    currentTP[i] = undefined;
-                } else if (nextOrders[i] && !currentTP[i]?.order?.orderId) {
-                    currentTP[i] = {
-                        price: nextOrders[i].price,
-                        quantity: nextOrders[i].quantity,
-                    };
-                    await this.createTPOrder(currentTP[i], instrumentUid, !isBuy);
-                } else if (nextOrders[i] && currentTP[i]?.order?.orderId) {
-                    currentTP[i] = {
-                        price: nextOrders[i].price,
-                        quantity: nextOrders[i].quantity,
-                        order: currentTP[i]?.order,
-                    };
+            if (currentTP?.length !== nextOrders.length) {
+                for (let i = 0; i < len; i++) {
+                    if (!nextOrders[i] && currentTP[i]?.order?.orderId) {
+                        await this.cancelOrder(currentTP[i]?.order?.orderId);
+                        currentTP[i] = undefined;
+                    } else if (nextOrders[i] && !currentTP[i]?.order?.orderId) {
+                        currentTP[i] = {
+                            price: nextOrders[i].price,
+                            quantity: nextOrders[i].quantity,
+                        };
+                        await this.createTPOrder(currentTP[i], instrumentUid, !isBuy);
+                    } else if (nextOrders[i] && currentTP[i]?.order?.orderId) {
+                        currentTP[i] = {
+                            price: nextOrders[i].price,
+                            quantity: nextOrders[i].quantity,
+                            order: currentTP[i]?.order,
+                        };
 
-                    await this.createTPOrder(currentTP[i], instrumentUid, !isBuy);
+                        await this.createTPOrder(currentTP[i], instrumentUid, !isBuy);
+                    }
                 }
-            }
 
-            this.TPSLMap[instrumentUid].fastTP = currentTP.filter(Boolean);
+                this.TPSLMap[instrumentUid].fastTP = currentTP.filter(Boolean);
+                this.TPSLMap[instrumentUid].fastTP
+                    .sort((a, b) => (this.getPrice(a?.price) || 0) - (this.getPrice(b?.price) || 0));
+            }
         }
 
         balanceQuantity(instrumentUid: string, diff: number, i: number) {
@@ -492,7 +499,7 @@ try {
 
                 const slPoint = this.getSLPoint(currentPriceNum, !isBuy, this.stopLoss, min);
 
-                const orderDataStopLoss = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
+                let orderDataStopLoss = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
                     this.TRequests,
                     {
                         accountId: this.accountId,
@@ -511,41 +518,75 @@ try {
                         acc: number, val: { quantity: number; },
                     ) => acc + val.quantity, 0);
 
-                    if (this.needChange(this.TPSLMap[instrumentUid].SL, orderDataStopLoss, isBuy)) {
+                    if (!currentSLCount) {
+                        this.TPSLMap[instrumentUid].SL = [];
+                    } else if (
+                        !this.TPSLMap[instrumentUid].SL?.length ||
+                        this.needChange(this.TPSLMap[instrumentUid].SL, orderDataStopLoss, isBuy)
+                    ) {
                         this.TPSLMap[instrumentUid].SL = orderDataStopLoss;
+                    } else if (
+                        oldSLCount !== currentSLCount
+                    ) {
+                        const current = this.TPSLMap[instrumentUid].SL;
 
-                        this.TPSLMap[instrumentUid].SL
-                            .sort((a, b) => (
-                                this.getPrice(a?.price) || 0) - (this.getPrice(b?.price) || 0),
-                            );
-                    } else if (oldSLCount > currentSLCount) {
-                        if (!currentSLCount) {
-                            this.TPSLMap[instrumentUid].SL = [];
-                        } else {
-                            let diff = oldSLCount - currentSLCount;
-                            const count = this.TPSLMap[instrumentUid].SL.length;
+                        const priceTo = this.getPrice(isBuy ?
+                            current?.[0]?.price :
+                            current?.[current?.length - 1]?.price);
 
-                            if (isBuy) {
-                                for (let i = 0; i < count; i++) {
-                                    diff = this.balanceQuantity(instrumentUid, diff, i);
-                                    if (!diff) {
-                                        break;
-                                    }
-                                }
-                            } else {
-                                for (let i = count - 1; i >= 0; i--) {
-                                    diff = this.balanceQuantity(instrumentUid, diff, i);
-                                    if (!diff) {
-                                        break;
-                                    }
-                                }
-                            }
+                        if (priceTo) {
+                            orderDataStopLoss = await StaticExample.getSpreadOrderMapByFromTo(this.sdk,
+                                this.TRequests,
+                                {
+                                    accountId: this.accountId,
+                                    instrumentId: instrumentUid,
+                                    quantity: Math.floor(Math.abs(quantityNum / lot)),
+                                    priceTo,
+                                    isSL: true,
+                                    isBuy,
+                                });
 
-                            this.TPSLMap[instrumentUid].SL = this.TPSLMap[instrumentUid]
-                                .SL
-                                .filter(sl => Boolean(sl?.quantity));
+                            this.TPSLMap[instrumentUid].SL = orderDataStopLoss;
                         }
                     }
+
+                    this.TPSLMap[instrumentUid].SL
+                        .sort((a, b) => (
+                            this.getPrice(a?.price) || 0) - (this.getPrice(b?.price) || 0),
+                        );
+
+                    //  else if (oldSLCount !== currentSLCount) {
+                    //     console.log('sl 3', oldSLCount, currentSLCount);
+
+                    //     let diff = oldSLCount - currentSLCount;
+                    //     const count = this.TPSLMap[instrumentUid].SL.length;
+
+                    //     console.log('sl 5');
+
+                    //     if (isBuy) {
+                    //         for (let i = 0; i < count; i++) {
+                    //             diff = this.balanceQuantity(instrumentUid, diff, i);
+                    //             if (!diff) {
+                    //                 break;
+                    //             }
+                    //         }
+                    //     } else {
+                    //         for (let i = count - 1; i >= 0; i--) {
+                    //             diff = this.balanceQuantity(instrumentUid, diff, i);
+                    //             if (!diff) {
+                    //                 break;
+                    //             }
+                    //         }
+                    //     }
+
+                    //     this.TPSLMap[instrumentUid].SL = this.TPSLMap[instrumentUid]
+                    //         .SL
+                    //         .filter(sl => Boolean(sl?.quantity));
+
+                    //     console.log('sl 6', this.TPSLMap[instrumentUid].SL);
+                    // } else if (oldSLCount < currentSLCount) {
+
+                    // }
                 } catch (e) {
                     console.log(e); // eslint-disable-line
                 }
