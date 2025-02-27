@@ -648,6 +648,32 @@ class TRequests {
         }
     }
 
+    async postOrder(orderData) {
+        try {
+            const reqName = 'orders';
+            const cacheName = reqName + JSON.stringify(orderData);
+
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return (await this.sdk.orders.postOrder(orderData));
+            });
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
+    async replaceOrder(orderData) {
+        try {
+            const reqName = 'orders';
+            const cacheName = reqName + JSON.stringify(orderData);
+
+            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => {
+                return (await this.sdk.orders.replaceOrder(orderData));
+            });
+        } catch (e) {
+            console.log(e); // eslint-disable-line no-console
+        }
+    }
+
     async updateOrders() {
         this.currentOrders = await this.getOpenOrders();
         this.ordersInited = true;

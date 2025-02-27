@@ -58,7 +58,7 @@ try {
         } = {};
         TPSLMap: {
             [x: string]: {
-                fastTP: IFastTPSL[];
+                fastTP: (IFastTPSL | undefined)[];
                 SL: (IFastTPSL | undefined)[];
 
                 // orders?: PostOrderResponse[];
@@ -94,33 +94,47 @@ try {
             };
         }
 
-        async syncLimitOrderMap(currentOrders: IFastTPSL[], instrumentId: string, isBuy: boolean) {
+        async createTPOrder(currentOrder: (IFastTPSL | undefined), instrumentId: string, isBuy: boolean) {
             try {
-                const sdk = this.sdk;
-
-                if (!currentOrders?.length || !sdk) {
-                    return;
+                if (!currentOrder) {
+                    return false;
                 }
 
-                const accountId = this.accountId;
+                const {
+                    price,
+                    quantity,
+                    order,
+                } = currentOrder;
 
-                // this.currentOrdersMap = {};
-                // console.log('syncLimitOrderMap', ticker);
-                // console.log(currentOrders, instrumentInOrders);
+                const sdk = this.sdk;
 
-                for (let i = 0; i < currentOrders.length; i++) {
-                    const {
-                        price,
-                        quantity,
-                        order,
-                    } = currentOrders[i];
+                if (!sdk) {
+                    return false;
+                }
 
-                    if (order) {
-                        continue;
-                    }
+                if (order) {
+                    console.log('replace order'); // eslint-disable-line
+                    console.log('next currentOrder'); // eslint-disable-line
+                    console.log(currentOrder); // eslint-disable-line
+
+                    console.log('order'); // eslint-disable-line
+                    console.log(currentOrder.order); // eslint-disable-line
+                    console.log(); // eslint-disable-line
 
                     const data = {
-                        accountId,
+                        accountId: this.accountId,
+                        orderId: order?.orderId,
+                        quantity,
+                        price,
+                        idempotencyKey: this.genOrderId(),
+                    };
+
+                    currentOrder.order = await this.TRequests.replaceOrder(data);
+
+                    return true;
+                } else {
+                    const data = {
+                        accountId: this.accountId,
                         instrumentId,
                         quantity,
                         price,
@@ -131,7 +145,29 @@ try {
                         orderId: this.genOrderId(),
                     };
 
-                    currentOrders[i].order = await sdk.orders.postOrder(data);
+                    currentOrder.order = await this.TRequests.postOrder(data);
+                }
+
+                return true;
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+
+            return false;
+        }
+
+        async syncLimitOrderMap(currentOrders: (IFastTPSL | undefined)[], instrumentId: string, isBuy: boolean) {
+            try {
+                const sdk = this.sdk;
+
+                if (!currentOrders?.length || !sdk) {
+                    return;
+                }
+
+                for (let i = 0; i < currentOrders.length; i++) {
+                    if (currentOrders[i]) {
+                        await this.createTPOrder(currentOrders[i], instrumentId, isBuy);
+                    }
                 }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
@@ -255,7 +291,7 @@ try {
             this.TPSLMap[instrumentUid].fastTPQuantity = fastTPQuantity;
 
             this.TPSLMap[instrumentUid].fastTP
-                .sort((a, b) => this.getPrice(a.price) - this.getPrice(b.price));
+                .sort((a, b) => (this.getPrice(a?.price) || 0) - (this.getPrice(b?.price) || 0));
         }
 
         async syncTPMap(position: PortfolioPosition) {
@@ -353,6 +389,13 @@ try {
                         isBuy,
                     });
 
+                const oldTPCount = this.TPSLMap?.[instrumentUid]?.fastTP?.reduce(
+                    (acc, val) => acc + (val?.quantity || 0), 0,
+                );
+                const currentTPCount = orderDataTakeProfit?.reduce((
+                    acc: number, val: { quantity: number; },
+                ) => acc + val.quantity, 0);
+
                 if (
                     !this.TPSLMap[instrumentUid].fastTP?.length
                 ) {
@@ -360,13 +403,13 @@ try {
                         this.TPSLMap[instrumentUid].fastTP = orderDataTakeProfit; //  || this.TPSLMap[instrumentUid].fastTP;
 
                         this.TPSLMap[instrumentUid].fastTPQuantity = this.TPSLMap[instrumentUid]
-                            .fastTP?.reduce((acc, val) => acc + val.quantity, 0);
+                            .fastTP?.reduce((acc, val) => acc + (val?.quantity || 0), 0);
                     }
 
                     if (!instrumentInOrders?.length) {
                         await this.syncLimitOrderMap(this.TPSLMap[instrumentUid].fastTP, instrumentUid, !isBuy);
                     }
-                } else if (this.needChange(
+                } else if (oldTPCount !== currentTPCount || this.needChange(
                     this.TPSLMap[instrumentUid].fastTP,
                     orderDataTakeProfit,
                     isBuy,
@@ -374,10 +417,40 @@ try {
                     console.log('need change TP'); // eslint-disable-line no-console
                     console.log('FROM', this.TPSLMap[instrumentUid].fastTP); // eslint-disable-line no-console
                     console.log('TO', orderDataTakeProfit); // eslint-disable-line no-console
+                    await this.syncTPOrdersInObj(instrumentUid, orderDataTakeProfit, isBuy);
                 }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
+        }
+
+        async syncTPOrdersInObj(instrumentUid: string, nextOrders: IFastTPSL[], isBuy: boolean) {
+            const currentTP = this.TPSLMap[instrumentUid].fastTP;
+            const len = Math.max(this.TPSLMap[instrumentUid].fastTP?.length,
+                nextOrders.length);
+
+            for (let i = 0; i < len; i++) {
+                if (!nextOrders[i] && currentTP[i]?.order?.orderId) {
+                    await this.cancelOrder(currentTP[i]?.order?.orderId);
+                    currentTP[i] = undefined;
+                } else if (nextOrders[i] && !currentTP[i]?.order?.orderId) {
+                    currentTP[i] = {
+                        price: nextOrders[i].price,
+                        quantity: nextOrders[i].quantity,
+                    };
+                    await this.createTPOrder(currentTP[i], instrumentUid, !isBuy);
+                } else if (nextOrders[i] && currentTP[i]?.order?.orderId) {
+                    currentTP[i] = {
+                        price: nextOrders[i].price,
+                        quantity: nextOrders[i].quantity,
+                        order: currentTP[i]?.order,
+                    };
+
+                    await this.createTPOrder(currentTP[i], instrumentUid, !isBuy);
+                }
+            }
+
+            this.TPSLMap[instrumentUid].fastTP = currentTP.filter(Boolean);
         }
 
         balanceQuantity(instrumentUid: string, diff: number, i: number) {

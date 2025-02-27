@@ -79,7 +79,9 @@ try {
             }
         }
 
-        static async closeAllOrders(sdk: ReturnType<typeof createSdk>,
+        static async closeAllOrders(
+            sdk: ReturnType<typeof createSdk>,
+            TRequests: InstanceType<typeof TRequestsBase>,
             props: { accountId: string; allInstrumentsWithIdKeys?: any; },
         ) {
             const {
@@ -96,10 +98,12 @@ try {
                         continue;
                     }
 
-                    await sdk.orders.cancelOrder({
-                        accountId,
-                        orderId: orders[i].orderId,
-                    });
+                    await TRequests.cancelOrder(accountId, orders[i].orderId);
+
+                    // await sdk.orders.cancelOrder({
+                    //     accountId,
+                    //     orderId: orders[i].orderId,
+                    // });
                 }
             }
         }
@@ -622,7 +626,7 @@ try {
             const isBuy = quantity > 0;
 
             try {
-                if (!sdk?.orders?.postOrder || !accountId || !quantity) {
+                if (!TRequests.postOrder || !accountId || !quantity) {
                     return;
                 }
                 const orders: {
@@ -646,7 +650,7 @@ try {
                             orderId: this.genOrderId(),
                         };
 
-                        await sdk.orders.postOrder(data);
+                        await TRequests.postOrder(data);
                     } catch (e) {
                         console.log(e); // eslint-disable-line no-console
                     }
