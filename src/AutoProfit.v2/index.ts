@@ -417,9 +417,6 @@ try {
                     orderDataTakeProfit,
                     isBuy,
                 )) {
-                    console.log('need change TP'); // eslint-disable-line no-console
-                    console.log('FROM', this.TPSLMap[instrumentUid].fastTP); // eslint-disable-line no-console
-                    console.log('TO', orderDataTakeProfit); // eslint-disable-line no-console
                     await this.syncTPOrdersInObj(instrumentUid, orderDataTakeProfit, isBuy);
                 }
             } catch (e) {

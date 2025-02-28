@@ -1,72 +1,132 @@
-// @ts-nocheck
 /* eslint @typescript-eslint/no-explicit-any: 0 */
-/* eslint @typescript-eslint/no-unused-vars: 0 */
 /* eslint @typescript-eslint/ban-types: 0 */
-/* eslint max-len: 0 */
 /* eslint sonarjs/no-duplicate-string: 0 */
-import { PortfolioResponse } from 'tinkoff-sdk-grpc-js/dist/generated/operations';
+/* eslint camelcase: 0 */
 
 import { createSdk } from 'tinkoff-sdk-grpc-js';
-import { MoneyValue, Quotation } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import {
+    MoneyValue,
+    PriceType,
+    Quotation,
+} from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
-import { mkDirByPathSync } from '../utils';
-import path from 'path';
-import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
-import { OrderDirection, OrderExecutionReportStatus, OrderState } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
-import TelegramBot from 'node-telegram-bot-api';
-import { MarketDataRequest, SubscriptionAction, TradeSourceType } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import {
+    OrderDirection,
+    OrderExecutionReportStatus,
+    OrderType,
+    TimeInForceType,
+} from 'tinkoff-sdk-grpc-js/dist/generated/orders';
+import {
+    GetOrderBookRequest,
+    GetTechAnalysisRequest_IndicatorInterval,
+    GetTechAnalysisRequest_IndicatorType,
+    GetTechAnalysisRequest_TypeOfPrice,
+    MarketDataRequest,
+    SubscriptionAction,
+    TradeSourceType,
+} from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 import { Common } from '../Common/TsCommon';
-import { Instrument, Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
+import {
+    Share,
+} from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 
 import EventEmitter from 'events';
 
+interface IShares {
+    [key: string]: Share
+}
+
 class TRequests {
-    sdk?: ReturnType<typeof createSdk>;
+    sdk: ReturnType<typeof createSdk>;
     isSandbox?: boolean;
 
-    allInstrumentsInfo: {
-        [key: string]: Instrument
-    };
+    allInstrumentsInfo: IShares;
 
-    static requests = {
-        // lastMinutes: new Date().getMinutes(),
-        // lastSeconds: new Date().getSeconds(),
+    eventEmitter: EventEmitter<[never]>;
+
+    static rpsRequests = {
         count: 0,
         limit: 50,
-
-        instruments: {
-            count: 0,
-            limit: 200,
-        },
-        accounts: {
-            count: 0,
-            limit: 100,
-        },
-        operations: {
-            count: 0,
-            limit: 200,
-        },
-        orders: {
-            count: 0,
-            limit: 100,
-        },
-        marketData: {
-            count: 0,
-            limit: 600,
-        },
-        stopOrders: {
-            count: 0,
-            limit: 50,
-        },
     };
 
+    static requests: {
+
+        // count: number;
+        // limit: number;
+        [x: string]: {
+            count: number;
+            limit: number;
+        }
+    } = {
+            // lastMinutes: new Date().getMinutes(),
+            // lastSeconds: new Date().getSeconds(),
+            instruments: {
+                count: 0,
+                limit: 200,
+            },
+            accounts: {
+                count: 0,
+                limit: 100,
+            },
+            operations: {
+                count: 0,
+                limit: 200,
+            },
+            orders: {
+                count: 0,
+                limit: 100,
+            },
+            marketData: {
+                count: 0,
+                limit: 600,
+            },
+            stopOrders: {
+                count: 0,
+                limit: 50,
+            },
+        };
+
     static reqKeys = Object.keys(TRequests.requests).filter(k => typeof TRequests.requests[k] === 'object');
+    subscribesTimer: number;
+    subscribeDataUpdated: {};
+    allLastPrices: {
+        [x: string]: {
+            price: Quotation | undefined;
+            time: number;
+        };
+    };
+    inited: boolean;
+    subscrNoAccinProgress: boolean | undefined;
+    allLastTrades: any;
+    allLastTradesAggregated: any;
+    subscrAccList: any;
+    sybscrWithAccinProgress!: boolean;
+    genSubscrWithAccId: any;
+    cb!: {};
+    allInstrumentsInfoTimeout!: number;
+    static allInstrumentsInfo: { [key: string]: Share; };
+    currentOrders: any;
+    ordersInited!: boolean;
+    static allRequestsCacheData: {
+        [key: string]: {
+            [key: string]: {
+                timeout?: number;
+                data?: unknown;
+            }
+        };
+    };
+    allSharesInfo!: Share[];
 
-    constructor(sdk?: ReturnType<typeof createSdk>, options) {
+    constructor(
+        sdk: ReturnType<typeof createSdk>,
+        options?: {
+            isSandbox: boolean | undefined;
+        },
+    ) {
         this.sdk = sdk;
-        this.isSandbox = options.isSandbox;
+        this.isSandbox = options?.isSandbox;
 
+        this.allInstrumentsInfo = {};
         this.eventEmitter = new EventEmitter();
 
         // Таймер подписки на события.
@@ -106,51 +166,69 @@ class TRequests {
         this.inited = true;
     }
 
-    getSubscribeOptions() {
-        const abortSubscribe = (_type: any, abort: () => void) => {
-            // console.log('abort', this.subscrNoAccinProgress);
-            if (!this.subscrNoAccinProgress) {
-                abort();
-            }
-        };
+    // getSubscribeOptions() {
+    //     const abortSubscribe = (_type: any, abort: () => void) => {
+    //         // console.log('abort', this.subscrNoAccinProgress);
+    //         if (!this.subscrNoAccinProgress) {
+    //             abort();
+    //         }
+    //     };
 
-        return {
-            signal: {
-                addEventListener: abortSubscribe,
-                removeEventListener: abortSubscribe,
-            },
-        };
-    }
+    //     return {
+    //         signal: {
+    //             addEventListener: abortSubscribe,
+    //             removeEventListener: abortSubscribe,
+    //         },
+    //     };
+    // }
 
-    getSubscribeOptionsWithAccs() {
-        const abortSubscribe = (_type: any, abort: () => void) => {
-            // console.log('abort', this.subscrNoAccinProgress);
-            if (!this.subscribesWithAccount) {
-                abort();
-            }
-        };
+    // getSubscribeOptionsWithAccs() {
+    //     const controller = new AbortController();
+    //     const signal = controller.signal;
 
-        // const abortSubscribeRemove = (_type: any, abort: () => void) => {
-        //     // console.log('abort', this.subscrNoAccinProgress);
-        //     // if (!this.subscribesWithAccount) {
-        //     console.log('abortSubscribeRemove', abortSubscribeRemove);
-        //     abort();
-        //     // }
-        // };
+    //     const abortSubscribe = () => {
+    //         if (!this.subscribesWithAccount) {
+    //             controller.abort(); // Прерываем подписку
+    //             signal.removeEventListener('abort', abortSubscribe); // Удаляем обработчик
+    //         }
+    //     };
 
-        return {
-            signal: {
-                addEventListener: abortSubscribe,
-                removeEventListener: abortSubscribe,
-            },
-        };
-    }
+    //     signal.addEventListener('abort', abortSubscribe);
 
-    getAllTrades(uid) {
+    //     return {
+    //         signal,
+    //     };
+    // }
+
+    // getSubscribeOptionsWithAccs() {
+    //     const abortSubscribe = (_type: any, abort: () => void) => {
+    //         // console.log('abort', this.subscrNoAccinProgress);
+    //         if (!this.subscribesWithAccount) {
+    //             abort();
+    //         }
+    //     };
+
+    //     // const abortSubscribeRemove = (_type: any, abort: () => void) => {
+    //     //     // console.log('abort', this.subscrNoAccinProgress);
+    //     //     // if (!this.subscribesWithAccount) {
+    //     //     console.log('abortSubscribeRemove', abortSubscribeRemove);
+    //     //     abort();
+    //     //     // }
+    //     // };
+
+    //     return {
+    //         signal: {
+    //             addEventListener: abortSubscribe,
+    //             removeEventListener: abortSubscribe,
+    //         },
+    //     };
+    // }
+
+    getAllTrades(uid: string) {
         return this.allLastTrades?.[uid];
     }
 
-    getAllTradesAggregatedStat(uid) {
+    getAllTradesAggregatedStat(uid: string) {
         const data = this.getAllTradesAggregated(uid);
 
         if (!data) {
@@ -182,10 +260,18 @@ class TRequests {
           },
         */
 
-        return data.reduce((acc, val) => {
+        return data.reduce((acc: {
+            [x: string]: {
+                deltaUpCnt: number;
+                q: any;
+                sumPerc: any;
+                deltaDownCnt: number; nonChange: {
+                    q: any; cnt: number;
+                };
+            };
+        }, val: { direction: any; priceDeltaPerc: any; quantity: any; }) => {
             const {
                 direction,
-                priceDeltaPerc,
                 quantity,
                 priceDeltaPerc,
             } = val;
@@ -236,7 +322,7 @@ class TRequests {
         });
     }
 
-    getAllTradesAggregated(uid) {
+    getAllTradesAggregated(uid: string | number) {
         return this.allLastTradesAggregated?.[uid];
     }
 
@@ -269,14 +355,15 @@ class TRequests {
                     // let gen = subscribes[name]({
                     //     accounts: [accountId],
                     // }, this.getSubscribeOptions());
+                    let gen;
 
-                    let gen = this.sdk?.ordersStream.tradesStream({
+                    gen = this.sdk?.ordersStream.tradesStream({
                         accounts: Array.from(this.subscrAccList),
-                    }, this.getSubscribeOptionsWithAccs());
+                    }); // , this.getSubscribeOptionsWithAccs());
 
                     for await (const data of gen) {
                         if (id !== this.genSubscrWithAccId) {
-                            gen = null;
+                            gen = undefined;
                             break;
                         }
 
@@ -286,12 +373,13 @@ class TRequests {
                             } = data?.orderTrades || {};
 
                             if (accountId) {
-                                this.eventEmitter.emit('subscribe:orderTrades:' + accountId, data.orderTrades);
+                                this.eventEmitter.emit('subscribe:orderTrades:' +
+                                    accountId, data.orderTrades);
                             }
                         }
 
                         if (!this.sybscrWithAccinProgress) {
-                            gen = null;
+                            gen = undefined;
                             break;
                         }
                     }
@@ -311,32 +399,37 @@ class TRequests {
         }
     }
 
-    getLastPrice(instrumentUid) {
+    getLastPrice(instrumentUid: string | number) {
         return this.allLastPrices?.[instrumentUid];
     }
 
-    updateLastPrice(instrumentUid, price, time, checkTime = false) {
+    updateLastPrice(instrumentUid: string,
+        price: Quotation | undefined,
+        time: Date, checkTime = false,
+    ) {
+        const t = new Date(time).getTime();
+
         if (!checkTime || !this.allLastPrices[instrumentUid] ||
             new Date(
                 this.allLastPrices[instrumentUid].time,
-            ).getTime() < new Date(time).getTime()
+            ).getTime() < t
         ) {
             this.allLastPrices[instrumentUid] = {
                 price,
-                time,
+                time: t,
             };
         }
     }
 
     async subscribes() { // eslint-disable-line sonarjs/cognitive-complexity
         try {
-            const { subscribes } = this.cb || {};
+            // const { subscribes } = this.cb || {};
 
             const shares = await this.getSharesForTrading({
                 // maxLotPrice: 3500,
             });
 
-            if (this.subscrNoAccinProgress) {
+            if (this.subscrNoAccinProgress || !shares) {
                 return;
             }
 
@@ -349,21 +442,23 @@ class TRequests {
             // console.log('Object.keys(instruments)', Object.keys(instruments).length);
 
             setImmediate(async () => {
-                // console.log('subscr');
-                let gen = this.sdk?.marketDataStream.marketDataStream((async function* () {
+                let gen;
+
+                const _this = this; // eslint-disable-line @typescript-eslint/no-this-alias
+
+                gen = this.sdk?.marketDataStream.marketDataStream((async function* () {
                     try {
-                        while (this.subscrNoAccinProgress) {
-                            await this.timer(this.subscribesTimer);
+                        while (_this.subscrNoAccinProgress) {
+                            await _this.timer(_this.subscribesTimer);
                             yield MarketDataRequest.fromPartial({
                                 subscribeLastPriceRequest: {
                                     subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                                    tradeType: TradeSourceType.TRADE_SOURCE_ALL,
                                     instruments: Object.keys(shares)
                                         .map(f => { return { instrumentId: f } }),
                                 },
                                 subscribeTradesRequest: {
                                     subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-                                    tradeType: TradeSourceType.TRADE_SOURCE_ALL,
+                                    tradeSource: TradeSourceType.TRADE_SOURCE_ALL,
                                     instruments: Object.keys(shares)
                                         .map(f => { return { instrumentId: f } }),
                                 },
@@ -374,12 +469,12 @@ class TRequests {
                     } catch (e) {
                         console.log(e); // eslint-disable-line no-console
                     }
-                }).call(this), this.getSubscribeOptions());
+                })()); // , this.getSubscribeOptions());
 
                 try {
                     for await (const data of gen) {
                         try {
-                            if (data['lastPrice']) {
+                            if (data['lastPrice'] && data.lastPrice?.time) {
                                 const { instrumentUid, price, time } = data.lastPrice;
 
                                 this.updateLastPrice(instrumentUid, price, time);
@@ -401,7 +496,14 @@ class TRequests {
                                 if (this.allLastTrades[instrumentUid].length > 500) {
                                     this.allLastTrades[instrumentUid] = this.allLastTrades[instrumentUid]
                                         .slice(-500)
-                                        .sort((a, b) => b.time.getTime() - a.time.getTime());
+                                        .sort(
+                                            (a: {
+                                                time: { getTime: () => number; };
+                                            },
+                                            b: {
+                                                    time: { getTime: () => number; };
+                                                }) => b.time.getTime() -
+                                                a.time.getTime());
                                 }
 
                                 // if (instrumentUid === '2dfbc1fd-b92a-436e-b011-928c79e805f2') {
@@ -411,33 +513,41 @@ class TRequests {
                                 this.allLastTradesAggregated[instrumentUid] = [];
                                 const cur = this.allLastTradesAggregated[instrumentUid];
 
-                                this.allLastTrades[instrumentUid].forEach(t => {
-                                    if (!cur.length) {
-                                        cur.push({
-                                            ...t,
-                                            countTrades: 1,
-                                            priceDelta: 0,
-                                        });
-                                    } else {
-                                        const last = cur[cur.length - 1];
-                                        const priceDelta = (Common.getPrice(t.price) || 0) - (Common.getPrice(last.price) || 0);
-
-                                        if (t.direction !== last.direction ||
-                                            t.price.units !== last.price.units &&
-                                            t.price.nano !== last.price.nano
-                                        ) {
+                                this.allLastTrades[instrumentUid]
+                                    .forEach((t: {
+                                        price: Quotation | undefined;
+                                        direction: any; quantity: any;
+                                    }) => {
+                                        if (!cur.length) {
                                             cur.push({
                                                 ...t,
                                                 countTrades: 1,
-                                                priceDelta,
-                                                priceDeltaPerc: priceDelta / (Common.getPrice(t.price) || 1),
+                                                priceDelta: 0,
                                             });
                                         } else {
-                                            last.quantity += t.quantity;
-                                            last.countTrades += 1;
+                                            const last = cur[cur.length - 1];
+                                            const priceDelta = (
+                                                Common.getPrice(t.price) || 0
+                                            ) - (Common.getPrice(last.price) || 0);
+
+                                            if (t.direction !== last.direction ||
+                                                t?.price?.units !== last?.price?.units &&
+                                                t?.price?.nano !== last?.price?.nano
+                                            ) {
+                                                cur.push({
+                                                    ...t,
+                                                    countTrades: 1,
+                                                    priceDelta,
+                                                    priceDeltaPerc: priceDelta / (
+                                                        Common.getPrice(t.price) || 1
+                                                    ),
+                                                });
+                                            } else {
+                                                last.quantity += t.quantity;
+                                                last.countTrades += 1;
+                                            }
                                         }
-                                    }
-                                });
+                                    });
 
                                 // console.log(this.allLastTradesAggregated[instrumentUid]);
 
@@ -575,10 +685,14 @@ class TRequests {
                         continue;
                     }
 
+                    if (name !== 'shares') {
+                        continue;
+                    }
+
                     const { instruments } = await this.sdk.instruments[name](req);
 
                     if (instruments?.length) {
-                        instruments.forEach(instrument => {
+                        instruments.forEach((instrument: Share) => {
                             this.allInstrumentsInfo[instrument.uid] = instrument;
                         });
                     }
@@ -597,7 +711,7 @@ class TRequests {
         return this.allInstrumentsInfo;
     }
 
-    async getOpenOrders(accountId) {
+    async getOpenOrders(accountId: string) {
         try {
             const reqName = 'orders';
             const cacheName = reqName + accountId;
@@ -615,7 +729,7 @@ class TRequests {
         }
     }
 
-    async getPortfolio(accountId) {
+    async getPortfolio(accountId: string) {
         try {
             if (!accountId) {
                 throw 'Укажите accountId';
@@ -632,7 +746,7 @@ class TRequests {
         }
     }
 
-    async cancelOrder(accountId, orderId) {
+    async cancelOrder(accountId: string, orderId: string) {
         try {
             const reqName = 'orders';
             const cacheName = reqName + accountId + orderId;
@@ -648,7 +762,20 @@ class TRequests {
         }
     }
 
-    async postOrder(orderData) {
+    async postOrder(
+        orderData: {
+            accountId: any;
+            instrumentId: string | undefined;
+            quantity: any;
+            price: any;
+            direction: OrderDirection | undefined;
+            orderType: OrderType | undefined;
+            orderId: any;
+            figi?: string | undefined;
+            timeInForce?: TimeInForceType | undefined;
+            priceType?: PriceType | undefined;
+        },
+    ) {
         try {
             const reqName = 'orders';
             const cacheName = reqName + JSON.stringify(orderData);
@@ -661,7 +788,18 @@ class TRequests {
         }
     }
 
-    async replaceOrder(orderData) {
+    async replaceOrder(
+        orderData: {
+            accountId: any;
+            orderId: string | undefined;
+            quantity: number | undefined;
+            price: MoneyValue | {
+                units?: number | undefined; nano?: number | undefined;
+            } | undefined;
+            idempotencyKey: string | undefined;
+            priceType?: PriceType | undefined;
+        },
+    ) {
         try {
             const reqName = 'orders';
             const cacheName = reqName + JSON.stringify(orderData);
@@ -674,8 +812,8 @@ class TRequests {
         }
     }
 
-    async updateOrders() {
-        this.currentOrders = await this.getOpenOrders();
+    async updateOrders(accountId: string) {
+        this.currentOrders = await this.getOpenOrders(accountId);
         this.ordersInited = true;
     }
 
@@ -684,7 +822,7 @@ class TRequests {
             TRequests.allRequestsCacheData = {};
 
             setInterval(() => {
-                TRequests.requests.count = 0;
+                TRequests.rpsRequests.count = 0;
             }, 1000);
 
             setInterval(() => {
@@ -710,24 +848,26 @@ class TRequests {
 
     static checkLimits(type: string) {
         try {
-            if (TRequests.requests.count >= TRequests.requests.limit) {
-                throw `RPS limit ${type} ${TRequests.requests.count} / ${TRequests.requests.limit}`;
+            if (TRequests.rpsRequests.count >= TRequests.rpsRequests.limit) {
+                throw `RPS limit ${type} ${TRequests.rpsRequests.count} / ${TRequests.rpsRequests.limit}`;
             }
 
             if (TRequests.requests[type].count >= TRequests.requests[type].limit) {
                 throw `${type} limit ${TRequests.requests[type].count} / ${TRequests.requests[type].limit}`;
             }
 
-            ++TRequests.requests.count;
+            ++TRequests.rpsRequests.count;
             ++TRequests.requests[type].count;
 
             return true;
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
+
+        return false;
     }
 
-    async getPositions(accountId) {
+    async getPositions(accountId: string) {
         try {
             if (!accountId) {
                 throw 'Укажите accountId';
@@ -744,7 +884,7 @@ class TRequests {
         }
     }
 
-    async getLastTrades(uid, from?: Date, to?: Date, timeout = 120000) {
+    async getLastTrades(uid: string, from?: Date, to?: Date, timeout = 120000) {
         try {
             const reqName = 'marketData';
             const cacheName = reqName + uid;
@@ -763,12 +903,13 @@ class TRequests {
         }
     }
 
-    static async getLastPrices(sdk, uids: string[]) {
+    static async getLastPrices(sdk: ReturnType<typeof createSdk>, uids: string[]) {
         try {
             const reqName = 'marketData';
             const cacheName = reqName + uids.join(':');
 
-            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => await sdk.marketData.getLastPrices({ instrumentId: uids }));
+            return await TRequests.getCacheOrRequest(
+                reqName, cacheName, async () => await sdk?.marketData.getLastPrices({ instrumentId: uids }));
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -778,7 +919,7 @@ class TRequests {
         return await TRequests.getLastPrices(this.sdk, uids);
     }
 
-    async getOrderBook(req) {
+    async getOrderBook(req: GetOrderBookRequest) {
         try {
             const reqName = 'marketData';
             const cacheName = reqName + JSON.stringify(req);
@@ -823,7 +964,17 @@ class TRequests {
         }
     }
 
-    async getOrderPrice(props) {
+    async getOrderPrice(
+        props: {
+            accountId?: string | undefined;
+            instrumentId?: string | undefined;
+            price?: {
+                units?: number | undefined; nano?: number | undefined;
+            } | undefined;
+            direction?: OrderDirection | undefined;
+            quantity?: number | undefined;
+        },
+    ) {
         try {
             const reqName = 'orders';
             const cacheName = reqName + JSON.stringify(props);
@@ -840,7 +991,7 @@ class TRequests {
         }
     }
 
-    async getMaxLots(accountId, instrumentUid, price) {
+    async getMaxLots(accountId: string, instrumentUid: string, price: MoneyValue | Quotation | undefined) {
         try {
             const reqName = 'orders';
             const cacheName = reqName + accountId + instrumentUid + Common.getPrice(price);
@@ -857,12 +1008,32 @@ class TRequests {
         }
     }
 
-    async getMarketTechAnalysis(req) {
+    async getMarketTechAnalysis(req: {
+        indicatorType: GetTechAnalysisRequest_IndicatorType | undefined;
+        instrumentUid: string | undefined;
+        from: Date | undefined;
+        to: Date | undefined;
+        interval: GetTechAnalysisRequest_IndicatorInterval | undefined;
+        typeOfPrice: GetTechAnalysisRequest_TypeOfPrice | undefined;
+        length: number | undefined;
+        deviation?: {
+            deviationMultiplier?: {
+                units?: number | undefined; nano?: number | undefined;
+            } | undefined;
+        } | undefined;
+        smoothing?: {
+            fastLength?: number | undefined; slowLength?: number | undefined;
+            signalSmoothing?: number | undefined;
+        } | undefined;
+    }) {
         try {
             const reqName = 'marketData';
             const cacheName = reqName + JSON.stringify(req);
 
-            return await TRequests.getCacheOrRequest(reqName, cacheName, async () => await this.sdk.marketData.getTechAnalysis(req));
+            return await TRequests.getCacheOrRequest(
+                reqName, cacheName,
+                async () => await this.sdk.marketData.getTechAnalysis(req),
+            );
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
@@ -873,7 +1044,7 @@ class TRequests {
             TRequests.allRequestsCacheData = {};
         }
 
-        if (!TRequests.allRequestsCacheData[requestName]) {
+        if (!TRequests?.allRequestsCacheData?.[requestName]) {
             TRequests.allRequestsCacheData[requestName] = {};
         }
 
@@ -882,6 +1053,7 @@ class TRequests {
         }
     }
 
+    // @ts-ignore
     static async getCacheOrRequest(requestName: string, cacheName: string, cb: () => Promise<any>, timeout = 1000) {
         try {
             if (!TRequests.checkLimits(requestName)) {
@@ -912,7 +1084,7 @@ class TRequests {
         }
     }
 
-    async getAllShares() {
+    async getAllShares(): Promise<Share[]> {
         try {
             if (!this.allInstrumentsInfo || !Object.keys(this.allInstrumentsInfo).length) {
                 await this.timer(100);
@@ -928,9 +1100,9 @@ class TRequests {
             return this.allSharesInfo;
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
-
-            return [];
         }
+
+        return [];
     }
 
     /**
@@ -940,8 +1112,9 @@ class TRequests {
         try {
             const { maxLotPrice } = props || {};
 
-            // Получение акций, доступных для торговли, в виде объекта. Где ключ — это uid, для быстрого доступа в дальнейшем.
-            const shares = (await this.getAllShares())?.filter(f => f.currency === 'rub' &&
+            const allShares = await this.getAllShares();
+
+            const filtredShares = allShares?.filter(f => f.currency === 'rub' &&
                 f.apiTradeAvailableFlag &&
                 f.buyAvailableFlag &&
 
@@ -949,11 +1122,22 @@ class TRequests {
                 // Убираем всё что для квалов.
                 !f.forQualInvestorFlag &&
                 f.sellAvailableFlag,
-            )?.reduce<{ [key: string]: Share }>((acc, val) => {
-                acc[val.uid] = val;
+            );
 
-                return acc;
-            }, {});
+            // Получение акций, доступных для торговли, в виде объекта. Где ключ — это uid, для быстрого доступа в дальнейшем.
+            const shares = filtredShares?.reduce<{ [key: string]: Share }>(
+                (
+                    acc: {
+                        [x: string]: any;
+                    },
+                    val: {
+                        uid: string | number;
+                    },
+                ) => {
+                    acc[val.uid] = val;
+
+                    return acc;
+                }, {});
 
             if (!shares) {
                 return;
@@ -961,25 +1145,31 @@ class TRequests {
 
             const prices = await this.getLastPrices(Object.keys(shares));
 
-            const lotPriceArr: {
-                [key: string]: number | string;
-            }[] = [];
+            // const lotPriceArr: {
+            //     [key: string]: number | string;
+            // }[] = [];
 
             if (maxLotPrice) {
                 // Фильтрует цены, с учётом лотности, которые нужно удалить.
-                const filtredPricesToDel = prices?.lastPrices?.filter(f => {
-                    if (!shares?.[f.instrumentUid]?.lot) {
-                        return false;
-                    }
+                const filtredPricesToDel = prices?.lastPrices?.filter(
+                    (
+                        f: {
+                            instrumentUid: string | number;
+                            price: MoneyValue | Quotation | undefined;
+                        },
+                    ) => {
+                        if (!shares?.[f.instrumentUid]?.lot) {
+                            return false;
+                        }
 
-                    const currentPrice = Common.getPrice(f.price) || 0;
-                    const lotPrice = currentPrice * shares[f.instrumentUid].lot;
+                        const currentPrice = Common.getPrice(f.price) || 0;
+                        const lotPrice = currentPrice * shares[f.instrumentUid].lot;
 
-                    return lotPrice > maxLotPrice;
-                });
+                        return lotPrice > maxLotPrice;
+                    });
 
                 // Возвращает массив инструментов, которые отфильтрованы по заданным выше условиям.
-                filtredPricesToDel?.forEach(f => {
+                filtredPricesToDel?.forEach((f: { instrumentUid: string | number; }) => {
                     delete shares[f.instrumentUid];
                 });
             }
@@ -988,6 +1178,8 @@ class TRequests {
         } catch (e) {
             console.log(e); // eslint-disable-line no-console
         }
+
+        return undefined;
     }
 }
 

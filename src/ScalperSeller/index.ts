@@ -552,7 +552,10 @@ try {
          */
         async getOrderBookVolumeRatio(uid: string) {
             try {
-                const orderBookData = (await this.TRequests?.getOrderBook(uid)) || {};
+                const orderBookData = (await this.TRequests?.getOrderBook({
+                    instrumentId: uid,
+                    depth: 50,
+                })) || {};
                 const { bids, asks } = orderBookData;
 
                 let bidsQuantity = 0;
