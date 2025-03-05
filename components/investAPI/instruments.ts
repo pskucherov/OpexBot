@@ -1,6 +1,6 @@
-import { InstrumentIdType, InstrumentStatus } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
+import { InstrumentIdType } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 import { Common } from './common';
-import { InstrumentType } from 'tinkoff-sdk-grpc-js/dist/generated/common';
+import { InstrumentStatus, InstrumentType } from 'tinkoff-sdk-grpc-js/dist/generated/common';
 
 export class Instruments extends Common {
     async getAllShares() {

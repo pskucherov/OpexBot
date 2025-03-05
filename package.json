@@ -54,7 +54,7 @@
     "opexviewer": "^0.6.9",
     "sqlite": "^4.1.2",
     "sqlite3": "^5.1.4",
-    "tinkoff-sdk-grpc-js": "^1.19.4",
+    "tinkoff-sdk-grpc-js": "^1.19.5",
     "tinkofftradingbotconnector": "^0.6.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5",

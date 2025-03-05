@@ -102,6 +102,8 @@ export class Backtest extends Common {
             instrumentUid: '',
             varMargin: undefined,
             expectedYieldFifo: undefined,
+            dailyYield: undefined,
+
         });
     }
 
@@ -142,6 +144,7 @@ export class Backtest extends Common {
             instrumentUid: '',
             varMargin: undefined,
             expectedYieldFifo: undefined,
+            dailyYield: undefined,
         });
     }
 
@@ -191,6 +194,7 @@ export class Backtest extends Common {
                     instrumentUid: '',
                     varMargin: undefined,
                     expectedYieldFifo: undefined,
+                    dailyYield: undefined,
                 });
             }
         }
