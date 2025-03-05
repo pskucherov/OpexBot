@@ -5,6 +5,7 @@
 
 import { createSdk } from 'tinkoff-sdk-grpc-js';
 import {
+    InstrumentStatus,
     MoneyValue,
     PriceType,
     Quotation,
@@ -672,7 +673,7 @@ class TRequests {
             }
 
             const req = {
-                instrumentStatus: this.sdk.InstrumentStatus.INSTRUMENT_STATUS_BASE,
+                instrumentStatus: InstrumentStatus.INSTRUMENT_STATUS_BASE,
             };
 
             const names = name ? [name] : [
