@@ -673,6 +673,7 @@ export class Common {
 
         clearInterval(this.intervalId);
     }
+
     intervalId(_intervalId: any) {
         throw new Error('Method not implemented.');
     }
@@ -1788,14 +1789,16 @@ export class Common {
         return Boolean(this.inProgress);
     }
 
-    connectSocket(socket: Socket, replace = false) {
-        if (!this.socket || replace) {
+    connectSocket(socket: Socket, accountId: string, replace = false) {
+        if ((!this.socket || replace) && this.accountId === accountId) {
             this.socket = socket;
         }
     }
 
-    disconnectSocket() {
-        this.socket = null;
+    disconnectSocket(accountId: string) {
+        if (this.accountId === accountId) {
+            this.socket = null;
+        }
     }
 
     /**

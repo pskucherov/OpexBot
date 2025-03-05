@@ -735,11 +735,11 @@ try {
 
         emitRobotData() {
             try {
-                this.socket?.emit(this.name + ':portfolio', this.currentPortfolio);
+                this.socket?.emit(`${this.name}:${this.accountId}:portfolio`, this.currentPortfolio);
 
-                // this.socket?.emit(this.name + ':positions', this.currentPositions);
-                this.socket?.emit(this.name + ':orders', this.currentOrders);
-                this.socket?.emit(this.name + ':tpslmap', this.TPSLMap);
+                // this.socket?.emit(`${this.name}:${this.accountId}:positions`, this.currentPositions);
+                this.socket?.emit(`${this.name}:${this.accountId}:orders`, this.currentOrders);
+                this.socket?.emit(`${this.name}:${this.accountId}:tpslmap`, this.TPSLMap);
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
@@ -1197,14 +1197,24 @@ try {
                     const keys = Object.keys(this.TPSLMap || {});
 
                     for (let i = 0; i < keys.length; i++) {
-                        if (this.TPSLMap[keys[i]].fastTP) {
-                            for (let j = 0; j < this.TPSLMap[keys[i]].fastTP?.length; j++) {
-                                const order = this.TPSLMap[keys[i]].fastTP[j]?.order;
+                        const id = keys[i];
+
+                        if (this.TPSLMap[id].fastTP) {
+                            for (let j = 0; j < this.TPSLMap[id].fastTP?.length; j++) {
+                                const order = this.TPSLMap[id].fastTP[j]?.order;
 
                                 if (order) {
                                     await this.cancelOrder(order.orderId);
                                 }
                             }
+
+                            this.TPSLMap[id].fastTP = [];
+                            this.TPSLMap[id].fastTPQuantity = 0;
+                        }
+
+                        if (this.TPSLMap[id].SL) {
+                            this.TPSLMap[id].SL = [];
+                            this.TPSLMap[id].SLQuantity = 0;
                         }
                     }
                 } catch (e) {
@@ -1222,7 +1232,10 @@ try {
                 try {
                     const p = this.cancelTPSLMapOrders();
 
-                    return p.then(() => {
+                    return p.then(async () => {
+                        await this.syncPos();
+                        await this.updateOrders();
+
                         this.emitRobotData();
 
                         return super.stop();
@@ -1233,6 +1246,7 @@ try {
                     super.stop();
                 }
             } catch (e) {
+                this.emitRobotData();
                 console.log(e); // eslint-disable-line
             }
 
