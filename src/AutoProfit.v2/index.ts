@@ -21,6 +21,7 @@ import {
 } from 'tinkoff-sdk-grpc-js/dist/generated/orders';
 import { GetTradingStatusResponse } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
 import EventEmitterBase from 'events';
+import { Socket } from 'socket.io';
 
 // import { InstrumentStatus } from "tinkoff-sdk-grpc-js/dist/generated/instruments";
 
@@ -75,6 +76,7 @@ try {
         tradingStatuses!: { [x: string]: GetTradingStatusResponse };
         onTradeDataBinded!: (data: OrderStateStreamResponse_OrderState) => Promise<void>; // eslint-disable-line camelcase
         eventEmitter!: InstanceType<typeof EventEmitterBase>;
+        socket!: Socket;
 
         // @ts-ignore
         constructor(...args) {
@@ -731,6 +733,18 @@ try {
             return false;
         }
 
+        emitRobotData() {
+            try {
+                this.socket?.emit(this.name + ':portfolio', this.currentPortfolio);
+
+                // this.socket?.emit(this.name + ':positions', this.currentPositions);
+                this.socket?.emit(this.name + ':orders', this.currentOrders);
+                this.socket?.emit(this.name + ':tpslmap', this.TPSLMap);
+            } catch (e) {
+                console.log(e); // eslint-disable-line no-console
+            }
+        }
+
         async processing() { // eslint-disable-line
             if (!this.inProgress) {
                 await super.processing();
@@ -781,6 +795,8 @@ try {
                     positions,
                 });
 
+                this.emitRobotData();
+
                 if (someClosed) {
                     await super.processing();
 
@@ -807,173 +823,175 @@ try {
                     positions,
                 });
 
+                this.emitRobotData();
+
                 // const { stopOrders } = await sdk.stopOrders.getStopOrders({
                 //     accountId,
                 //     status: StopOrderStatusOption.STOP_ORDER_STATUS_ACTIVE,
                 // });
 
-                for (let j = 0; j < positions.length; j++) {
-                    const {
-                        // instrumentType,
-                        // quantity,
-                        averagePositionPrice,
-                        instrumentUid,
+                // for (let j = 0; j < positions.length; j++) {
+                //     const {
+                //         // instrumentType,
+                //         // quantity,
+                //         averagePositionPrice,
+                //         instrumentUid,
 
-                        // currentPrice,
+                //         // currentPrice,
 
-                        // blocked,
-                    } = positions[j];
+                //         // blocked,
+                //     } = positions[j];
 
-                    const curPos: {
-                        blocked?: number | boolean;
-                        quantity?: Quotation;
-                        balance?: number;
-                    } = this.currentPositions?.find(
-                        (p: { instrumentUid: 'string'; },
+                //     const curPos: {
+                //         blocked?: number | boolean;
+                //         quantity?: Quotation;
+                //         balance?: number;
+                //     } = this.currentPositions?.find(
+                //         (p: { instrumentUid: 'string'; },
 
-                        ) => p.instrumentUid === instrumentUid) || {};
+                //         ) => p.instrumentUid === instrumentUid) || {};
 
-                    const {
-                        blocked,
-                        balance,
-                    } = curPos;
+                //     const {
+                //         blocked,
+                //         balance,
+                //     } = curPos;
 
-                    const quantityPos = curPos?.quantity;
+                //     const quantityPos = curPos?.quantity;
 
-                    if (quantityPos?.units && quantityPos?.units !== balance || blocked) {
-                        continue;
-                    }
+                //     if (quantityPos?.units && quantityPos?.units !== balance || blocked) {
+                //         continue;
+                //     }
 
-                    // const isShort = (this.getPrice(quantity) || 0) < 0;
-                    const instrumentInOrders = this.currentOrders?.find(o => o.instrumentUid === instrumentUid);
+                //     // const isShort = (this.getPrice(quantity) || 0) < 0;
+                //     const instrumentInOrders = this.currentOrders?.find(o => o.instrumentUid === instrumentUid);
 
-                    if (
-                        // instrumentType !== 'share' ||
-                        !averagePositionPrice ||
-                        !this.allInstrumentsInfo?.[instrumentUid]?.lot ||
+                //     if (
+                //         // instrumentType !== 'share' ||
+                //         !averagePositionPrice ||
+                //         !this.allInstrumentsInfo?.[instrumentUid]?.lot ||
 
-                        // Если по инструменту выставлена активная заявка, то стоп не ставим.
-                        instrumentInOrders
-                    ) {
-                        // здесь добавить, что если цена проскочила заявку, то заявку закрыть.
-                        continue;
-                    }
+                //         // Если по инструменту выставлена активная заявка, то стоп не ставим.
+                //         instrumentInOrders
+                //     ) {
+                //         // здесь добавить, что если цена проскочила заявку, то заявку закрыть.
+                //         continue;
+                //     }
 
-                    if (this.hasBlockedPositions(instrumentUid)) {
-                        this.decisionBuyPositionMessage = 'decisionBuy: есть блокированные позиции.';
+                //     if (this.hasBlockedPositions(instrumentUid)) {
+                //         this.decisionBuyPositionMessage = 'decisionBuy: есть блокированные позиции.';
 
-                        await super.processing();
+                //         await super.processing();
 
-                        return;
-                    }
+                //         return;
+                //     }
 
-                    const averagePositionPriceVal = Common.getPrice(averagePositionPrice);
+                //     const averagePositionPriceVal = Common.getPrice(averagePositionPrice);
 
-                    if (!averagePositionPrice || !averagePositionPriceVal ||
-                        !this.allInstrumentsInfo[instrumentUid]?.lot) {
-                        continue;
-                    }
+                //     if (!averagePositionPrice || !averagePositionPriceVal ||
+                //         !this.allInstrumentsInfo[instrumentUid]?.lot) {
+                //         continue;
+                //     }
 
-                    //     const currentStopOrder = stopOrders.find(s => s.instrumentUid === instrumentUid);
-                    //     const stopOrdersLotsDiff = Math.abs(currentStopOrder?.lotsRequested || 0) !==
-                    //         Math.abs((Common.getPrice(quantity) || 1) / this.allInstrumentsInfo[instrumentUid].lot);
+                //     //     const currentStopOrder = stopOrders.find(s => s.instrumentUid === instrumentUid);
+                //     //     const stopOrdersLotsDiff = Math.abs(currentStopOrder?.lotsRequested || 0) !==
+                //     //         Math.abs((Common.getPrice(quantity) || 1) / this.allInstrumentsInfo[instrumentUid].lot);
 
-                    const min = this.allInstrumentsInfo[instrumentUid].minPriceIncrement;
+                //     const min = this.allInstrumentsInfo[instrumentUid].minPriceIncrement;
 
-                    if (!min) {
-                        continue;
-                    }
+                //     if (!min) {
+                //         continue;
+                //     }
 
-                    //     const {
-                    //         breakeven,
-                    //     } = isShort ?
-                    //         this.getStopProfitForShort(averagePositionPriceVal) :
-                    //         this.getStopProfitForLong(averagePositionPriceVal);
+                //     //     const {
+                //     //         breakeven,
+                //     //     } = isShort ?
+                //     //         this.getStopProfitForShort(averagePositionPriceVal) :
+                //     //         this.getStopProfitForLong(averagePositionPriceVal);
 
-                    //     const realStop = this.getRealStop(isShort, breakeven, min);
+                //     //     const realStop = this.getRealStop(isShort, breakeven, min);
 
-                    // const curPrice = Common.getPrice(currentPrice) || 0;
+                //     // const curPrice = Common.getPrice(currentPrice) || 0;
 
-                    //     if (realStop &&
-                    //         (
+                //     //     if (realStop &&
+                //     //         (
 
-                    //             // (isShort && (curPrice * 1.0005) <= realStop) ||
-                    //             // (!isShort && (curPrice * 0.9995) >= realStop)
-                    //             (isShort && (curPrice) <= realStop) ||
-                    //             (!isShort && (curPrice) >= realStop)
-                    //         )
-                    //     ) {
-                    //         const p = this.getStopPriceWithSteps(isShort, curPrice, breakeven, averagePositionPriceVal);
+                //     //             // (isShort && (curPrice * 1.0005) <= realStop) ||
+                //     //             // (!isShort && (curPrice * 0.9995) >= realStop)
+                //     //             (isShort && (curPrice) <= realStop) ||
+                //     //             (!isShort && (curPrice) >= realStop)
+                //     //         )
+                //     //     ) {
+                //     //         const p = this.getStopPriceWithSteps(isShort, curPrice, breakeven, averagePositionPriceVal);
 
-                    //         const units = Math.floor(p);
-                    //         const nano = p * 1e9 - Math.floor(p) * 1e9;
+                //     //         const units = Math.floor(p);
+                //     //         const nano = p * 1e9 - Math.floor(p) * 1e9;
 
-                    //         const newUnits1 = Common.getMinPriceIncrement(units, min.units);
-                    //         const newNano1 = Common.getMinPriceIncrement(nano, min.nano);
+                //     //         const newUnits1 = Common.getMinPriceIncrement(units, min.units);
+                //     //         const newNano1 = Common.getMinPriceIncrement(nano, min.nano);
 
-                    //         const curStopOrderPrice = Common.resolveMinPriceIncrement({
-                    //             units: newUnits1,
-                    //             nano: newNano1,
-                    //         }, min);
+                //     //         const curStopOrderPrice = Common.resolveMinPriceIncrement({
+                //     //             units: newUnits1,
+                //     //             nano: newNano1,
+                //     //         }, min);
 
-                    //         // API не умеет работать с неполными лотами. Поэтому округляем в меньшую сторону.
-                    //         const quantSize = Math.floor(
-                    //             Math.abs(
-                    //                 (quantity?.units || 0) /
-                    //                 this.allInstrumentsInfo[instrumentUid].lot,
-                    //             ),
-                    //         );
+                //     //         // API не умеет работать с неполными лотами. Поэтому округляем в меньшую сторону.
+                //     //         const quantSize = Math.floor(
+                //     //             Math.abs(
+                //     //                 (quantity?.units || 0) /
+                //     //                 this.allInstrumentsInfo[instrumentUid].lot,
+                //     //             ),
+                //     //         );
 
-                    //         if (!quantSize) {
-                    //             await super.processing();
+                //     //         if (!quantSize) {
+                //     //             await super.processing();
 
-                    //             return;
-                    //         }
+                //     //             return;
+                //     //         }
 
-                    //         const price = Common.resolveMinPriceIncrement(Common.getQuotationFromPrice(realStop), min);
-                    //         const stopPrice = Common.resolveMinPriceIncrement(isShort ?
-                    //             Common.subMinPriceIncrement(curStopOrderPrice, min) :
-                    //             Common.addMinPriceIncrement(curStopOrderPrice, min), min);
+                //     //         const price = Common.resolveMinPriceIncrement(Common.getQuotationFromPrice(realStop), min);
+                //     //         const stopPrice = Common.resolveMinPriceIncrement(isShort ?
+                //     //             Common.subMinPriceIncrement(curStopOrderPrice, min) :
+                //     //             Common.addMinPriceIncrement(curStopOrderPrice, min), min);
 
-                    //         const data = {
-                    //             quantity: quantSize,
-                    //             price,
-                    //             stopPrice,
-                    //             direction: isShort ?
-                    //                 StopOrderDirection.STOP_ORDER_DIRECTION_BUY :
-                    //                 StopOrderDirection.STOP_ORDER_DIRECTION_SELL,
-                    //             expirationType: StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL,
-                    //             stopOrderType: StopOrderType.STOP_ORDER_TYPE_STOP_LIMIT,
-                    //             instrumentId: instrumentUid,
-                    //             accountId,
-                    //         };
+                //     //         const data = {
+                //     //             quantity: quantSize,
+                //     //             price,
+                //     //             stopPrice,
+                //     //             direction: isShort ?
+                //     //                 StopOrderDirection.STOP_ORDER_DIRECTION_BUY :
+                //     //                 StopOrderDirection.STOP_ORDER_DIRECTION_SELL,
+                //     //             expirationType: StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL,
+                //     //             stopOrderType: StopOrderType.STOP_ORDER_TYPE_STOP_LIMIT,
+                //     //             instrumentId: instrumentUid,
+                //     //             accountId,
+                //     //         };
 
-                    //         const existOrderStopPrice = Common.getPrice(currentStopOrder?.price) || 0;
-                    //         const curStopOrderPriceNum = Common.getPrice(curStopOrderPrice) || 0;
+                //     //         const existOrderStopPrice = Common.getPrice(currentStopOrder?.price) || 0;
+                //     //         const curStopOrderPriceNum = Common.getPrice(curStopOrderPrice) || 0;
 
-                    //         if (
-                    //             !currentStopOrder ||
-                    //             stopOrdersLotsDiff ||
-                    //             (
-                    //                 isShort && (existOrderStopPrice > curStopOrderPriceNum) ||
-                    //                 !isShort && (existOrderStopPrice < curStopOrderPriceNum)
-                    //             )
-                    //         ) {
-                    //             if (currentStopOrder?.stopOrderId) {
-                    //                 const { stopOrderId } = currentStopOrder;
+                //     //         if (
+                //     //             !currentStopOrder ||
+                //     //             stopOrdersLotsDiff ||
+                //     //             (
+                //     //                 isShort && (existOrderStopPrice > curStopOrderPriceNum) ||
+                //     //                 !isShort && (existOrderStopPrice < curStopOrderPriceNum)
+                //     //             )
+                //     //         ) {
+                //     //             if (currentStopOrder?.stopOrderId) {
+                //     //                 const { stopOrderId } = currentStopOrder;
 
-                    //                 await this.closeStopOrder(accountId, stopOrderId);
-                    //             }
+                //     //                 await this.closeStopOrder(accountId, stopOrderId);
+                //     //             }
 
-                    //             console.log('Открываем заявку', curStopOrderPriceNum, price, stopPrice); // eslint-disable-line no-console
-                    //             await sdk.stopOrders.postStopOrder(data);
-                    //         }
-                    //     } else if (currentStopOrder?.stopOrderId) {
-                    //         const { stopOrderId } = currentStopOrder;
+                //     //             console.log('Открываем заявку', curStopOrderPriceNum, price, stopPrice); // eslint-disable-line no-console
+                //     //             await sdk.stopOrders.postStopOrder(data);
+                //     //         }
+                //     //     } else if (currentStopOrder?.stopOrderId) {
+                //     //         const { stopOrderId } = currentStopOrder;
 
-                    //         await this.closeStopOrder(accountId, stopOrderId);
-                    //     }
-                }
+                //     //         await this.closeStopOrder(accountId, stopOrderId);
+                //     //     }
+                // }
             } catch (e) {
                 console.log(e); // eslint-disable-line no-console
             }
@@ -1155,6 +1173,8 @@ try {
                         console.log(e); // eslint-disable-line
                     }
                 });
+
+                this.emitRobotData();
             } catch (e) {
                 console.log(e); // eslint-disable-line
             }
@@ -1203,10 +1223,13 @@ try {
                     const p = this.cancelTPSLMapOrders();
 
                     return p.then(() => {
+                        this.emitRobotData();
+
                         return super.stop();
                     });
                 } catch (e) {
                     console.log(e); // eslint-disable-line
+                    this.emitRobotData();
                     super.stop();
                 }
             } catch (e) {

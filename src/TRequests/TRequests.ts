@@ -153,6 +153,11 @@ class TRequests {
         return this.eventEmitter;
     }
 
+    // @ts-ignore
+    eventEmit(name: string | symbol, data: any) {
+        this.eventEmitter.emit(name, data);
+    }
+
     static timer(time: number | undefined) {
         return new Promise(resolve => setTimeout(resolve, time));
     }

@@ -44,6 +44,7 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@types/socket.io": "^3.0.2",
     "calc-rsi": "^1.0.0",
     "cross-env": "^7.0.3",
     "kill-port": "^2.0.1",

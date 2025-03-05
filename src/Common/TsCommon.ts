@@ -18,6 +18,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { TRequests as TRequestsBase } from '../TRequests/TRequests';
 import { Share } from 'tinkoff-sdk-grpc-js/dist/generated/instruments';
 import { GetTradingStatusResponse } from 'tinkoff-sdk-grpc-js/dist/generated/marketdata';
+import { Socket } from 'socket.io';
 
 export class Common {
     static settingsFileName = 'settings.json';
@@ -1781,6 +1782,20 @@ export class Common {
 
             return [];
         }
+    }
+
+    isInProgress() {
+        return Boolean(this.inProgress);
+    }
+
+    connectSocket(socket: Socket, replace = false) {
+        if (!this.socket || replace) {
+            this.socket = socket;
+        }
+    }
+
+    disconnectSocket() {
+        this.socket = null;
     }
 
     /**
